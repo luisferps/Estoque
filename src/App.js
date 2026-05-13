@@ -65,11 +65,29 @@ export default function App() {
   const edit = (im) => { setForm({ ...im }); setView("form"); };
   const openDetalhe = (im) => { setSelected(im); setFotoIdx(0); setView("detalhe"); };
 
+  const compressImage = (file) => new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 800;
+      let { width: w, height: h } = img;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.src = url;
+  });
+
   const addFotos = (e) => {
-    Array.from(e.target.files).forEach(f => {
-      const r = new FileReader();
-      r.onload = ev => setForm(p => ({ ...p, fotos: [...(p.fotos || []), ev.target.result] }));
-      r.readAsDataURL(f);
+    Array.from(e.target.files).forEach(async f => {
+      const compressed = await compressImage(f);
+      setForm(p => ({ ...p, fotos: [...(p.fotos || []), compressed] }));
     });
   };
 
