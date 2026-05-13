@@ -31,7 +31,6 @@ export default function App() {
   const [view, setView] = useState("lista");
   const [form, setForm] = useState(emptyForm);
   const [fotoIdx, setFotoIdx] = useState(0);
-  const [copied, setCopied] = useState(false);
   const [selected, setSelected] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showPassModal, setShowPassModal] = useState(false);
@@ -49,16 +48,21 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  const handleLogin = () => {
+    if (passInput === ADMIN_PASS) {
+      setIsAdmin(true); setShowPassModal(false); setPassInput(""); setPassError(false);
+    } else {
+      setPassError(true);
+    }
+  };
+
   const save = async () => {
     if (!form.titulo && !form.preco && !form.descricao) return alert("Preencha ao menos um campo.");
     setSaving(true);
     try {
       const { id, ...data } = form;
-      if (id) {
-        await updateDoc(doc(db, "imoveis", id), data);
-      } else {
-        await addDoc(collection(db, "imoveis"), { ...data, createdAt: Date.now() });
-      }
+      if (id) await updateDoc(doc(db, "imoveis", id), data);
+      else await addDoc(collection(db, "imoveis"), { ...data, createdAt: Date.now() });
       setView("lista");
     } catch (e) { alert("Erro ao salvar: " + e.message); }
     setSaving(false);
@@ -100,41 +104,91 @@ export default function App() {
 
   const removeFoto = (i) => setForm(p => ({ ...p, fotos: p.fotos.filter((_, idx) => idx !== i) }));
 
-  const whatsapp = (im) => {
+  const whatsappDescricao = (im) => {
     const txt = `🏠 *${im.titulo || "Imóvel disponível"}*\n\n` +
       (im.preco ? `💰 ${formatBRL(im.preco)}\n\n` : "") +
-      (im.descricao ? `${im.descricao}\n\n` : "") +
-      (im.mapsLink ? `📍 Localização: ${im.mapsLink}` : "");
+      (im.descricao ? `${im.descricao}` : "");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
-  const copyFicha = (im) => {
-    const txt = `🏠 ${im.titulo || "Imóvel"}\n` +
-      (im.preco ? `💰 ${formatBRL(im.preco)}\n` : "") +
-      (im.descricao ? `\n${im.descricao}\n` : "") +
-      (im.mapsLink ? `\n📍 ${im.mapsLink}` : "");
-    navigator.clipboard.writeText(txt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  const whatsappMaps = (im) => {
+    if (!im.mapsLink) return alert("Este imóvel não tem link do Google Maps.");
+    const txt = `📍 *Localização do imóvel:*\n${im.mapsLink}`;
+    window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
+  const downloadFotos = (im) => {
+    if (!im.fotos?.length) return alert("Este imóvel não tem fotos.");
+    im.fotos.forEach((foto, i) => {
+      const a = document.createElement("a");
+      a.href = foto;
+      a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`;
+      a.click();
+    });
+  };
+
+  const filtered = imoveis.filter(im => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (im.titulo || "").toLowerCase().includes(q) ||
+      (im.descricao || "").toLowerCase().includes(q) ||
+      (im.preco || "").toString().includes(q);
+  });
+
+  const s = { fontFamily: "sans-serif", padding: "1rem", maxWidth: 820, margin: "0 auto" };
+
+  // ── MODAL SENHA ──
+  const PassModal = () => (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+      <div style={{ background: "#fff", borderRadius: 12, padding: "2rem", width: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ margin: "0 0 1rem", fontSize: 18 }}>🔐 Acesso Admin</h3>
+        <input type="password" value={passInput} onChange={e => { setPassInput(e.target.value); setPassError(false); }}
+          onKeyDown={e => e.key === "Enter" && handleLogin()}
+          placeholder="Digite a senha" autoFocus
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: passError ? "1px solid #E24B4A" : "1px solid #ddd", fontSize: 15, boxSizing: "border-box", marginBottom: 8 }} />
+        {passError && <p style={{ color: "#E24B4A", fontSize: 13, margin: "0 0 8px" }}>Senha incorreta.</p>}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => { setShowPassModal(false); setPassInput(""); setPassError(false); }}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Cancelar</button>
+          <button onClick={handleLogin}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 500 }}>Entrar</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── LISTA ──
   if (view === "lista") return (
-    <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 820, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.2rem" }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>🏠 Estoque de Imóveis</h2>
-        <button onClick={() => { setForm(emptyForm); setView("form"); }}
-          style={{ background: "#1D9E75", color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>
-          + Novo imóvel
-        </button>
+    <div style={s}>
+      {showPassModal && <PassModal />}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>🏠 Imóveis Disponíveis</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {isAdmin
+            ? <>
+                <span style={{ fontSize: 12, color: "#1D9E75", fontWeight: 500 }}>✅ Admin</span>
+                <button onClick={() => setIsAdmin(false)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Sair</button>
+                <button onClick={() => { setForm(emptyForm); setView("form"); }}
+                  style={{ background: "#1D9E75", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>+ Novo</button>
+              </>
+            : <button onClick={() => setShowPassModal(true)}
+                style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer", color: "#888" }}>Admin</button>
+          }
+        </div>
       </div>
 
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Buscar por palavra-chave..."
+        style={{ width: "100%", padding: "10px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", marginBottom: "1rem" }} />
+
       {loading && <div style={{ textAlign: "center", color: "#888", padding: "4rem 0" }}>Carregando...</div>}
-      {!loading && imoveis.length === 0 && (
+      {!loading && filtered.length === 0 && (
         <div style={{ textAlign: "center", color: "#888", padding: "4rem 0", fontSize: 15 }}>
-          Nenhum imóvel cadastrado ainda.<br />Clique em <strong>+ Novo imóvel</strong> para começar.
+          {imoveis.length === 0 ? "Nenhum imóvel cadastrado ainda." : "Nenhum imóvel encontrado para essa busca."}
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 16 }}>
-        {imoveis.map(im => (
+        {filtered.map(im => (
           <div key={im.id} style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
             <div onClick={() => openDetalhe(im)} style={{ height: 160, background: "#f4f4f4", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: "pointer" }}>
               {im.fotos?.[0] ? <img src={im.fotos[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52 }}>🏠</span>}
@@ -143,11 +197,12 @@ export default function App() {
               {im.titulo && <p style={{ margin: "0 0 4px", fontWeight: 500, fontSize: 15 }}>{im.titulo}</p>}
               {im.preco && <p style={{ margin: "0 0 6px", fontWeight: 500, fontSize: 17, color: "#1D9E75" }}>{formatBRL(im.preco)}</p>}
               {im.descricao && <p style={{ margin: "0 0 10px", fontSize: 13, color: "#555", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{im.descricao}</p>}
-              {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ display: "inline-block", fontSize: 12, color: "#1D9E75", marginBottom: 10, textDecoration: "none" }}>📍 Ver no Google Maps</a>}
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => openDetalhe(im)} style={{ flex: 1, padding: "6px 0", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>Ver ficha</button>
-                <button onClick={() => edit(im)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>✏️</button>
-                <button onClick={() => del(im.id)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #fdd", background: "#fff5f5", cursor: "pointer" }}>🗑️</button>
+                {isAdmin && <>
+                  <button onClick={() => edit(im)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>✏️</button>
+                  <button onClick={() => del(im.id)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #fdd", background: "#fff5f5", cursor: "pointer" }}>🗑️</button>
+                </>}
               </div>
             </div>
           </div>
@@ -156,7 +211,8 @@ export default function App() {
     </div>
   );
 
-  if (view === "form") return (
+  // ── FORMULÁRIO (só admin) ──
+  if (view === "form" && isAdmin) return (
     <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 620, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.5rem" }}>
         <button onClick={() => setView("lista")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
@@ -212,6 +268,7 @@ export default function App() {
     </div>
   );
 
+  // ── DETALHE ──
   if (view === "detalhe") {
     const im = imoveis.find(i => i.id === selected?.id) || selected;
     return (
@@ -219,7 +276,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
           <button onClick={() => setView("lista")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>{im.titulo || "Ficha do imóvel"}</h2>
-          <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>✏️ Editar</button>
+          {isAdmin && <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>✏️ Editar</button>}
         </div>
 
         {im.fotos?.length > 0 ? (
@@ -256,14 +313,21 @@ export default function App() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button onClick={() => whatsapp(im)} style={{ flex: 1, minWidth: 160, padding: "11px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>
-            📲 Compartilhar WhatsApp
+        <p style={{ fontSize: 13, fontWeight: 500, color: "#555", margin: "0 0 8px" }}>📲 Compartilhar via WhatsApp</p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <button onClick={() => whatsappDescricao(im)}
+            style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            💬 Enviar descrição
           </button>
-          <button onClick={() => copyFicha(im)} style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>
-            {copied ? "✅ Copiado!" : "🔗 Copiar ficha"}
+          <button onClick={() => whatsappMaps(im)}
+            style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "none", background: "#128C7E", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            📍 Enviar localização
           </button>
         </div>
+        <button onClick={() => downloadFotos(im)}
+          style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>
+          📥 Baixar todas as fotos
+        </button>
       </div>
     );
   }
