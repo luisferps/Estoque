@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, orderBy, query } from "firebase/firestore";
 
+const ADMIN_PASS = "123livre";
+
 const firebaseConfig = {
   apiKey: "AIzaSyB8Jq17jELr17zonEVmLRjy-p7dmeLLskw",
   authDomain: "estoque-53f1e.firebaseapp.com",
@@ -31,6 +33,11 @@ export default function App() {
   const [fotoIdx, setFotoIdx] = useState(0);
   const [copied, setCopied] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showPassModal, setShowPassModal] = useState(false);
+  const [passInput, setPassInput] = useState("");
+  const [passError, setPassError] = useState(false);
+  const [search, setSearch] = useState("");
   const fileRef = useRef();
 
   useEffect(() => {
