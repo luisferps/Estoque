@@ -33,6 +33,7 @@ function formatBRL(v) {
 function gerarDescricao(form) {
   const isLote = form.tipo === "Lote" || form.tipo === "Área";
   const linhas = [];
+  if (form.titulo) linhas.push(form.titulo);
   if (form.bairro) linhas.push(form.bairro.toUpperCase());
   linhas.push("");
   if (form.metragem) linhas.push(`- ${form.metragem} m² de construção`);
@@ -94,7 +95,8 @@ function gerarPDF(imoveis) {
       <td>${im.cidade||""}</td>
       <td>${im.bairro||""}</td>
       <td>${im.mapsLink ? `<a href="${im.mapsLink}">Ver mapa</a>` : ""}</td>
-      <td>${im.metragem ? im.metragem+" m²" : ""}${im.metragemTotal ? " / "+im.metragemTotal+" m²" : ""}</td>
+      <td>${im.metragem ? im.metragem+" m²" : ""}</td>
+      <td>${im.metragemTotal ? im.metragemTotal+" m²" : ""}</td>
       ${isLote(im) ? `
         <td>${im.asfalto?"Sim":"Não"}</td><td>${im.agua?"Sim":"Não"}</td><td>${im.esgoto?"Sim":"Não"}</td><td>${im.muro?"Sim":"Não"}</td>
         <td>${im.retangular&&im.frente&&im.laterais?`${im.frente}x${im.laterais}m`:(im.medidas||"")}</td><td></td><td></td><td></td>
@@ -110,7 +112,7 @@ function gerarPDF(imoveis) {
   }).join("");
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de Imóveis</title>
-  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:#1D9E75}table{width:100%;border-collapse:collapse}th{background:#1D9E75;color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#f9f9f9}a{color:#1D9E75}@media print{body{padding:0}}</style>
+  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:#1D9E75}table{width:100%;border-collapse:collapse}th{background:#1D9E75;color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#f9f9f9}a{color:#1D9E75}@media print{body{padding:0}@page{size:A4 landscape;margin:10mm}}</style>
   </head><body>
   <h2>Lista de Imóveis</h2><p style="color:#666;font-size:11px">Gerado em ${new Date().toLocaleDateString("pt-BR")} — ${imoveis.length} imóvel(is)</p>
   <table><thead><tr>
@@ -225,16 +227,15 @@ export default function App() {
     const c = raw.replace(/\D/g, "");
     if (c.length !== 8) return;
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${c}/json/`);
+      const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${c}`);
+      if (!res.ok) return;
       const data = await res.json();
-      if (!data.erro) {
-        setForm(p => ({
-          ...p,
-          endereco: [data.logradouro, data.complemento].filter(Boolean).join(", ") || p.endereco,
-          bairro: data.bairro || p.bairro,
-          cidade: data.localidade || p.cidade,
-        }));
-      }
+      setForm(p => ({
+        ...p,
+        endereco: data.street || p.endereco,
+        bairro: data.neighborhood || p.bairro,
+        cidade: data.city || p.cidade,
+      }));
     } catch {}
   };
 
@@ -371,54 +372,98 @@ export default function App() {
   }
 
   // ── ANÚNCIOS (admin) ──
-  if (view === "anuncios" && isAdmin) return (
-    <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.2rem" }}>
-        <BackBtn />
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>Controle de Anúncios</h2>
+  if (view === "anuncios" && isAdmin) {
+    const [aFiltroTipo, setAFiltroTipo] = useState("Todos");
+    const [aFiltroTransacao, setAFiltroTransacao] = useState("Todos");
+    const [aFiltroCidade, setAFiltroCidade] = useState("Todas");
+    const [aFiltroCanal, setAFiltroCanal] = useState("Todos");
+
+    const anunciosFiltrados = imoveis.filter(im => {
+      const matchTipo = aFiltroTipo === "Todos" || im.tipo === aFiltroTipo;
+      const matchTrans = aFiltroTransacao === "Todos" || im.transacao === aFiltroTransacao;
+      const matchCidade = aFiltroCidade === "Todas" || im.cidade === aFiltroCidade;
+      const matchCanal = aFiltroCanal === "Todos" ||
+        (aFiltroCanal === "Anunciado" && CANAIS.some(c => im.anuncios?.[c]?.ativo)) ||
+        (aFiltroCanal === "Não anunciado" && !CANAIS.some(c => im.anuncios?.[c]?.ativo));
+      return matchTipo && matchTrans && matchCidade && matchCanal;
+    });
+
+    return (
+      <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
+          <BackBtn />
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>Controle de Anúncios</h2>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
+          <select value={aFiltroTipo} onChange={e => setAFiltroTipo(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
+            <option value="Todos">Todos os tipos</option>
+            {TIPOS.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <select value={aFiltroTransacao} onChange={e => setAFiltroTransacao(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
+            <option value="Todos">Venda e Locação</option>
+            {TRANSACOES.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <select value={aFiltroCidade} onChange={e => setAFiltroCidade(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
+            {cidades.map(c => <option key={c}>{c}</option>)}
+          </select>
+          <select value={aFiltroCanal} onChange={e => setAFiltroCanal(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
+            <option value="Todos">Todos</option>
+            <option value="Anunciado">Com anúncio ativo</option>
+            <option value="Não anunciado">Sem anúncio</option>
+          </select>
+          <span style={{ fontSize: 13, color: "#888", alignSelf: "center" }}>{anunciosFiltrados.length} imóvel(is)</span>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: "#1D9E75", color: "#fff" }}>
+                <th style={{ padding: "8px 10px", textAlign: "left", whiteSpace: "nowrap" }}>Tipo</th>
+                <th style={{ padding: "8px 10px", textAlign: "left" }}>Cidade</th>
+                <th style={{ padding: "8px 10px", textAlign: "left" }}>Bairro</th>
+                <th style={{ padding: "8px 10px", textAlign: "left" }}>Preço</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", whiteSpace: "nowrap" }}>Proprietário</th>
+                {CANAIS.map(c => <th key={c} style={{ padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap" }}>{c}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {anunciosFiltrados.map((im, idx) => {
+                const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal)+"/mês" : "") : formatBRL(im.preco);
+                return (
+                  <tr key={im.id} style={{ background: idx % 2 === 0 ? "#fff" : "#f8f8f8" }}>
+                    <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize: 11, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>
+                      {im.transacao && <span style={{ marginLeft: 4, fontSize: 11, background: im.transacao==="Venda"?"#e8f0ff":"#fff3e0", color: im.transacao==="Venda"?"#3a5fd9":"#e07b00", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>{im.cidade||"—"}</td>
+                    <td style={{ padding: "8px 10px" }}>{im.bairro||"—"}</td>
+                    <td style={{ padding: "8px 10px", color: "#1D9E75", fontWeight: 500, whiteSpace: "nowrap" }}>{preco||"—"}</td>
+                    <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{im.nomeProprietario||"—"}</td>
+                    {CANAIS.map(canal => {
+                      const info = im.anuncios?.[canal];
+                      return (
+                        <td key={canal} style={{ padding: "5px", textAlign: "center" }}>
+                          <button onClick={() => toggleAnuncioImovel(im, canal)}
+                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: info?.ativo ? "#e8f5f0" : "#f5f5f5", border: info?.ativo ? "1px solid #1D9E75" : "1px solid #ddd", borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56 }}>
+                            <span style={{ fontSize: 14 }}>{info?.ativo ? "✅" : "⬜"}</span>
+                            {info?.ativo && <span style={{ fontSize: 9, color: "#888" }}>{info.data}</span>}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+              {anunciosFiltrados.length === 0 && (
+                <tr><td colSpan={5 + CANAIS.length} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>Nenhum imóvel encontrado com esses filtros.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: "#1D9E75", color: "#fff" }}>
-              <th style={{ padding: "8px 10px", textAlign: "left", whiteSpace: "nowrap" }}>Imóvel</th>
-              <th style={{ padding: "8px 10px", textAlign: "left" }}>Cidade</th>
-              <th style={{ padding: "8px 10px", textAlign: "left" }}>Bairro</th>
-              <th style={{ padding: "8px 10px", textAlign: "left" }}>Preço</th>
-              <th style={{ padding: "8px 10px", textAlign: "left", whiteSpace: "nowrap" }}>Proprietário</th>
-              {CANAIS.map(c => <th key={c} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, whiteSpace: "nowrap" }}>{c}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {imoveis.map((im, idx) => {
-              const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal)+"/mês" : "") : formatBRL(im.preco);
-              return (
-                <tr key={im.id} style={{ background: idx % 2 === 0 ? "#fff" : "#f8f8f8" }}>
-                  <td style={{ padding: "8px 10px", fontWeight: 500, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{im.titulo}</td>
-                  <td style={{ padding: "8px 10px" }}>{im.cidade||"—"}</td>
-                  <td style={{ padding: "8px 10px" }}>{im.bairro||"—"}</td>
-                  <td style={{ padding: "8px 10px", color: "#1D9E75", fontWeight: 500, whiteSpace: "nowrap" }}>{preco||"—"}</td>
-                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{im.nomeProprietario||"—"}</td>
-                  {CANAIS.map(canal => {
-                    const info = im.anuncios?.[canal];
-                    return (
-                      <td key={canal} style={{ padding: "6px", textAlign: "center" }}>
-                        <button onClick={() => toggleAnuncioImovel(im, canal)}
-                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: info?.ativo ? "#e8f5f0" : "#f5f5f5", border: info?.ativo ? "1px solid #1D9E75" : "1px solid #ddd", borderRadius: 8, padding: "4px 8px", cursor: "pointer", width: "100%", minWidth: 60 }}>
-                          <span style={{ fontSize: 16 }}>{info?.ativo ? "✅" : "⬜"}</span>
-                          {info?.ativo && <span style={{ fontSize: 9, color: "#888" }}>{info.data}</span>}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+    );
+  }
 
   // ── CONSULTA ──
   if (view === "consulta") return (
