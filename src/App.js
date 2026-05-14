@@ -13,6 +13,7 @@ const CLOUDINARY_CLOUD = "demsusjwf";
 const CLOUDINARY_PRESET = "Estoque";
 const LOGO_URL = "https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png";
 
+
 const PDF_CAMPOS = [
   { key: "tipo", label: "Tipo/Transação" },
   { key: "cidade", label: "Cidade" },
@@ -348,10 +349,17 @@ export default function App() {
   });
 
   const anunciosFiltrados = imoveis.filter(im => {
-    const matchCanal = aFiltroCanal === "Todos" ||
-      (aFiltroCanal === "Anunciado" && CANAIS.some(c => im.anuncios?.[c]?.ativo)) ||
-      (aFiltroCanal === "Não anunciado" && !CANAIS.some(c => im.anuncios?.[c]?.ativo)) ||
-      (CANAIS.includes(aFiltroCanal) && im.anuncios?.[aFiltroCanal]?.ativo);
+    let matchCanal = true;
+    if (aFiltroCanal === "Todos") matchCanal = true;
+    else if (aFiltroCanal === "Anunciado") matchCanal = CANAIS.some(c => im.anuncios?.[c]?.ativo);
+    else if (aFiltroCanal === "Não anunciado") matchCanal = !CANAIS.some(c => im.anuncios?.[c]?.ativo);
+    else if (aFiltroCanal.startsWith("nao_")) {
+      const canal = aFiltroCanal.replace("nao_", "");
+      matchCanal = !im.anuncios?.[canal]?.ativo;
+    } else if (aFiltroCanal.startsWith("sim_")) {
+      const canal = aFiltroCanal.replace("sim_", "");
+      matchCanal = !!im.anuncios?.[canal]?.ativo;
+    }
     return (aFiltroTipo === "Todos" || im.tipo === aFiltroTipo)
       && matchTransacao(im, aFiltroTransacao)
       && (aFiltroCidade === "Todas" || im.cidade === aFiltroCidade)
@@ -504,9 +512,14 @@ export default function App() {
         </select>
         <select value={aFiltroCanal} onChange={e => setAFiltroCanal(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
           <option value="Todos">Todos os canais</option>
-          <option value="Anunciado">Com anúncio ativo</option>
-          <option value="Não anunciado">Sem anúncio</option>
-          {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
+          <option value="Anunciado">Com anúncio ativo (qualquer canal)</option>
+          <option value="Não anunciado">Sem anúncio em nenhum canal</option>
+          <optgroup label="— Não anunciado em:">
+            {CANAIS.map(c => <option key={`nao_${c}`} value={`nao_${c}`}>Falta: {c}</option>)}
+          </optgroup>
+          <optgroup label="— Anunciado em:">
+            {CANAIS.map(c => <option key={`sim_${c}`} value={`sim_${c}`}>Ativo: {c}</option>)}
+          </optgroup>
         </select>
         <span style={{ fontSize: 13, color: "#888", alignSelf: "center" }}>{anunciosFiltrados.length} imóvel(is)</span>
       </div>
