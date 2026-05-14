@@ -30,11 +30,11 @@ function formatBRL(v) {
 
 const emptyForm = {
   id: null, titulo: "", tipo: "Casa", transacao: "Venda", preco: "", descricao: "", mapsLink: "",
-  cidade: "", bairro: "", endereco: "", asfalto: false, agua: false, esgoto: false,
+  cep: "", cidade: "", bairro: "", endereco: "", asfalto: false, agua: false, esgoto: false,
   metragem: "", metragemTotal: "", nomeProprietario: "", telefoneProprietario: "",
   nomeCaptador: "", telefoneCaptador: "", condominio: false, nomeCondominio: "", valorCondominioMensal: "",
   declive: "Plano", muro: false, esquina: false, retangular: false, frente: "", laterais: "", medidas: "",
-  quartos: "", suites: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
+  quartos: "", suites: "", garagens: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
   valorAluguel: "", valorIPTU: "",
   condicoes: [], permuta: "",
   anuncios: {}, fotos: [],
@@ -67,7 +67,18 @@ export default function App() {
   const [filterTipo, setFilterTipo] = useState("Todos");
   const [filterTransacao, setFilterTransacao] = useState("Todos");
   const [lightbox, setLightbox] = useState(null);
+  const [history, setHistory] = useState(["lista"]);
   const fileRef = useRef();
+
+  useEffect(() => {
+    // Handle hash-based gallery links: #galeria-IMOVEL_ID
+    const hash = window.location.hash;
+    if (hash.startsWith("#galeria-")) {
+      const id = hash.replace("#galeria-", "");
+      setSelected({ id });
+      navigate("galeria");
+    }
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "imoveis"), orderBy("createdAt", "desc"));
@@ -77,6 +88,14 @@ export default function App() {
     }, () => setLoading(false));
     return () => unsub();
   }, []);
+
+  const navigate = (v) => { setView(v); setHistory(h => [...h, v]); };
+  const goBack = () => {
+    if (history.length <= 1) { setView("lista"); setHistory(["lista"]); return; }
+    const prev = history[history.length - 2];
+    setHistory(h => h.slice(0, -1));
+    setView(prev);
+  };
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
@@ -107,7 +126,7 @@ export default function App() {
       if (form.transacao === "Locação") data.valorFinal = valorFinalLocacao();
       if (id) await updateDoc(doc(db, "imoveis", id), data);
       else await addDoc(collection(db, "imoveis"), { ...data, createdAt: Date.now() });
-      setView("lista");
+      goBack();
     } catch (e) { alert("Erro ao salvar: " + e.message); }
     setSaving(false);
   };
@@ -115,10 +134,29 @@ export default function App() {
   const del = async (id) => {
     if (!window.confirm("Excluir este imóvel?")) return;
     await deleteDoc(doc(db, "imoveis", id));
+    goBack();
   };
 
-  const edit = (im) => { setForm({ ...emptyForm, ...im }); setView("form"); };
-  const openDetalhe = (im) => { setSelected(im); setFotoIdx(0); setView("detalhe"); };
+  const edit = (im) => { setForm({ ...emptyForm, ...im }); navigate("form"); };
+  const openDetalhe = (im) => { setSelected(im); setFotoIdx(0); navigate("detalhe"); };
+  const openGaleria = (im) => { setSelected(im); setFotoIdx(0); navigate("galeria"); };
+
+  const buscarCEP = async (cep) => {
+    const c = cep.replace(/\D/g, "");
+    if (c.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${c}/json/`);
+      const data = await res.json();
+      if (!data.erro) {
+        setForm(p => ({
+          ...p,
+          endereco: [data.logradouro, data.bairro].filter(Boolean).join(", "),
+          bairro: data.bairro || p.bairro,
+          cidade: data.localidade || p.cidade,
+        }));
+      }
+    } catch {}
+  };
 
   const addFotos = async (e) => {
     const files = Array.from(e.target.files);
@@ -135,21 +173,21 @@ export default function App() {
   const removeFoto = (i) => setForm(p => ({ ...p, fotos: p.fotos.filter((_, idx) => idx !== i) }));
 
   const whatsappDescricao = (im) => {
-    const vf = im.transacao === "Locação" ? im.valorFinal : im.preco;
-    const label = im.transacao === "Locação" ? "💰 Valor total: " : "💰 ";
-    const condicoesTxt = im.condicoes?.length ? `\n✅ ${im.condicoes.join(", ")}${im.condicoes.includes("Permuta") && im.permuta ? ` (${im.permuta})` : ""}` : "";
-    const txt = `🏠 *${im.titulo || "Imóvel disponível"}*\n` +
-      (im.transacao ? `📋 ${im.transacao}\n` : "") +
-      (im.cidade || im.bairro ? `📍 ${[im.bairro, im.cidade].filter(Boolean).join(", ")}\n` : "") +
-      (vf ? `${label}${formatBRL(vf)}\n` : "") +
-      condicoesTxt +
-      (im.descricao ? `\n${im.descricao}` : "");
+    const txt = `*${im.titulo || "Imovel disponivel"}*` +
+      (im.descricao ? `\n\n${im.descricao}` : "");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
   const whatsappMaps = (im) => {
     if (!im.mapsLink) return alert("Este imóvel não tem link do Google Maps.");
-    window.open("https://wa.me/?text=" + encodeURIComponent(`📍 *Localização do imóvel:*\n${im.mapsLink}`), "_blank");
+    window.open("https://wa.me/?text=" + encodeURIComponent(`Localizacao do imovel:\n${im.mapsLink}`), "_blank");
+  };
+
+  const whatsappFotos = (im) => {
+    if (!im.fotos?.length) return alert("Este imóvel não tem fotos.");
+    const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+    const txt = `Fotos do imovel *${im.titulo || ""}*:\n${galeriaLink}`;
+    window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
   const downloadFotos = async (im) => {
@@ -218,16 +256,32 @@ export default function App() {
     </div>
   );
 
-  const Lightbox = () => lightbox === null ? null : (
-    <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, cursor: "zoom-out" }}>
-      <img src={lightbox} alt="" style={{ maxWidth: "95vw", maxHeight: "95vh", objectFit: "contain", borderRadius: 8 }} />
-    </div>
+  const BackBtn = ({ label = "Voltar" }) => (
+    <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "#1D9E75", fontWeight: 500, padding: "0 0 0 0", marginBottom: 4 }}>
+      ← {label}
+    </button>
   );
+
+  const Lightbox = ({ fotos }) => {
+    if (lightbox === null || !fotos?.length) return null;
+    const prev = (e) => { e.stopPropagation(); setLightbox(i => (i - 1 + fotos.length) % fotos.length); };
+    const next = (e) => { e.stopPropagation(); setLightbox(i => (i + 1) % fotos.length); };
+    return (
+      <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.94)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+        <img src={fotos[lightbox]} alt="" style={{ maxWidth: "85vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }} />
+        {fotos.length > 1 && <>
+          <button onClick={prev} style={{ position: "absolute", left: 12, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 30, borderRadius: "50%", width: 48, height: 48, cursor: "pointer" }}>‹</button>
+          <button onClick={next} style={{ position: "absolute", right: 12, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 30, borderRadius: "50%", width: 48, height: 48, cursor: "pointer" }}>›</button>
+          <span style={{ position: "absolute", bottom: 16, color: "#fff", fontSize: 13, background: "rgba(0,0,0,0.5)", padding: "4px 12px", borderRadius: 20 }}>{lightbox + 1} / {fotos.length}</span>
+        </>}
+      </div>
+    );
+  };
 
   const PassModal = () => (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
       <div style={{ background: "#fff", borderRadius: 12, padding: "2rem", width: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
-        <h3 style={{ margin: "0 0 1rem", fontSize: 18 }}>🔐 Acesso Admin</h3>
+        <h3 style={{ margin: "0 0 1rem", fontSize: 18 }}>Acesso Admin</h3>
         <input type="password" value={passInput} onChange={e => { setPassInput(e.target.value); setPassError(false); }}
           onKeyDown={e => e.key === "Enter" && handleLogin()} placeholder="Digite a senha" autoFocus
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: passError ? "1px solid #E24B4A" : "1px solid #ddd", fontSize: 15, boxSizing: "border-box", marginBottom: 8 }} />
@@ -242,18 +296,43 @@ export default function App() {
     </div>
   );
 
+  // ── GALERIA (link compartilhável) ──
+  if (view === "galeria") {
+    const im = imoveis.find(i => i.id === selected?.id) || selected;
+    if (!im || !im.fotos?.length) return (
+      <div style={{ fontFamily: "sans-serif", padding: "2rem", textAlign: "center" }}>
+        <BackBtn />
+        <p style={{ color: "#888" }}>Galeria não encontrada.</p>
+      </div>
+    );
+    return (
+      <div style={{ fontFamily: "sans-serif", background: "#111", minHeight: "100vh", padding: "1rem" }}>
+        <Lightbox fotos={im.fotos} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
+          <BackBtn label="Voltar" />
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500, color: "#fff", flex: 1 }}>{im.titulo || "Fotos do imóvel"}</h2>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+          {im.fotos.map((f, i) => (
+            <img key={i} src={f} alt="" onClick={() => setLightbox(i)}
+              style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8, cursor: "zoom-in" }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ── LISTA ──
   if (view === "lista") return (
     <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 900, margin: "0 auto" }}>
-      <Lightbox />
       {showPassModal && <PassModal />}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>🏠 Imóveis Disponíveis</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Imoveis Disponiveis</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {isAdmin ? <>
-            <span style={{ fontSize: 12, color: "#1D9E75", fontWeight: 500 }}>✅ Admin</span>
+            <span style={{ fontSize: 12, color: "#1D9E75", fontWeight: 500 }}>Admin</span>
             <button onClick={() => setIsAdmin(false)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Sair</button>
-            <button onClick={() => { setForm(emptyForm); setView("form"); }}
+            <button onClick={() => { setForm(emptyForm); navigate("form"); }}
               style={{ background: "#1D9E75", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>+ Novo</button>
           </> : <button onClick={() => setShowPassModal(true)}
             style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer", color: "#888" }}>Admin</button>}
@@ -261,7 +340,7 @@ export default function App() {
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Buscar por palavra-chave..."
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por palavra-chave..."
           style={{ flex: 1, minWidth: 180, padding: "9px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }} />
         <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)}
           style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }}>
@@ -270,7 +349,7 @@ export default function App() {
         </select>
         <select value={filterTransacao} onChange={e => setFilterTransacao(e.target.value)}
           style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }}>
-          <option value="Todos">Venda e Locação</option>
+          <option value="Todos">Venda e Locacao</option>
           {TRANSACOES.map(t => <option key={t}>{t}</option>)}
         </select>
       </div>
@@ -278,7 +357,7 @@ export default function App() {
       {loading && <div style={{ textAlign: "center", color: "#888", padding: "4rem 0" }}>Carregando...</div>}
       {!loading && filtered.length === 0 && (
         <div style={{ textAlign: "center", color: "#888", padding: "4rem 0", fontSize: 15 }}>
-          {imoveis.length === 0 ? "Nenhum imóvel cadastrado ainda." : "Nenhum imóvel encontrado."}
+          {imoveis.length === 0 ? "Nenhum imovel cadastrado ainda." : "Nenhum imovel encontrado."}
         </div>
       )}
 
@@ -294,9 +373,9 @@ export default function App() {
                 {im.transacao && <span style={{ fontSize: 11, background: im.transacao === "Venda" ? "#e8f0ff" : "#fff3e0", color: im.transacao === "Venda" ? "#3a5fd9" : "#e07b00", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
               </div>
               {im.titulo && <p style={{ margin: "0 0 2px", fontWeight: 500, fontSize: 15 }}>{im.titulo}</p>}
-              {(im.bairro || im.cidade) && <p style={{ margin: "0 0 4px", fontSize: 12, color: "#777" }}>📍 {[im.bairro, im.cidade].filter(Boolean).join(", ")}</p>}
+              {(im.bairro || im.cidade) && <p style={{ margin: "0 0 4px", fontSize: 12, color: "#777" }}>{[im.bairro, im.cidade].filter(Boolean).join(", ")}</p>}
               {im.transacao === "Locação" && im.valorFinal
-                ? <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 16, color: "#1D9E75" }}>{formatBRL(im.valorFinal)}<span style={{ fontSize: 11, fontWeight: 400 }}>/mês</span></p>
+                ? <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 16, color: "#1D9E75" }}>{formatBRL(im.valorFinal)}<span style={{ fontSize: 11, fontWeight: 400 }}>/mes</span></p>
                 : im.preco && <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 16, color: "#1D9E75" }}>{formatBRL(im.preco)}</p>}
               <div style={{ display: "flex", gap: 6 }}>
                 <button onClick={() => openDetalhe(im)} style={{ flex: 1, padding: "6px 0", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>Ver ficha</button>
@@ -316,26 +395,26 @@ export default function App() {
   if (view === "form" && isAdmin) return (
     <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 680, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.5rem" }}>
-        <button onClick={() => setView("lista")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>{form.id ? "Editar imóvel" : "Novo imóvel"}</h2>
+        <BackBtn label="Cancelar" />
       </div>
+      <h2 style={{ margin: "0 0 1.5rem", fontSize: 20, fontWeight: 500 }}>{form.id ? "Editar imovel" : "Novo imovel"}</h2>
 
-      {section("📋 Informações gerais", <>
-        {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
+      {section("Informacoes gerais", <>
+        {inp("Titulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {sel("Tipo de imóvel", "tipo", TIPOS)}
-          {sel("Tipo de transação", "transacao", TRANSACOES)}
+          {sel("Tipo de imovel", "tipo", TIPOS)}
+          {sel("Tipo de transacao", "transacao", TRANSACOES)}
         </div>
-        {inp("Metragem (m²)", "metragem", { type: "number", ph: "Ex: 200" })}
-        {inp("Metragem total do terreno (m²)", "metragemTotal", { type: "number", ph: "Ex: 360" })}
-        {tog("Em condomínio?", "condominio")}
+        {inp("Metragem (m2)", "metragem", { type: "number", ph: "Ex: 200" })}
+        {inp("Metragem total do terreno (m2)", "metragemTotal", { type: "number", ph: "Ex: 360" })}
+        {tog("Em condominio?", "condominio")}
         {form.condominio && <>
-          {inp("Nome do condomínio", "nomeCondominio", { ph: "Ex: Residencial Verde" })}
-          {inp("Valor mensal do condomínio (R$)", "valorCondominioMensal", { type: "number", ph: "Ex: 350" })}
+          {inp("Nome do condominio", "nomeCondominio", { ph: "Ex: Residencial Verde" })}
+          {inp("Valor mensal do condominio (R$)", "valorCondominioMensal", { type: "number", ph: "Ex: 350" })}
         </>}
       </>)}
 
-      {section("💳 Condições comerciais", <>
+      {section("Condicoes comerciais", <>
         {CONDICOES.map(c => (
           <div key={c}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
@@ -351,24 +430,31 @@ export default function App() {
         ))}
       </>)}
 
-      {section("📍 Localização", <>
-        {inp("Cidade", "cidade", { ph: "Ex: Goiânia" })}
-        {inp("Bairro", "bairro", { ph: "Ex: Setor Sul" })}
-        {inp("Endereço (visível só para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
+      {section("Localizacao", <>
         <div style={{ marginBottom: "1rem" }}>
-          <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 5 }}>📍 Link do Google Maps</label>
+          <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 4 }}>CEP</label>
+          <input value={form.cep || ""} onChange={e => { sf("cep", e.target.value); buscarCEP(e.target.value); }}
+            placeholder="Ex: 74000-000" maxLength={9}
+            style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#888" }}>Digite o CEP para preencher automaticamente.</p>
+        </div>
+        {inp("Cidade", "cidade", { ph: "Ex: Goiania" })}
+        {inp("Bairro", "bairro", { ph: "Ex: Setor Sul" })}
+        {inp("Endereco (visivel so para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 5 }}>Link do Google Maps</label>
           <input value={form.mapsLink || ""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps"
             style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
-          {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#1D9E75", textDecoration: "none" }}>🔗 Verificar link →</a>}
+          {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#1D9E75", textDecoration: "none" }}>Verificar link</a>}
         </div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
           {tog("Asfalto", "asfalto")}
-          {tog("Água", "agua")}
+          {tog("Agua", "agua")}
           {tog("Esgoto", "esgoto")}
         </div>
       </>)}
 
-      {(form.tipo === "Lote" || form.tipo === "Área") && section("🏗️ Detalhes do " + form.tipo, <>
+      {(form.tipo === "Lote" || form.tipo === "Area") && section("Detalhes do " + form.tipo, <>
         {sel("Declive", "declive", ["Plano", "Lateral", "Fundo", "Frente"])}
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>
           {tog("Muro", "muro")}
@@ -383,52 +469,53 @@ export default function App() {
         ) : inp("Medidas", "medidas", { ph: "Ex: 15x30 irregular" })}
       </>)}
 
-      {(form.tipo === "Casa" || form.tipo === "Apartamento") && section("🏠 Detalhes da " + form.tipo, <>
+      {(form.tipo === "Casa" || form.tipo === "Apartamento") && section("Detalhes da " + form.tipo, <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {inp("Quartos", "quartos", { type: "number" })}
-          {inp("Suítes", "suites", { type: "number" })}
-          {inp("Valor de avaliação (R$)", "valorAvaliacao", { type: "number" })}
+          {inp("Suites", "suites", { type: "number" })}
+          {inp("Garagens", "garagens", { type: "number" })}
+          {inp("Valor de avaliacao (R$)", "valorAvaliacao", { type: "number" })}
           {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
-          {form.tipo === "Apartamento" && inp("Valor do condomínio (R$)", "valorCondominio", { type: "number" })}
+          {form.tipo === "Apartamento" && inp("Valor do condominio (R$)", "valorCondominio", { type: "number" })}
         </div>
       </>)}
 
-      {form.transacao === "Locação" && section("🔑 Valores de locação", <>
+      {form.transacao === "Locacao" && section("Valores de locacao", <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {inp("Valor do aluguel (R$)", "valorAluguel", { type: "number" })}
-          {inp("Condomínio (R$)", "valorCondominio", { type: "number" })}
+          {inp("Condominio (R$)", "valorCondominio", { type: "number" })}
           {inp("IPTU (R$)", "valorIPTU", { type: "number" })}
         </div>
         <p style={{ margin: "4px 0 0", fontSize: 14, color: "#1D9E75", fontWeight: 500 }}>
-          💰 Valor total: {formatBRL(valorFinalLocacao()) || "—"}
+          Total: {formatBRL(valorFinalLocacao()) || "—"}
         </p>
       </>)}
 
-      {form.transacao === "Venda" && section("💰 Valor", <>
-        {inp("Preço de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
+      {form.transacao === "Venda" && section("Valor", <>
+        {inp("Preco de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
       </>)}
 
-      {section("📝 Descrição", <>
+      {section("Descricao", <>
         <textarea value={form.descricao || ""} onChange={e => sf("descricao", e.target.value)}
-          placeholder="Descreva o imóvel..." rows={5}
+          placeholder="Descreva o imovel..." rows={5}
           style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} />
       </>)}
 
-      {section("👤 Proprietário (visível só para admin)", <>
+      {section("Proprietario (visivel so para admin)", <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          {inp("Nome do proprietário", "nomeProprietario")}
-          {inp("Telefone do proprietário", "telefoneProprietario")}
+          {inp("Nome do proprietario", "nomeProprietario")}
+          {inp("Telefone do proprietario", "telefoneProprietario")}
         </div>
       </>)}
 
-      {section("🤝 Captador", <>
+      {section("Captador", <>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {inp("Nome do captador", "nomeCaptador")}
           {inp("Telefone do captador", "telefoneCaptador")}
         </div>
       </>)}
 
-      {section("📢 Onde foi anunciado (visível só para admin)", <>
+      {section("Onde foi anunciado (visivel so para admin)", <>
         {CANAIS.map(canal => {
           const info = form.anuncios?.[canal];
           return (
@@ -437,24 +524,24 @@ export default function App() {
                 <input type="checkbox" checked={!!info?.ativo} onChange={() => toggleAnuncio(canal)} style={{ width: 16, height: 16 }} />
                 <span style={{ fontSize: 14 }}>{canal}</span>
               </label>
-              {info?.ativo && <span style={{ fontSize: 12, color: "#888" }}>📅 {info.data}</span>}
+              {info?.ativo && <span style={{ fontSize: 12, color: "#888" }}>{info.data}</span>}
             </div>
           );
         })}
       </>)}
 
-      {section("📷 Fotos", <>
+      {section("Fotos", <>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFotos} style={{ display: "none" }} />
         <button onClick={() => fileRef.current.click()} disabled={uploadingFotos}
           style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed #bbb", background: uploadingFotos ? "#f0f0f0" : "#fafafa", cursor: uploadingFotos ? "default" : "pointer", fontSize: 13 }}>
-          {uploadingFotos ? "⏳ Enviando fotos..." : "+ Adicionar fotos"}
+          {uploadingFotos ? "Enviando fotos..." : "+ Adicionar fotos"}
         </button>
         {form.fotos?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             {form.fotos.map((f, i) => (
               <div key={i} style={{ position: "relative" }}>
                 <img src={f} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #ddd" }} />
-                <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: "#E24B4A", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>×</button>
+                <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: "#E24B4A", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>x</button>
               </div>
             ))}
           </div>
@@ -462,10 +549,10 @@ export default function App() {
       </>)}
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        <button onClick={() => setView("lista")} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
+        <button onClick={goBack} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
         <button onClick={save} disabled={saving || uploadingFotos}
           style={{ flex: 2, padding: "11px 0", borderRadius: 8, border: "none", background: (saving || uploadingFotos) ? "#aaa" : "#1D9E75", color: "#fff", cursor: (saving || uploadingFotos) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
-          {saving ? "Salvando..." : uploadingFotos ? "Aguarde o upload..." : "Salvar imóvel"}
+          {saving ? "Salvando..." : uploadingFotos ? "Aguarde o upload..." : "Salvar imovel"}
         </button>
       </div>
     </div>
@@ -483,23 +570,23 @@ export default function App() {
 
     return (
       <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 680, margin: "0 auto" }}>
-        <Lightbox />
+        <Lightbox fotos={im?.fotos} />
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
-          <button onClick={() => setView("lista")} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>←</button>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>{im.titulo || "Ficha do imóvel"}</h2>
-          {isAdmin && <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>✏️ Editar</button>}
+          <BackBtn />
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>{im?.titulo || "Ficha do imovel"}</h2>
+          {isAdmin && <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>Editar</button>}
         </div>
 
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap" }}>
-          {im.tipo && <span style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{im.tipo}</span>}
-          {im.transacao && <span style={{ fontSize: 12, background: im.transacao === "Venda" ? "#e8f0ff" : "#fff3e0", color: im.transacao === "Venda" ? "#3a5fd9" : "#e07b00", borderRadius: 6, padding: "3px 10px" }}>{im.transacao}</span>}
-          {im.condominio && <span style={{ fontSize: 12, background: "#f0f0f0", color: "#555", borderRadius: 6, padding: "3px 10px" }}>Condomínio{im.nomeCondominio ? `: ${im.nomeCondominio}` : ""}</span>}
-          {im.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>✅ {c}</span>)}
+          {im?.tipo && <span style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{im.tipo}</span>}
+          {im?.transacao && <span style={{ fontSize: 12, background: im.transacao === "Venda" ? "#e8f0ff" : "#fff3e0", color: im.transacao === "Venda" ? "#3a5fd9" : "#e07b00", borderRadius: 6, padding: "3px 10px" }}>{im.transacao}</span>}
+          {im?.condominio && <span style={{ fontSize: 12, background: "#f0f0f0", color: "#555", borderRadius: 6, padding: "3px 10px" }}>Condominio{im.nomeCondominio ? `: ${im.nomeCondominio}` : ""}</span>}
+          {im?.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{c}</span>)}
         </div>
 
-        {im.fotos?.length > 0 ? (
+        {im?.fotos?.length > 0 ? (
           <div style={{ marginBottom: "1.2rem" }}>
-            <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLightbox(im.fotos[fotoIdx])}
+            <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLightbox(fotoIdx)}
               style={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: 12, border: "1px solid #eee", cursor: "zoom-in", background: "#f4f4f4" }} />
             {im.fotos.length > 1 && (
               <div style={{ display: "flex", gap: 8, marginTop: 8, overflowX: "auto" }}>
@@ -514,96 +601,101 @@ export default function App() {
           <div style={{ height: 180, background: "#f4f4f4", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>
         )}
 
-        {im.transacao === "Locação"
+        {im?.transacao === "Locação"
           ? <div style={{ marginBottom: "1rem" }}>
               {row("Aluguel", formatBRL(im.valorAluguel))}
-              {row("Condomínio", formatBRL(im.valorCondominio))}
+              {row("Condominio", formatBRL(im.valorCondominio))}
               {row("IPTU", formatBRL(im.valorIPTU))}
-              {im.valorFinal && <p style={{ fontSize: 20, fontWeight: 500, color: "#1D9E75", margin: "8px 0" }}>💰 Total: {formatBRL(im.valorFinal)}/mês</p>}
+              {im.valorFinal && <p style={{ fontSize: 20, fontWeight: 500, color: "#1D9E75", margin: "8px 0" }}>Total: {formatBRL(im.valorFinal)}/mes</p>}
             </div>
-          : im.preco && <p style={{ fontSize: 24, fontWeight: 500, color: "#1D9E75", margin: "0 0 1rem" }}>{formatBRL(im.preco)}</p>}
+          : im?.preco && <p style={{ fontSize: 24, fontWeight: 500, color: "#1D9E75", margin: "0 0 1rem" }}>{formatBRL(im.preco)}</p>}
 
-        {im.condicoes?.length > 0 && section("💳 Condições comerciais", <>
+        {im?.condicoes?.length > 0 && section("Condicoes comerciais", <>
           {im.condicoes.map(c => (
             <div key={c} style={{ fontSize: 14, marginBottom: 4 }}>
-              ✅ {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
+              {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
             </div>
           ))}
         </>)}
 
-        {(im.cidade || im.bairro) && section("📍 Localização", <>
+        {(im?.cidade || im?.bairro) && section("Localizacao", <>
           {row("Cidade", im.cidade)}
           {row("Bairro", im.bairro)}
-          {isAdmin && row("Endereço", im.endereco)}
+          {isAdmin && row("Endereco", im.endereco)}
           {row("Asfalto", im.asfalto ? "Sim" : null)}
-          {row("Água", im.agua ? "Sim" : null)}
+          {row("Agua", im.agua ? "Sim" : null)}
           {row("Esgoto", im.esgoto ? "Sim" : null)}
           {im.mapsLink && (
             <a href={im.mapsLink} target="_blank" rel="noreferrer"
               style={{ display: "inline-block", marginTop: 8, padding: "8px 18px", background: "#1D9E75", color: "#fff", borderRadius: 8, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>
-              🗺️ Ver no Google Maps
+              Ver no Google Maps
             </a>
           )}
         </>)}
 
-        {section("📐 Características", <>
-          {row("Metragem", im.metragem ? im.metragem + " m²" : null)}
-          {row("Metragem total", im.metragemTotal ? im.metragemTotal + " m²" : null)}
-          {im.condominio && row("Condomínio mensal", formatBRL(im.valorCondominioMensal))}
-          {(im.tipo === "Lote" || im.tipo === "Área") && <>
+        {section("Caracteristicas", <>
+          {row("Metragem", im?.metragem ? im.metragem + " m2" : null)}
+          {row("Metragem total", im?.metragemTotal ? im.metragemTotal + " m2" : null)}
+          {im?.condominio && row("Condominio mensal", formatBRL(im.valorCondominioMensal))}
+          {(im?.tipo === "Lote" || im?.tipo === "Area") && <>
             {row("Declive", im.declive)}
-            {row("Muro", im.muro ? "Sim" : "Não")}
-            {row("Esquina", im.esquina ? "Sim" : "Não")}
-            {row("Retangular", im.retangular ? "Sim" : "Não")}
+            {row("Muro", im.muro ? "Sim" : "Nao")}
+            {row("Esquina", im.esquina ? "Sim" : "Nao")}
+            {row("Retangular", im.retangular ? "Sim" : "Nao")}
             {im.retangular ? <>
               {row("Frente", im.frente ? im.frente + " m" : null)}
               {row("Laterais", im.laterais ? im.laterais + " m" : null)}
             </> : row("Medidas", im.medidas)}
           </>}
-          {(im.tipo === "Casa" || im.tipo === "Apartamento") && <>
+          {(im?.tipo === "Casa" || im?.tipo === "Apartamento") && <>
             {row("Quartos", im.quartos)}
-            {row("Suítes", im.suites)}
-            {row("Valor de avaliação", formatBRL(im.valorAvaliacao))}
+            {row("Suites", im.suites)}
+            {row("Garagens", im.garagens)}
+            {row("Valor de avaliacao", formatBRL(im.valorAvaliacao))}
             {row("Valor de entrada", formatBRL(im.valorEntrada))}
-            {im.tipo === "Apartamento" && row("Condomínio", formatBRL(im.valorCondominio))}
+            {im.tipo === "Apartamento" && row("Condominio", formatBRL(im.valorCondominio))}
           </>}
         </>)}
 
-        {im.descricao && section("📝 Descrição", <p style={{ fontSize: 14, color: "#444", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{im.descricao}</p>)}
+        {im?.descricao && section("Descricao", <p style={{ fontSize: 14, color: "#444", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{im.descricao}</p>)}
 
-        {(im.nomeCaptador || im.telefoneCaptador) && section("🤝 Captador", <>
+        {(im?.nomeCaptador || im?.telefoneCaptador) && section("Captador", <>
           {row("Nome", im.nomeCaptador)}
           {row("Telefone", im.telefoneCaptador)}
         </>)}
 
-        {isAdmin && (im.nomeProprietario || im.telefoneProprietario) && section("👤 Proprietário", <>
+        {isAdmin && (im?.nomeProprietario || im?.telefoneProprietario) && section("Proprietario", <>
           {row("Nome", im.nomeProprietario)}
           {row("Telefone", im.telefoneProprietario)}
         </>)}
 
-        {isAdmin && Object.values(im.anuncios || {}).some(a => a?.ativo) && section("📢 Anúncios", <>
+        {isAdmin && Object.values(im?.anuncios || {}).some(a => a?.ativo) && section("Anuncios", <>
           {CANAIS.filter(c => im.anuncios?.[c]?.ativo).map(c => (
             <div key={c} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-              <span>✅ {c}</span>
+              <span>{c}</span>
               <span style={{ color: "#888" }}>{im.anuncios[c].data}</span>
             </div>
           ))}
         </>)}
 
-        <p style={{ fontSize: 13, fontWeight: 500, color: "#555", margin: "1rem 0 8px" }}>📲 Compartilhar via WhatsApp</p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: "#555", margin: "1.5rem 0 8px" }}>Compartilhar via WhatsApp</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
           <button onClick={() => whatsappDescricao(im)}
-            style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
-            💬 Enviar descrição
+            style={{ flex: 1, minWidth: 130, padding: "10px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            Enviar descricao
           </button>
           <button onClick={() => whatsappMaps(im)}
-            style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "none", background: "#128C7E", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
-            📍 Enviar localização
+            style={{ flex: 1, minWidth: 130, padding: "10px 0", borderRadius: 8, border: "none", background: "#128C7E", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            Enviar localizacao
+          </button>
+          <button onClick={() => whatsappFotos(im)}
+            style={{ flex: 1, minWidth: 130, padding: "10px 0", borderRadius: 8, border: "none", background: "#075E54", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            Enviar fotos
           </button>
         </div>
         <button onClick={() => downloadFotos(im)}
           style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>
-          📥 Baixar todas as fotos
+          Baixar todas as fotos
         </button>
       </div>
     );
