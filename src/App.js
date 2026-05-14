@@ -6,6 +6,9 @@ const ADMIN_PASS = "123livre";
 const TIPOS = ["Lote", "Casa", "Apartamento", "Área"];
 const TRANSACOES = ["Venda", "Locação"];
 const CANAIS = ["Canal Pro", "Chaves na Mão", "Marketplace Facebook", "Google Business", "Instagram", "Whatsapp", "Grupos"];
+const CONDICOES = ["À vista", "Financiamento", "Permuta"];
+const CLOUDINARY_CLOUD = "demsusjwf";
+const CLOUDINARY_PRESET = "Estoque";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8Jq17jELr17zonEVmLRjy-p7dmeLLskw",
@@ -29,22 +32,29 @@ const emptyForm = {
   id: null, titulo: "", tipo: "Casa", transacao: "Venda", preco: "", descricao: "", mapsLink: "",
   cidade: "", bairro: "", endereco: "", asfalto: false, agua: false, esgoto: false,
   metragem: "", metragemTotal: "", nomeProprietario: "", telefoneProprietario: "",
-  nomeCaptador: "", telefoneCaptador: "", condominio: false, nomeCondominio: "",
-  // Lote/Área
+  nomeCaptador: "", telefoneCaptador: "", condominio: false, nomeCondominio: "", valorCondominioMensal: "",
   declive: "Plano", muro: false, esquina: false, retangular: false, frente: "", laterais: "", medidas: "",
-  // Casa/Apartamento
   quartos: "", suites: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
-  // Locação
   valorAluguel: "", valorIPTU: "",
-  // Anúncios
-  anuncios: {},
-  fotos: [],
+  condicoes: [], permuta: "",
+  anuncios: {}, fotos: [],
 };
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error("Falha no upload da foto");
+  return data.secure_url;
+}
 
 export default function App() {
   const [imoveis, setImoveis] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingFotos, setUploadingFotos] = useState(false);
   const [view, setView] = useState("lista");
   const [form, setForm] = useState(emptyForm);
   const [fotoIdx, setFotoIdx] = useState(0);
@@ -68,7 +78,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  const f = (key) => form[key];
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const valorFinalLocacao = () => {
@@ -76,6 +85,13 @@ export default function App() {
     const c = parseFloat(form.valorCondominio) || 0;
     const i = parseFloat(form.valorIPTU) || 0;
     return a + c + i || "";
+  };
+
+  const toggleCondicao = (c) => {
+    setForm(p => ({
+      ...p,
+      condicoes: p.condicoes?.includes(c) ? p.condicoes.filter(x => x !== c) : [...(p.condicoes || []), c]
+    }));
   };
 
   const handleLogin = () => {
@@ -104,30 +120,16 @@ export default function App() {
   const edit = (im) => { setForm({ ...emptyForm, ...im }); setView("form"); };
   const openDetalhe = (im) => { setSelected(im); setFotoIdx(0); setView("detalhe"); };
 
-  const compressImage = (file) => new Promise(resolve => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1200;
-      let { width: w, height: h } = img;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w; canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL("image/jpeg", 0.75));
-    };
-    img.src = url;
-  });
-
-  const addFotos = (e) => {
-    Array.from(e.target.files).forEach(async file => {
-      const compressed = await compressImage(file);
-      setForm(p => ({ ...p, fotos: [...(p.fotos || []), compressed] }));
-    });
+  const addFotos = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setUploadingFotos(true);
+    try {
+      const urls = await Promise.all(files.map(f => uploadToCloudinary(f)));
+      setForm(p => ({ ...p, fotos: [...(p.fotos || []), ...urls] }));
+    } catch (err) { alert("Erro ao enviar foto: " + err.message); }
+    setUploadingFotos(false);
+    e.target.value = "";
   };
 
   const removeFoto = (i) => setForm(p => ({ ...p, fotos: p.fotos.filter((_, idx) => idx !== i) }));
@@ -135,10 +137,12 @@ export default function App() {
   const whatsappDescricao = (im) => {
     const vf = im.transacao === "Locação" ? im.valorFinal : im.preco;
     const label = im.transacao === "Locação" ? "💰 Valor total: " : "💰 ";
+    const condicoesTxt = im.condicoes?.length ? `\n✅ ${im.condicoes.join(", ")}${im.condicoes.includes("Permuta") && im.permuta ? ` (${im.permuta})` : ""}` : "";
     const txt = `🏠 *${im.titulo || "Imóvel disponível"}*\n` +
       (im.transacao ? `📋 ${im.transacao}\n` : "") +
       (im.cidade || im.bairro ? `📍 ${[im.bairro, im.cidade].filter(Boolean).join(", ")}\n` : "") +
       (vf ? `${label}${formatBRL(vf)}\n` : "") +
+      condicoesTxt +
       (im.descricao ? `\n${im.descricao}` : "");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
@@ -148,22 +152,26 @@ export default function App() {
     window.open("https://wa.me/?text=" + encodeURIComponent(`📍 *Localização do imóvel:*\n${im.mapsLink}`), "_blank");
   };
 
-  const downloadFotos = (im) => {
+  const downloadFotos = async (im) => {
     if (!im.fotos?.length) return alert("Este imóvel não tem fotos.");
-    im.fotos.forEach((foto, i) => {
-      const a = document.createElement("a");
-      a.href = foto; a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`; a.click();
-    });
+    for (let i = 0; i < im.fotos.length; i++) {
+      try {
+        const res = await fetch(im.fotos[i]);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`; a.click();
+        URL.revokeObjectURL(url);
+        await new Promise(r => setTimeout(r, 300));
+      } catch {}
+    }
   };
 
   const toggleAnuncio = (canal) => {
     const atual = form.anuncios?.[canal];
     setForm(p => ({
       ...p,
-      anuncios: {
-        ...p.anuncios,
-        [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") }
-      }
+      anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } }
     }));
   };
 
@@ -210,14 +218,12 @@ export default function App() {
     </div>
   );
 
-  // ── LIGHTBOX ──
   const Lightbox = () => lightbox === null ? null : (
     <div onClick={() => setLightbox(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, cursor: "zoom-out" }}>
       <img src={lightbox} alt="" style={{ maxWidth: "95vw", maxHeight: "95vh", objectFit: "contain", borderRadius: 8 }} />
     </div>
   );
 
-  // ── MODAL SENHA ──
   const PassModal = () => (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
       <div style={{ background: "#fff", borderRadius: 12, padding: "2rem", width: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
@@ -283,7 +289,7 @@ export default function App() {
               {im.fotos?.[0] ? <img src={im.fotos[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 52 }}>🏠</span>}
             </div>
             <div style={{ padding: "12px 14px" }}>
-              <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+              <div style={{ display: "flex", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
                 {im.tipo && <span style={{ fontSize: 11, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>}
                 {im.transacao && <span style={{ fontSize: 11, background: im.transacao === "Venda" ? "#e8f0ff" : "#fff3e0", color: im.transacao === "Venda" ? "#3a5fd9" : "#e07b00", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
               </div>
@@ -323,7 +329,26 @@ export default function App() {
         {inp("Metragem (m²)", "metragem", { type: "number", ph: "Ex: 200" })}
         {inp("Metragem total do terreno (m²)", "metragemTotal", { type: "number", ph: "Ex: 360" })}
         {tog("Em condomínio?", "condominio")}
-        {form.condominio && inp("Nome do condomínio", "nomeCondominio", { ph: "Ex: Residencial Verde" })}
+        {form.condominio && <>
+          {inp("Nome do condomínio", "nomeCondominio", { ph: "Ex: Residencial Verde" })}
+          {inp("Valor mensal do condomínio (R$)", "valorCondominioMensal", { type: "number", ph: "Ex: 350" })}
+        </>}
+      </>)}
+
+      {section("💳 Condições comerciais", <>
+        {CONDICOES.map(c => (
+          <div key={c}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
+              <input type="checkbox" checked={form.condicoes?.includes(c) || false} onChange={() => toggleCondicao(c)} style={{ width: 16, height: 16 }} />
+              {c}
+            </label>
+            {c === "Permuta" && form.condicoes?.includes("Permuta") && (
+              <input value={form.permuta || ""} onChange={e => sf("permuta", e.target.value)}
+                placeholder="Descreva o que aceita em permuta..."
+                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13, boxSizing: "border-box", marginBottom: 8 }} />
+            )}
+          </div>
+        ))}
       </>)}
 
       {section("📍 Localização", <>
@@ -343,7 +368,6 @@ export default function App() {
         </div>
       </>)}
 
-      {/* Campos específicos por tipo */}
       {(form.tipo === "Lote" || form.tipo === "Área") && section("🏗️ Detalhes do " + form.tipo, <>
         {sel("Declive", "declive", ["Plano", "Lateral", "Fundo", "Frente"])}
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>
@@ -356,13 +380,7 @@ export default function App() {
             {inp("Frente (m)", "frente", { type: "number" })}
             {inp("Laterais (m)", "laterais", { type: "number" })}
           </div>
-        ) : (
-          <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 4 }}>Medidas</label>
-            <input value={form.medidas || ""} onChange={e => sf("medidas", e.target.value)} placeholder="Ex: 15x30 irregular"
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
-          </div>
-        )}
+        ) : inp("Medidas", "medidas", { ph: "Ex: 15x30 irregular" })}
       </>)}
 
       {(form.tipo === "Casa" || form.tipo === "Apartamento") && section("🏠 Detalhes da " + form.tipo, <>
@@ -427,7 +445,10 @@ export default function App() {
 
       {section("📷 Fotos", <>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFotos} style={{ display: "none" }} />
-        <button onClick={() => fileRef.current.click()} style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed #bbb", background: "#fafafa", cursor: "pointer", fontSize: 13 }}>+ Adicionar fotos</button>
+        <button onClick={() => fileRef.current.click()} disabled={uploadingFotos}
+          style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed #bbb", background: uploadingFotos ? "#f0f0f0" : "#fafafa", cursor: uploadingFotos ? "default" : "pointer", fontSize: 13 }}>
+          {uploadingFotos ? "⏳ Enviando fotos..." : "+ Adicionar fotos"}
+        </button>
         {form.fotos?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
             {form.fotos.map((f, i) => (
@@ -442,8 +463,9 @@ export default function App() {
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         <button onClick={() => setView("lista")} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
-        <button onClick={save} disabled={saving} style={{ flex: 2, padding: "11px 0", borderRadius: 8, border: "none", background: saving ? "#aaa" : "#1D9E75", color: "#fff", cursor: saving ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
-          {saving ? "Salvando..." : "Salvar imóvel"}
+        <button onClick={save} disabled={saving || uploadingFotos}
+          style={{ flex: 2, padding: "11px 0", borderRadius: 8, border: "none", background: (saving || uploadingFotos) ? "#aaa" : "#1D9E75", color: "#fff", cursor: (saving || uploadingFotos) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
+          {saving ? "Salvando..." : uploadingFotos ? "Aguarde o upload..." : "Salvar imóvel"}
         </button>
       </div>
     </div>
@@ -468,18 +490,17 @@ export default function App() {
           {isAdmin && <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>✏️ Editar</button>}
         </div>
 
-        {/* Badges */}
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap" }}>
           {im.tipo && <span style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{im.tipo}</span>}
           {im.transacao && <span style={{ fontSize: 12, background: im.transacao === "Venda" ? "#e8f0ff" : "#fff3e0", color: im.transacao === "Venda" ? "#3a5fd9" : "#e07b00", borderRadius: 6, padding: "3px 10px" }}>{im.transacao}</span>}
           {im.condominio && <span style={{ fontSize: 12, background: "#f0f0f0", color: "#555", borderRadius: 6, padding: "3px 10px" }}>Condomínio{im.nomeCondominio ? `: ${im.nomeCondominio}` : ""}</span>}
+          {im.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>✅ {c}</span>)}
         </div>
 
-        {/* Fotos */}
         {im.fotos?.length > 0 ? (
           <div style={{ marginBottom: "1.2rem" }}>
             <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLightbox(im.fotos[fotoIdx])}
-              style={{ width: "100%", maxHeight: 360, objectFit: "cover", borderRadius: 12, border: "1px solid #eee", cursor: "zoom-in" }} />
+              style={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: 12, border: "1px solid #eee", cursor: "zoom-in", background: "#f4f4f4" }} />
             {im.fotos.length > 1 && (
               <div style={{ display: "flex", gap: 8, marginTop: 8, overflowX: "auto" }}>
                 {im.fotos.map((f, i) => (
@@ -493,7 +514,6 @@ export default function App() {
           <div style={{ height: 180, background: "#f4f4f4", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>
         )}
 
-        {/* Preço */}
         {im.transacao === "Locação"
           ? <div style={{ marginBottom: "1rem" }}>
               {row("Aluguel", formatBRL(im.valorAluguel))}
@@ -503,7 +523,14 @@ export default function App() {
             </div>
           : im.preco && <p style={{ fontSize: 24, fontWeight: 500, color: "#1D9E75", margin: "0 0 1rem" }}>{formatBRL(im.preco)}</p>}
 
-        {/* Localização */}
+        {im.condicoes?.length > 0 && section("💳 Condições comerciais", <>
+          {im.condicoes.map(c => (
+            <div key={c} style={{ fontSize: 14, marginBottom: 4 }}>
+              ✅ {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
+            </div>
+          ))}
+        </>)}
+
         {(im.cidade || im.bairro) && section("📍 Localização", <>
           {row("Cidade", im.cidade)}
           {row("Bairro", im.bairro)}
@@ -519,10 +546,10 @@ export default function App() {
           )}
         </>)}
 
-        {/* Características */}
         {section("📐 Características", <>
           {row("Metragem", im.metragem ? im.metragem + " m²" : null)}
           {row("Metragem total", im.metragemTotal ? im.metragemTotal + " m²" : null)}
+          {im.condominio && row("Condomínio mensal", formatBRL(im.valorCondominioMensal))}
           {(im.tipo === "Lote" || im.tipo === "Área") && <>
             {row("Declive", im.declive)}
             {row("Muro", im.muro ? "Sim" : "Não")}
@@ -542,16 +569,13 @@ export default function App() {
           </>}
         </>)}
 
-        {/* Descrição */}
         {im.descricao && section("📝 Descrição", <p style={{ fontSize: 14, color: "#444", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{im.descricao}</p>)}
 
-        {/* Captador */}
         {(im.nomeCaptador || im.telefoneCaptador) && section("🤝 Captador", <>
           {row("Nome", im.nomeCaptador)}
           {row("Telefone", im.telefoneCaptador)}
         </>)}
 
-        {/* Admin only */}
         {isAdmin && (im.nomeProprietario || im.telefoneProprietario) && section("👤 Proprietário", <>
           {row("Nome", im.nomeProprietario)}
           {row("Telefone", im.telefoneProprietario)}
@@ -566,7 +590,6 @@ export default function App() {
           ))}
         </>)}
 
-        {/* Ações */}
         <p style={{ fontSize: 13, fontWeight: 500, color: "#555", margin: "1rem 0 8px" }}>📲 Compartilhar via WhatsApp</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
           <button onClick={() => whatsappDescricao(im)}
