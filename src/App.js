@@ -11,6 +11,7 @@ const CONDICOES = ["À vista", "Financiamento", "Permuta"];
 const RODAPE = "Valores e condições sujeitos a análise bancária e/ou alteração sem aviso prévio e sem ônus ao anunciante.";
 const CLOUDINARY_CLOUD = "demsusjwf";
 const CLOUDINARY_PRESET = "Estoque";
+const LOGO_URL = "https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png";
 
 const PDF_CAMPOS = [
   { key: "tipo", label: "Tipo/Transação" },
@@ -33,6 +34,15 @@ const PDF_CAMPOS = [
   { key: "total", label: "Total Locação" },
 ];
 
+// Cores tema vermelho
+const COR = {
+  primary: "#C0392B",
+  primaryDark: "#922B21",
+  primaryLight: "#FADBD8",
+  primaryBorder: "#E59A94",
+  accent: "#E74C3C",
+};
+
 const firebaseConfig = {
   apiKey: "AIzaSyB8Jq17jELr17zonEVmLRjy-p7dmeLLskw",
   authDomain: "estoque-53f1e.firebaseapp.com",
@@ -49,6 +59,14 @@ function formatBRL(v) {
   const n = parseFloat(v);
   if (!n) return "";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+function formatTel(v) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 7) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
 }
 
 function gerarDescricao(form) {
@@ -134,10 +152,9 @@ function gerarPDF(imoveis, camposSel) {
       ${has("total") ? `<td>${total>0?formatBRL(total):""}</td>` : ""}
     </tr>`;
   }).join("");
-
   const headers = PDF_CAMPOS.filter(c => has(c.key)).map(c => `<th>${c.label}</th>`).join("");
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Lista de Imóveis</title>
-  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:#1D9E75}table{width:100%;border-collapse:collapse}th{background:#1D9E75;color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#f9f9f9}a{color:#1D9E75}@media print{body{padding:0}@page{size:A4 landscape;margin:10mm}}</style>
+  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:${COR.primary}}table{width:100%;border-collapse:collapse}th{background:${COR.primary};color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#fdf5f5}a{color:${COR.primary}}@media print{body{padding:0}@page{size:A4 landscape;margin:10mm}}</style>
   </head><body>
   <h2>Lista de Imóveis</h2><p style="color:#666;font-size:11px">Gerado em ${new Date().toLocaleDateString("pt-BR")} — ${imoveis.length} imóvel(is)</p>
   <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
@@ -187,12 +204,10 @@ export default function App() {
   const [lightbox, setLightbox] = useState(null);
   const [lightboxFotos, setLightboxFotos] = useState([]);
   const [history, setHistory] = useState(["lista"]);
-  // Anúncios filtros
   const [aFiltroTipo, setAFiltroTipo] = useState("Todos");
   const [aFiltroTransacao, setAFiltroTransacao] = useState("Todos");
   const [aFiltroCidade, setAFiltroCidade] = useState("Todas");
   const [aFiltroCanal, setAFiltroCanal] = useState("Todos");
-  // PDF campos
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
   const fileRef = useRef();
@@ -226,7 +241,6 @@ export default function App() {
   };
   const openLightbox = (fotos, idx) => { setLightboxFotos(fotos); setLightbox(idx); };
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
-
   const valorFinalLocacao = () => (parseFloat(form.valorAluguel)||0)+(parseFloat(form.valorCondominio)||0)+(parseFloat(form.valorIPTU)||0)||"";
   const toggleCondicao = (c) => setForm(p => ({ ...p, condicoes: p.condicoes?.includes(c) ? p.condicoes.filter(x => x !== c) : [...(p.condicoes||[]), c] }));
   const handleLogin = () => { if (passInput === ADMIN_PASS) { setIsAdmin(true); setShowPassModal(false); setPassInput(""); setPassError(false); } else setPassError(true); };
@@ -249,20 +263,28 @@ export default function App() {
   const edit = (im) => { setForm({ ...emptyForm, ...im }); navigate("form"); };
   const openDetalhe = (im) => { setSelected(im); setFotoIdx(0); navigate("detalhe"); };
 
-  const buscarCEP = async (raw) => {
+  const buscarCEP = (raw) => {
     const c = raw.replace(/\D/g, "");
     if (c.length !== 8) return;
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${c}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setForm(p => ({
-        ...p,
-        endereco: data.street || p.endereco,
-        bairro: data.neighborhood || p.bairro,
-        cidade: data.city || p.cidade,
-      }));
-    } catch {}
+    // JSONP — evita bloqueio de CORS
+    const cbName = `cep_cb_${Date.now()}`;
+    window[cbName] = (data) => {
+      delete window[cbName];
+      document.getElementById(cbName)?.remove();
+      if (data && !data.erro) {
+        setForm(p => ({
+          ...p,
+          endereco: [data.logradouro, data.complemento].filter(Boolean).join(", ") || p.endereco,
+          bairro: data.bairro || p.bairro,
+          cidade: data.localidade || p.cidade,
+        }));
+      }
+    };
+    const s = document.createElement("script");
+    s.id = cbName;
+    s.src = `https://viacep.com.br/ws/${c}/json/?callback=${cbName}`;
+    s.onerror = () => { delete window[cbName]; s.remove(); };
+    document.head.appendChild(s);
   };
 
   const addFotos = async (e) => {
@@ -282,7 +304,7 @@ export default function App() {
     return desc + (desc ? "\n\n" : "") + RODAPE;
   };
 
-  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(`*${im.titulo||"Imóvel"}*\n\n${descricaoCompleta(im)}`), "_blank");
+  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank");
   const whatsappMaps = (im) => { if (!im.mapsLink) return alert("Sem link do Maps."); window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank"); };
   const whatsappFotos = (im) => {
     if (!im.fotos?.length) return alert("Sem fotos.");
@@ -310,10 +332,9 @@ export default function App() {
 
   const cidades = ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()];
 
-  // Filtro que considera "Venda e Locação" em ambos
   const matchTransacao = (im, filtro) => {
     if (filtro === "Todos") return true;
-    if (im.transacao === "Venda e Locação") return true;
+    if (im.transacao === "Venda e Locação") return filtro === "Venda" || filtro === "Locação" || filtro === "Venda e Locação";
     return im.transacao === filtro;
   };
 
@@ -326,12 +347,16 @@ export default function App() {
       && (filterCidade === "Todas" || im.cidade === filterCidade);
   });
 
-  const anunciosFiltrados = imoveis.filter(im =>
-    (aFiltroTipo === "Todos" || im.tipo === aFiltroTipo)
-    && matchTransacao(im, aFiltroTransacao)
-    && (aFiltroCidade === "Todas" || im.cidade === aFiltroCidade)
-    && (aFiltroCanal === "Todos" || (aFiltroCanal === "Anunciado" && CANAIS.some(c => im.anuncios?.[c]?.ativo)) || (aFiltroCanal === "Não anunciado" && !CANAIS.some(c => im.anuncios?.[c]?.ativo)))
-  );
+  const anunciosFiltrados = imoveis.filter(im => {
+    const matchCanal = aFiltroCanal === "Todos" ||
+      (aFiltroCanal === "Anunciado" && CANAIS.some(c => im.anuncios?.[c]?.ativo)) ||
+      (aFiltroCanal === "Não anunciado" && !CANAIS.some(c => im.anuncios?.[c]?.ativo)) ||
+      (CANAIS.includes(aFiltroCanal) && im.anuncios?.[aFiltroCanal]?.ativo);
+    return (aFiltroTipo === "Todos" || im.tipo === aFiltroTipo)
+      && matchTransacao(im, aFiltroTransacao)
+      && (aFiltroCidade === "Todas" || im.cidade === aFiltroCidade)
+      && matchCanal;
+  });
 
   const inp = (label, key, opts = {}) => (
     <div style={{ marginBottom: "1rem" }}>
@@ -340,9 +365,18 @@ export default function App() {
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
     </div>
   );
+
+  const inpTel = (label, key) => (
+    <div style={{ marginBottom: "1rem" }}>
+      <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 4 }}>{label}</label>
+      <input type="tel" value={form[key]||""} onChange={e => sf(key, formatTel(e.target.value))} placeholder="(62) 9 9999-9999"
+        style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
+    </div>
+  );
+
   const tog = (label, key) => (
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
-      <input type="checkbox" checked={!!form[key]} onChange={e => sf(key, e.target.checked)} style={{ width: 16, height: 16 }} />{label}
+      <input type="checkbox" checked={!!form[key]} onChange={e => sf(key, e.target.checked)} style={{ width: 16, height: 16, accentColor: COR.primary }} />{label}
     </label>
   );
   const sel = (label, key, opts) => (
@@ -354,14 +388,16 @@ export default function App() {
     </div>
   );
   const section = (title, children) => (
-    <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
-      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "#333" }}>{title}</p>
+    <div style={{ background: "#fdf5f5", borderRadius: 10, padding: "1rem", marginBottom: "1rem", border: `1px solid ${COR.primaryBorder}` }}>
+      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: COR.primaryDark }}>{title}</p>
       {children}
     </div>
   );
   const BackBtn = ({ label = "Voltar" }) => (
-    <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "#1D9E75", fontWeight: 500, padding: 0 }}>← {label}</button>
+    <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: COR.primary, fontWeight: 500, padding: 0 }}>← {label}</button>
   );
+  const btnPrimary = { background: COR.primary, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 500, fontSize: 14 };
+  const btnOutline = { background: "#fff", color: COR.primary, border: `1px solid ${COR.primary}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontWeight: 500, fontSize: 13 };
 
   const Lightbox = () => {
     if (lightbox === null || !lightboxFotos?.length) return null;
@@ -382,38 +418,55 @@ export default function App() {
 
   const PassModal = () => (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: "2rem", width: 300, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
-        <h3 style={{ margin: "0 0 1rem" }}>Acesso Admin</h3>
+      <div style={{ background: "#fff", borderRadius: 12, padding: "2rem", width: 320, boxShadow: "0 8px 32px rgba(0,0,0,0.2)" }}>
+        {LOGO_URL
+          ? <img src={LOGO_URL} alt="Logo" style={{ display: "block", maxHeight: 80, maxWidth: "100%", margin: "0 auto 1rem", objectFit: "contain" }} />
+          : <div style={{ width: 64, height: 64, background: COR.primaryLight, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1rem", fontSize: 28 }}>🏠</div>}
+        <h3 style={{ margin: "0 0 1rem", textAlign: "center", color: COR.primaryDark }}>Acesso Admin</h3>
         <input type="password" value={passInput} onChange={e => { setPassInput(e.target.value); setPassError(false); }} onKeyDown={e => e.key === "Enter" && handleLogin()} placeholder="Senha" autoFocus
-          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: passError ? "1px solid #E24B4A" : "1px solid #ddd", fontSize: 15, boxSizing: "border-box", marginBottom: 8 }} />
-        {passError && <p style={{ color: "#E24B4A", fontSize: 13, margin: "0 0 8px" }}>Senha incorreta.</p>}
+          style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: passError ? `1px solid ${COR.primary}` : "1px solid #ddd", fontSize: 15, boxSizing: "border-box", marginBottom: 8 }} />
+        {passError && <p style={{ color: COR.primary, fontSize: 13, margin: "0 0 8px" }}>Senha incorreta.</p>}
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => { setShowPassModal(false); setPassInput(""); setPassError(false); }} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Cancelar</button>
-          <button onClick={handleLogin} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 500 }}>Entrar</button>
+          <button onClick={handleLogin} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: COR.primary, color: "#fff", cursor: "pointer", fontWeight: 500 }}>Entrar</button>
         </div>
       </div>
     </div>
   );
 
-  const PDFModal = ({ imoveis }) => (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
-      <div style={{ background: "#fff", borderRadius: 12, padding: "1.5rem", width: 380, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", maxHeight: "80vh", overflowY: "auto" }}>
-        <h3 style={{ margin: "0 0 1rem", fontSize: 17 }}>Escolha os campos do PDF</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
-          {PDF_CAMPOS.map(c => (
-            <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
-              <input type="checkbox" checked={pdfCampos.includes(c.key)} onChange={() => setPdfCampos(p => p.includes(c.key) ? p.filter(x => x !== c.key) : [...p, c.key])} style={{ width: 15, height: 15 }} />
-              {c.label}
-            </label>
-          ))}
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setShowPDFModal(false)} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Cancelar</button>
-          <button onClick={() => { setShowPDFModal(false); gerarPDF(imoveis, pdfCampos); }}
-            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "#1D9E75", color: "#fff", cursor: "pointer", fontWeight: 500 }}>Gerar PDF</button>
+  const PDFModal = ({ imoveis }) => {
+    const todos = pdfCampos.length === PDF_CAMPOS.length;
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+        <div style={{ background: "#fff", borderRadius: 12, padding: "1.5rem", width: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", maxHeight: "80vh", overflowY: "auto" }}>
+          <h3 style={{ margin: "0 0 1rem", fontSize: 17, color: COR.primaryDark }}>Escolha os campos do PDF</h3>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 12, fontWeight: 500, color: COR.primary }}>
+            <input type="checkbox" checked={todos} onChange={() => setPdfCampos(todos ? [] : PDF_CAMPOS.map(c => c.key))} style={{ width: 15, height: 15, accentColor: COR.primary }} />
+            Selecionar todos
+          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
+            {PDF_CAMPOS.map(c => (
+              <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={pdfCampos.includes(c.key)} onChange={() => setPdfCampos(p => p.includes(c.key) ? p.filter(x => x !== c.key) : [...p, c.key])} style={{ width: 15, height: 15, accentColor: COR.primary }} />
+                {c.label}
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => setShowPDFModal(false)} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Cancelar</button>
+            <button onClick={() => { setShowPDFModal(false); gerarPDF(imoveis, pdfCampos); }}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: COR.primary, color: "#fff", cursor: "pointer", fontWeight: 500 }}>Gerar PDF</button>
+          </div>
         </div>
       </div>
-    </div>
+    );
+  };
+
+  const filtroSel = (val, onChange, opts, placeholder) => (
+    <select value={val} onChange={e => onChange(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
+      <option value={opts[0].val}>{opts[0].label}</option>
+      {opts.slice(1).map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
+    </select>
   );
 
   // ── GALERIA ISOLADA ──
@@ -434,10 +487,10 @@ export default function App() {
 
   // ── ANÚNCIOS ──
   if (view === "anuncios" && isAdmin) return (
-    <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 1200, margin: "0 auto" }}>
+    <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 1300, margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
         <BackBtn />
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>Controle de Anúncios</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: COR.primaryDark }}>Controle de Anúncios</h2>
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
         <select value={aFiltroTipo} onChange={e => setAFiltroTipo(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
@@ -450,16 +503,17 @@ export default function App() {
           {cidades.map(c => <option key={c}>{c}</option>)}
         </select>
         <select value={aFiltroCanal} onChange={e => setAFiltroCanal(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
-          <option value="Todos">Todos</option>
+          <option value="Todos">Todos os canais</option>
           <option value="Anunciado">Com anúncio ativo</option>
           <option value="Não anunciado">Sem anúncio</option>
+          {CANAIS.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <span style={{ fontSize: 13, color: "#888", alignSelf: "center" }}>{anunciosFiltrados.length} imóvel(is)</span>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
-            <tr style={{ background: "#1D9E75", color: "#fff" }}>
+            <tr style={{ background: COR.primary, color: "#fff" }}>
               <th style={{ padding: "8px 10px", textAlign: "left" }}>Tipo</th>
               <th style={{ padding: "8px 10px", textAlign: "left" }}>Cidade</th>
               <th style={{ padding: "8px 10px", textAlign: "left" }}>Bairro</th>
@@ -475,21 +529,21 @@ export default function App() {
             {anunciosFiltrados.map((im, idx) => {
               const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal)+"/mês" : "") : formatBRL(im.preco);
               return (
-                <tr key={im.id} style={{ background: idx%2===0?"#fff":"#f8f8f8" }}>
+                <tr key={im.id} style={{ background: idx%2===0?"#fff":"#fdf5f5" }}>
                   <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
-                    <span style={{ fontSize: 11, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>
-                    {im.transacao && <span style={{ marginLeft: 4, fontSize: 11, background: im.transacao==="Venda"?"#e8f0ff":"#fff3e0", color: im.transacao==="Venda"?"#3a5fd9":"#e07b00", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
+                    <span style={{ fontSize: 11, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>
+                    {im.transacao && <span style={{ marginLeft: 4, fontSize: 11, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
                   </td>
                   <td style={{ padding: "8px 10px" }}>{im.cidade||"—"}</td>
                   <td style={{ padding: "8px 10px" }}>{im.bairro||"—"}</td>
-                  <td style={{ padding: "8px 10px", color: "#1D9E75", fontWeight: 500, whiteSpace: "nowrap" }}>{preco||"—"}</td>
+                  <td style={{ padding: "8px 10px", color: COR.primary, fontWeight: 500, whiteSpace: "nowrap" }}>{preco||"—"}</td>
                   <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{im.nomeProprietario||"—"}</td>
                   {CANAIS.map(canal => {
                     const info = im.anuncios?.[canal];
                     return (
                       <td key={canal} style={{ padding: "5px", textAlign: "center" }}>
                         <button onClick={() => toggleAnuncioImovel(im, canal)}
-                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: info?.ativo?"#e8f5f0":"#f5f5f5", border: info?.ativo?"1px solid #1D9E75":"1px solid #ddd", borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56 }}>
+                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: info?.ativo ? COR.primaryLight : "#f5f5f5", border: info?.ativo ? `1px solid ${COR.primary}` : "1px solid #ddd", borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56 }}>
                           <span style={{ fontSize: 14 }}>{info?.ativo ? "✅" : "⬜"}</span>
                           {info?.ativo && <span style={{ fontSize: 9, color: "#888" }}>{info.data}</span>}
                         </button>
@@ -512,8 +566,8 @@ export default function App() {
       {showPDFModal && <PDFModal imoveis={filtered} />}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.2rem" }}>
         <BackBtn />
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1 }}>Consulta de Imóveis</h2>
-        {filtered.length > 0 && <button onClick={() => setShowPDFModal(true)} style={{ background: "#1D9E75", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 500, fontSize: 13 }}>Gerar PDF ({filtered.length})</button>}
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: COR.primaryDark }}>Consulta de Imóveis</h2>
+        {filtered.length > 0 && <button onClick={() => setShowPDFModal(true)} style={{ ...btnPrimary }}>Gerar PDF ({filtered.length})</button>}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..." style={{ gridColumn: "1/-1", padding: "9px 14px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }} />
@@ -521,7 +575,7 @@ export default function App() {
           <option value="Todos">Todos os tipos</option>{TIPOS.map(t => <option key={t}>{t}</option>)}
         </select>
         <select value={filterTransacao} onChange={e => setFilterTransacao(e.target.value)} style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }}>
-          <option value="Todos">Venda e Locação</option>{TRANSACOES.map(t => <option key={t}>{t}</option>)}
+          <option value="Todos">Todos</option>{TRANSACOES.map(t => <option key={t}>{t}</option>)}
         </select>
         <select value={filterEstado} onChange={e => setFilterEstado(e.target.value)} style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid #ddd", fontSize: 14 }}>
           <option value="Todos">Novo e Usado</option>{ESTADOS_IMOVEL.map(t => <option key={t}>{t}</option>)}
@@ -544,19 +598,19 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                     <div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
-                        {im.tipo && <span style={{ fontSize: 11, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>}
-                        {im.transacao && <span style={{ fontSize: 11, background: "#e8f0ff", color: "#3a5fd9", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
+                        {im.tipo && <span style={{ fontSize: 11, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>}
+                        {im.transacao && <span style={{ fontSize: 11, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
                         {im.estadoImovel && <span style={{ fontSize: 11, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "2px 8px" }}>{im.estadoImovel}</span>}
                       </div>
                       <p style={{ margin: "0 0 4px", fontWeight: 500, fontSize: 16 }}>{im.titulo}</p>
                       <p style={{ margin: 0, fontSize: 13, color: "#777" }}>{[im.bairro, im.cidade].filter(Boolean).join(", ")}</p>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {isVenda && im.preco && <p style={{ margin: 0, fontWeight: 500, fontSize: 16, color: "#1D9E75" }}>Venda: {formatBRL(im.preco)}</p>}
+                      {isVenda && im.preco && <p style={{ margin: 0, fontWeight: 500, fontSize: 16, color: COR.primary }}>Venda: {formatBRL(im.preco)}</p>}
                       {isLocacao && <>{parseFloat(im.valorAluguel)>0&&<p style={{ margin: 0, fontSize: 13, color: "#888" }}>Aluguel: {formatBRL(im.valorAluguel)}</p>}
                         {parseFloat(im.valorCondominio)>0&&<p style={{ margin: 0, fontSize: 13, color: "#888" }}>Cond.: {formatBRL(im.valorCondominio)}</p>}
                         {parseFloat(im.valorIPTU)>0&&<p style={{ margin: 0, fontSize: 13, color: "#888" }}>IPTU: {formatBRL(im.valorIPTU)}</p>}
-                        {total>0&&<p style={{ margin: "4px 0 0", fontWeight: 500, fontSize: 15, color: "#1D9E75" }}>Total: {formatBRL(total)}/mês</p>}</>}
+                        {total>0&&<p style={{ margin: "4px 0 0", fontWeight: 500, fontSize: 15, color: COR.primary }}>Total: {formatBRL(total)}/mês</p>}</>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 16, marginTop: 10, flexWrap: "wrap", fontSize: 13, color: "#555" }}>
@@ -570,7 +624,7 @@ export default function App() {
                     {isLote && im.esgoto && <span>✓ Esgoto</span>}
                     {isLote && im.muro && <span>✓ Muro</span>}
                     {isLote && (im.retangular&&im.frente&&im.laterais ? <span>{im.frente}x{im.laterais}m</span> : im.medidas ? <span>{im.medidas}</span> : null)}
-                    {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ color: "#1D9E75", textDecoration: "none" }}>Ver mapa</a>}
+                    {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ color: COR.primary, textDecoration: "none" }}>Ver mapa</a>}
                   </div>
                   <button onClick={() => openDetalhe(im)} style={{ marginTop: 10, fontSize: 12, padding: "5px 14px", borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>Ver ficha completa</button>
                 </div>
@@ -586,14 +640,14 @@ export default function App() {
       <Lightbox />
       {showPassModal && <PassModal />}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500 }}>Imóveis Disponíveis</h2>
+        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: COR.primaryDark }}>Imóveis Disponíveis</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => navigate("consulta")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid #1D9E75", background: "#f0faf5", color: "#1D9E75", cursor: "pointer", fontWeight: 500 }}>Consulta</button>
+          <button onClick={() => navigate("consulta")} style={{ ...btnOutline }}>Consulta</button>
           {isAdmin && <>
-            <button onClick={() => navigate("anuncios")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid #888", background: "#f5f5f5", color: "#444", cursor: "pointer", fontWeight: 500 }}>Anúncios</button>
-            <span style={{ fontSize: 12, color: "#1D9E75", fontWeight: 500 }}>Admin</span>
+            <button onClick={() => navigate("anuncios")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid #999", background: "#f5f5f5", color: "#444", cursor: "pointer", fontWeight: 500 }}>Anúncios</button>
+            <span style={{ fontSize: 12, color: COR.primary, fontWeight: 500 }}>Admin</span>
             <button onClick={() => setIsAdmin(false)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>Sair</button>
-            <button onClick={() => { setForm(emptyForm); navigate("form"); }} style={{ background: "#1D9E75", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>+ Novo</button>
+            <button onClick={() => { setForm(emptyForm); navigate("form"); }} style={{ ...btnPrimary }}>+ Novo</button>
           </>}
           {!isAdmin && <button onClick={() => setShowPassModal(true)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer", color: "#888" }}>Admin</button>}
         </div>
@@ -626,19 +680,19 @@ export default function App() {
               </div>
               <div style={{ padding: "12px 14px" }}>
                 <div style={{ display: "flex", gap: 4, marginBottom: 6, flexWrap: "wrap" }}>
-                  {im.tipo && <span style={{ fontSize: 11, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>}
-                  {im.transacao && <span style={{ fontSize: 11, background: "#e8f0ff", color: "#3a5fd9", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
+                  {im.tipo && <span style={{ fontSize: 11, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "2px 8px" }}>{im.tipo}</span>}
+                  {im.transacao && <span style={{ fontSize: 11, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "2px 8px" }}>{im.transacao}</span>}
                   {im.estadoImovel && <span style={{ fontSize: 11, background: "#f5f5f5", color: "#666", borderRadius: 6, padding: "2px 8px" }}>{im.estadoImovel}</span>}
                 </div>
                 {im.titulo && <p style={{ margin: "0 0 2px", fontWeight: 500, fontSize: 15 }}>{im.titulo}</p>}
                 {(im.bairro||im.cidade) && <p style={{ margin: "0 0 4px", fontSize: 12, color: "#777" }}>{[im.bairro, im.cidade].filter(Boolean).join(", ")}</p>}
-                {isVenda && im.preco && <p style={{ margin: "0 0 2px", fontWeight: 500, fontSize: 15, color: "#1D9E75" }}>{formatBRL(im.preco)}</p>}
-                {isLocacao && im.valorFinal && <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 14, color: "#e07b00" }}>{formatBRL(im.valorFinal)}<span style={{ fontSize: 11, fontWeight: 400 }}>/mês</span></p>}
+                {isVenda && im.preco && <p style={{ margin: "0 0 2px", fontWeight: 500, fontSize: 15, color: COR.primary }}>{formatBRL(im.preco)}</p>}
+                {isLocacao && im.valorFinal && <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 14, color: "#c0762b" }}>{formatBRL(im.valorFinal)}<span style={{ fontSize: 11, fontWeight: 400 }}>/mês</span></p>}
                 <div style={{ display: "flex", gap: 6 }}>
                   <button onClick={() => openDetalhe(im)} style={{ flex: 1, padding: "6px 0", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>Ver ficha</button>
                   {isAdmin && <>
                     <button onClick={() => edit(im)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #ddd", background: "#f9f9f9", cursor: "pointer" }}>✏️</button>
-                    <button onClick={() => del(im.id)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: "1px solid #fdd", background: "#fff5f5", cursor: "pointer" }}>🗑️</button>
+                    <button onClick={() => del(im.id)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 7, border: `1px solid ${COR.primaryBorder}`, background: COR.primaryLight, cursor: "pointer" }}>🗑️</button>
                   </>}
                 </div>
               </div>
@@ -657,7 +711,7 @@ export default function App() {
     return (
       <div style={{ fontFamily: "sans-serif", padding: "1rem", maxWidth: 680, margin: "0 auto" }}>
         <div style={{ marginBottom: "1.5rem" }}><BackBtn label="Cancelar" /></div>
-        <h2 style={{ margin: "0 0 1.5rem", fontSize: 20, fontWeight: 500 }}>{form.id ? "Editar imóvel" : "Novo imóvel"}</h2>
+        <h2 style={{ margin: "0 0 1.5rem", fontSize: 20, fontWeight: 500, color: COR.primaryDark }}>{form.id ? "Editar imóvel" : "Novo imóvel"}</h2>
         {section("Informações gerais", <>
           {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -674,7 +728,7 @@ export default function App() {
           {CONDICOES.map(c => (
             <div key={c}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
-                <input type="checkbox" checked={form.condicoes?.includes(c)||false} onChange={() => toggleCondicao(c)} style={{ width: 16, height: 16 }} />{c}
+                <input type="checkbox" checked={form.condicoes?.includes(c)||false} onChange={() => toggleCondicao(c)} style={{ width: 16, height: 16, accentColor: COR.primary }} />{c}
               </label>
               {c === "Permuta" && form.condicoes?.includes("Permuta") && (
                 <input value={form.permuta||""} onChange={e => sf("permuta", e.target.value)} placeholder="Descreva o que aceita em permuta..."
@@ -697,7 +751,7 @@ export default function App() {
             <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 5 }}>Link do Google Maps</label>
             <input value={form.mapsLink||""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps"
               style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
-            {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "#1D9E75", textDecoration: "none" }}>Verificar link →</a>}
+            {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: COR.primary, textDecoration: "none" }}>Verificar link →</a>}
           </div>
           {isLote && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("Água", "agua")}{tog("Esgoto", "esgoto")}</div>}
         </>)}
@@ -719,7 +773,7 @@ export default function App() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {inp("Aluguel (R$)", "valorAluguel", { type: "number" })}{inp("Condomínio (R$)", "valorCondominio", { type: "number" })}{inp("IPTU (R$)", "valorIPTU", { type: "number" })}
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: 14, color: "#1D9E75", fontWeight: 500 }}>Total: {formatBRL(valorFinalLocacao())||"—"}</p>
+          <p style={{ margin: "4px 0 0", fontSize: 14, color: COR.primary, fontWeight: 500 }}>Total: {formatBRL(valorFinalLocacao())||"—"}</p>
         </>)}
         {section("Descrição", <>
           <div style={{ marginBottom: 8 }}>
@@ -729,22 +783,22 @@ export default function App() {
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <label style={{ fontSize: 13, color: "#555" }}>Descrição completa (editável)</label>
-            <button onClick={() => sf("descricao", gerarDescricao(form))} style={{ fontSize: 12, padding: "4px 12px", borderRadius: 7, border: "1px solid #1D9E75", background: "#f0faf5", color: "#1D9E75", cursor: "pointer" }}>Gerar automaticamente</button>
+            <button onClick={() => sf("descricao", gerarDescricao(form))} style={{ fontSize: 12, padding: "4px 12px", borderRadius: 7, border: `1px solid ${COR.primary}`, background: COR.primaryLight, color: COR.primary, cursor: "pointer" }}>Gerar automaticamente</button>
           </div>
           <textarea value={form.descricao||""} onChange={e => sf("descricao", e.target.value)} placeholder="Clique em 'Gerar automaticamente' ou escreva manualmente..." rows={10}
             style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box", resize: "vertical", lineHeight: 1.6 }} />
         </>)}
         {section("Proprietário (visível só para admin)", <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{inp("Nome", "nomeProprietario")}{inp("Telefone", "telefoneProprietario")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone", "telefoneProprietario")}</div>
         </>)}
         {section("Captador", <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{inp("Nome", "nomeCaptador")}{inp("Telefone", "telefoneCaptador")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone", "telefoneCaptador")}</div>
         </>)}
         {section("Onde foi anunciado (visível só para admin)", <>
           {CANAIS.map(canal => { const info = form.anuncios?.[canal]; return (
             <div key={canal} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
-                <input type="checkbox" checked={!!info?.ativo} onChange={() => toggleAnuncio(canal)} style={{ width: 16, height: 16 }} />
+                <input type="checkbox" checked={!!info?.ativo} onChange={() => toggleAnuncio(canal)} style={{ width: 16, height: 16, accentColor: COR.primary }} />
                 <span style={{ fontSize: 14 }}>{canal}</span>
               </label>
               {info?.ativo && <span style={{ fontSize: 12, color: "#888" }}>{info.data}</span>}
@@ -762,7 +816,7 @@ export default function App() {
               {form.fotos.map((f, i) => (
                 <div key={i} style={{ position: "relative" }}>
                   <img src={f} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #ddd" }} />
-                  <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: "#E24B4A", color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>×</button>
+                  <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: COR.primary, color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>×</button>
                 </div>
               ))}
             </div>
@@ -771,7 +825,7 @@ export default function App() {
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button onClick={goBack} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
           <button onClick={save} disabled={saving||uploadingFotos}
-            style={{ flex: 2, padding: "11px 0", borderRadius: 8, border: "none", background: (saving||uploadingFotos)?"#aaa":"#1D9E75", color: "#fff", cursor: (saving||uploadingFotos)?"default":"pointer", fontSize: 14, fontWeight: 500 }}>
+            style={{ flex: 2, padding: "11px 0", borderRadius: 8, border: "none", background: (saving||uploadingFotos)?"#aaa":COR.primary, color: "#fff", cursor: (saving||uploadingFotos)?"default":"pointer", fontSize: 14, fontWeight: 500 }}>
             {saving ? "Salvando..." : uploadingFotos ? "Aguarde o upload..." : "Salvar imóvel"}
           </button>
         </div>
@@ -800,11 +854,11 @@ export default function App() {
           {isAdmin && <button onClick={() => edit(im)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 13 }}>Editar</button>}
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap" }}>
-          {im?.tipo && <span style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{im.tipo}</span>}
-          {im?.transacao && <span style={{ fontSize: 12, background: "#e8f0ff", color: "#3a5fd9", borderRadius: 6, padding: "3px 10px" }}>{im.transacao}</span>}
+          {im?.tipo && <span style={{ fontSize: 12, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "3px 10px" }}>{im.tipo}</span>}
+          {im?.transacao && <span style={{ fontSize: 12, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "3px 10px" }}>{im.transacao}</span>}
           {im?.estadoImovel && <span style={{ fontSize: 12, background: "#f5f5f5", color: "#555", borderRadius: 6, padding: "3px 10px" }}>{im.estadoImovel}</span>}
           {im?.condominio && <span style={{ fontSize: 12, background: "#f0f0f0", color: "#555", borderRadius: 6, padding: "3px 10px" }}>Condomínio{im.nomeCondominio?`: ${im.nomeCondominio}`:""}</span>}
-          {im?.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: "#e8f5f0", color: "#1D9E75", borderRadius: 6, padding: "3px 10px" }}>{c}</span>)}
+          {im?.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "3px 10px" }}>{c}</span>)}
         </div>
         {im?.fotos?.length > 0 ? (
           <div style={{ marginBottom: "1.2rem" }}>
@@ -812,21 +866,21 @@ export default function App() {
               style={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: 12, border: "1px solid #eee", cursor: "zoom-in", background: "#f4f4f4" }} />
             {im.fotos.length > 1 && (
               <div style={{ display: "flex", gap: 8, marginTop: 8, overflowX: "auto" }}>
-                {im.fotos.map((f, i) => <img key={i} src={f} onClick={() => setFotoIdx(i)} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer", flexShrink: 0, border: i===fotoIdx?"2px solid #1D9E75":"1px solid #ddd" }} />)}
+                {im.fotos.map((f, i) => <img key={i} src={f} onClick={() => setFotoIdx(i)} alt="" style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer", flexShrink: 0, border: i===fotoIdx?`2px solid ${COR.primary}`:"1px solid #ddd" }} />)}
               </div>
             )}
           </div>
         ) : <div style={{ height: 180, background: "#f4f4f4", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>}
-        {isVenda && im?.preco && <p style={{ fontSize: 24, fontWeight: 500, color: "#1D9E75", margin: "0 0 8px" }}>Venda: {formatBRL(im.preco)}</p>}
+        {isVenda && im?.preco && <p style={{ fontSize: 24, fontWeight: 500, color: COR.primary, margin: "0 0 8px" }}>Venda: {formatBRL(im.preco)}</p>}
         {isLocacao && <div style={{ marginBottom: "1rem" }}>
           {row("Aluguel", formatBRL(im?.valorAluguel))}{row("Condomínio", formatBRL(im?.valorCondominio))}{row("IPTU", formatBRL(im?.valorIPTU))}
-          {im?.valorFinal && <p style={{ fontSize: 20, fontWeight: 500, color: "#e07b00", margin: "8px 0" }}>Total locação: {formatBRL(im.valorFinal)}/mês</p>}
+          {im?.valorFinal && <p style={{ fontSize: 20, fontWeight: 500, color: COR.primary, margin: "8px 0" }}>Total locação: {formatBRL(im.valorFinal)}/mês</p>}
         </div>}
         {(im?.cidade||im?.bairro) && section("Localização", <>
           {row("Cidade", im.cidade)}{row("Bairro", im.bairro)}
           {isAdmin && row("Endereço", im.endereco)}
           {isLote && <>{row("Asfalto", im.asfalto?"Sim":null)}{row("Água", im.agua?"Sim":null)}{row("Esgoto", im.esgoto?"Sim":null)}</>}
-          {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, padding: "8px 18px", background: "#1D9E75", color: "#fff", borderRadius: 8, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>Ver no Google Maps</a>}
+          {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, padding: "8px 18px", background: COR.primary, color: "#fff", borderRadius: 8, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>Ver no Google Maps</a>}
         </>)}
         {section("Características", <>
           {row("Estado", im?.estadoImovel)}
