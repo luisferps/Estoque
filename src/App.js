@@ -311,8 +311,8 @@ export default function App() {
   const whatsappTudo = (im) => {
     const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
     const txt = descricaoCompleta(im) +
-      (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "") +
-      (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "");
+      (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
+      (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
