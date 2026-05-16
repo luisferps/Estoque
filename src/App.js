@@ -13,7 +13,6 @@ const CLOUDINARY_CLOUD = "demsusjwf";
 const CLOUDINARY_PRESET = "Estoque";
 const LOGO_URL = "https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png";
 
-
 const PDF_CAMPOS = [
   { key: "tipo", label: "Tipo/Transação" },
   { key: "cidade", label: "Cidade" },
@@ -35,7 +34,6 @@ const PDF_CAMPOS = [
   { key: "total", label: "Total Locação" },
 ];
 
-// Cores tema vermelho
 const COR = {
   primary: "#C0392B",
   primaryDark: "#922B21",
@@ -211,7 +209,7 @@ export default function App() {
   const [aFiltroCanal, setAFiltroCanal] = useState("Todos");
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
-
+  const fileRef = useRef();
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -267,7 +265,6 @@ export default function App() {
   const buscarCEP = (raw) => {
     const c = raw.replace(/\D/g, "");
     if (c.length !== 8) return;
-    // JSONP — evita bloqueio de CORS
     const cbName = `cep_cb_${Date.now()}`;
     window[cbName] = (data) => {
       delete window[cbName];
@@ -305,18 +302,19 @@ export default function App() {
     return desc + (desc ? "\n\n" : "") + RODAPE;
   };
 
+  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank");
+  const whatsappMaps = (im) => { if (!im.mapsLink) return alert("Sem link do Maps."); window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank"); };
+  const whatsappFotos = (im) => {
+    if (!im.fotos?.length) return alert("Sem fotos.");
+    const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+    window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
+  };
   const whatsappTudo = (im) => {
     const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
     const txt = descricaoCompleta(im) +
       (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "") +
       (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
-  };
-  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank"); if (!im.mapsLink) return alert("Sem link do Maps."); window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank"); };
-  const whatsappFotos = (im) => {
-    if (!im.fotos?.length) return alert("Sem fotos.");
-    const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
-    window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
   };
 
   const downloadFotos = async (im) => {
@@ -359,13 +357,8 @@ export default function App() {
     if (aFiltroCanal === "Todos") matchCanal = true;
     else if (aFiltroCanal === "Anunciado") matchCanal = CANAIS.some(c => im.anuncios?.[c]?.ativo);
     else if (aFiltroCanal === "Não anunciado") matchCanal = !CANAIS.some(c => im.anuncios?.[c]?.ativo);
-    else if (aFiltroCanal.startsWith("nao_")) {
-      const canal = aFiltroCanal.replace("nao_", "");
-      matchCanal = !im.anuncios?.[canal]?.ativo;
-    } else if (aFiltroCanal.startsWith("sim_")) {
-      const canal = aFiltroCanal.replace("sim_", "");
-      matchCanal = !!im.anuncios?.[canal]?.ativo;
-    }
+    else if (aFiltroCanal.startsWith("nao_")) matchCanal = !im.anuncios?.[aFiltroCanal.replace("nao_", "")]?.ativo;
+    else if (aFiltroCanal.startsWith("sim_")) matchCanal = !!im.anuncios?.[aFiltroCanal.replace("sim_", "")]?.ativo;
     return (aFiltroTipo === "Todos" || im.tipo === aFiltroTipo)
       && matchTransacao(im, aFiltroTransacao)
       && (aFiltroCidade === "Todas" || im.cidade === aFiltroCidade)
@@ -379,7 +372,6 @@ export default function App() {
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
     </div>
   );
-
   const inpTel = (label, key) => (
     <div style={{ marginBottom: "1rem" }}>
       <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 4 }}>{label}</label>
@@ -387,7 +379,6 @@ export default function App() {
         style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 14, boxSizing: "border-box" }} />
     </div>
   );
-
   const tog = (label, key) => (
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
       <input type="checkbox" checked={!!form[key]} onChange={e => sf(key, e.target.checked)} style={{ width: 16, height: 16, accentColor: COR.primary }} />{label}
@@ -476,13 +467,6 @@ export default function App() {
     );
   };
 
-  const filtroSel = (val, onChange, opts, placeholder) => (
-    <select value={val} onChange={e => onChange(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
-      <option value={opts[0].val}>{opts[0].label}</option>
-      {opts.slice(1).map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-    </select>
-  );
-
   // ── GALERIA ISOLADA ──
   if (view === "galeria") {
     const im = imoveis.find(i => i.id === selected?.id) || selected;
@@ -518,7 +502,7 @@ export default function App() {
         </select>
         <select value={aFiltroCanal} onChange={e => setAFiltroCanal(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ddd", fontSize: 13 }}>
           <option value="Todos">Todos os canais</option>
-          <option value="Anunciado">Com anúncio ativo (qualquer canal)</option>
+          <option value="Anunciado">Com anúncio ativo</option>
           <option value="Não anunciado">Sem anúncio em nenhum canal</option>
           <optgroup label="— Não anunciado em:">
             {CANAIS.map(c => <option key={`nao_${c}`} value={`nao_${c}`}>Falta: {c}</option>)}
@@ -542,9 +526,7 @@ export default function App() {
             </tr>
           </thead>
           <tbody>
-            {anunciosFiltrados.length === 0 && (
-              <tr><td colSpan={5+CANAIS.length} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>Nenhum imóvel encontrado.</td></tr>
-            )}
+            {anunciosFiltrados.length === 0 && <tr><td colSpan={5+CANAIS.length} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>Nenhum imóvel encontrado.</td></tr>}
             {anunciosFiltrados.map((im, idx) => {
               const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal)+"/mês" : "") : formatBRL(im.preco);
               return (
