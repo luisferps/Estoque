@@ -211,7 +211,7 @@ export default function App() {
   const [aFiltroCanal, setAFiltroCanal] = useState("Todos");
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
-  const fileRef = useRef();
+
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -305,15 +305,21 @@ export default function App() {
     return desc + (desc ? "\n\n" : "") + RODAPE;
   };
 
-  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank");
-  const whatsappMaps = (im) => { if (!im.mapsLink) return alert("Sem link do Maps."); window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank"); };
+  const whatsappTudo = (im) => {
+    const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+    const txt = descricaoCompleta(im) +
+      (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "") +
+      (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "");
+    window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
+  };
+  const whatsappDescricao = (im) => window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank"); if (!im.mapsLink) return alert("Sem link do Maps."); window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank"); };
   const whatsappFotos = (im) => {
     if (!im.fotos?.length) return alert("Sem fotos.");
     const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
     window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
   };
 
-  const downloadFotos = async (im) => {
+  const whatsappMaps = (im) => { = async (im) => {
     if (!im.fotos?.length) return alert("Sem fotos.");
     for (let i = 0; i < im.fotos.length; i++) {
       try { const res = await fetch(im.fotos[i]); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${im.titulo||"imovel"}_foto${i+1}.jpg`; a.click(); URL.revokeObjectURL(url); await new Promise(r => setTimeout(r, 300)); } catch {}
@@ -916,6 +922,10 @@ export default function App() {
           {CANAIS.filter(c=>im.anuncios?.[c]?.ativo).map(c=><div key={c} style={{ display:"flex", justifyContent:"space-between", fontSize:13, marginBottom:4 }}><span>{c}</span><span style={{ color:"#888" }}>{im.anuncios[c].data}</span></div>)}
         </>)}
         <p style={{ fontSize: 13, fontWeight: 500, color: "#555", margin: "1.5rem 0 8px" }}>Compartilhar via WhatsApp</p>
+        <button onClick={() => whatsappTudo(im)}
+          style={{ width: "100%", padding: "13px 0", borderRadius: 8, border: "none", background: COR.primary, color: "#fff", cursor: "pointer", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+          Compartilhar tudo
+        </button>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
           <button onClick={() => whatsappDescricao(im)} style={{ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Descrição</button>
           <button onClick={() => whatsappMaps(im)} style={{ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: "#128C7E", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Localização</button>
@@ -928,3 +938,4 @@ export default function App() {
 
   return null;
 }
+    
