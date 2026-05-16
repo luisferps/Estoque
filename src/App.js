@@ -319,7 +319,7 @@ export default function App() {
     window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
   };
 
-  const whatsappMaps = (im) => { = async (im) => {
+  const downloadFotos = async (im) => {
     if (!im.fotos?.length) return alert("Sem fotos.");
     for (let i = 0; i < im.fotos.length; i++) {
       try { const res = await fetch(im.fotos[i]); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `${im.titulo||"imovel"}_foto${i+1}.jpg`; a.click(); URL.revokeObjectURL(url); await new Promise(r => setTimeout(r, 300)); } catch {}
@@ -938,4 +938,3 @@ export default function App() {
 
   return null;
 }
-    
