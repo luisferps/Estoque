@@ -94,7 +94,7 @@ function gerarDescricao(form) {
     else if (form.medidas) linhas.push(`- ${form.medidas}`);
   }
   if (form.condominio && form.nomeCondominio) linhas.push(`- Condomínio: ${form.nomeCondominio}`);
-  if (form.estadoImovel) linhas.push(`- ${form.estadoImovel}`);
+  if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
   if (form.extras) linhas.push(...form.extras.split("\n").filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
   linhas.push("");
   const isLocacao = form.transacao === "Locação" || form.transacao === "Venda e Locação";
