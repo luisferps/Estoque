@@ -722,7 +722,7 @@ export default function App() {
           {inp("Metragem de construção (m²)", "metragem", { type: "number" })}
           {inp("Metragem total do terreno (m²)", "metragemTotal", { type: "number" })}
           {tog("Em condomínio?", "condominio")}
-          {form.condominio && <>{inp("Nome do condomínio", "nomeCondominio")}{inp("Valor mensal do condomínio (R$)", "valorCondominioMensal", { type: "number" })}</>}
+          {form.condominio && <>{inp("Nome do condomínio", "nomeCondominio")}</>}
         </>)}
         {section("Condições comerciais", <>
           {CONDICOES.map(c => (
