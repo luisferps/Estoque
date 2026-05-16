@@ -39,7 +39,6 @@ const COR = {
   primaryDark: "#922B21",
   primaryLight: "#FADBD8",
   primaryBorder: "#E59A94",
-  accent: "#E74C3C",
 };
 
 const firebaseConfig = {
@@ -738,6 +737,23 @@ export default function App() {
             </div>
           ))}
         </>)}
+        {section("Fotos", <>
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFotos} style={{ display: "none" }} />
+          <button onClick={() => fileRef.current.click()} disabled={uploadingFotos}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed #bbb", background: uploadingFotos?"#f0f0f0":"#fafafa", cursor: uploadingFotos?"default":"pointer", fontSize: 13 }}>
+            {uploadingFotos ? "Enviando fotos..." : "+ Adicionar fotos"}
+          </button>
+          {form.fotos?.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              {form.fotos.map((f, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={f} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #ddd" }} />
+                  <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: COR.primary, color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>)}
         {section("Localização", <>
           <div style={{ marginBottom: "1rem" }}>
             <label style={{ display: "block", fontSize: 13, color: "#555", marginBottom: 4 }}>CEP</label>
@@ -806,23 +822,6 @@ export default function App() {
             </div>
           ); })}
         </>)}
-        {section("Fotos", <>
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFotos} style={{ display: "none" }} />
-          <button onClick={() => fileRef.current.click()} disabled={uploadingFotos}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed #bbb", background: uploadingFotos?"#f0f0f0":"#fafafa", cursor: uploadingFotos?"default":"pointer", fontSize: 13 }}>
-            {uploadingFotos ? "Enviando fotos..." : "+ Adicionar fotos"}
-          </button>
-          {form.fotos?.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-              {form.fotos.map((f, i) => (
-                <div key={i} style={{ position: "relative" }}>
-                  <img src={f} alt="" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8, border: "1px solid #ddd" }} />
-                  <button onClick={() => removeFoto(i)} style={{ position: "absolute", top: -7, right: -7, background: COR.primary, color: "#fff", border: "none", borderRadius: "50%", width: 22, height: 22, fontSize: 13, cursor: "pointer", lineHeight: 1 }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </>)}
         <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button onClick={goBack} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
           <button onClick={save} disabled={saving||uploadingFotos}
@@ -861,6 +860,8 @@ export default function App() {
           {im?.condominio && <span style={{ fontSize: 12, background: "#f0f0f0", color: "#555", borderRadius: 6, padding: "3px 10px" }}>Condomínio{im.nomeCondominio?`: ${im.nomeCondominio}`:""}</span>}
           {im?.condicoes?.map(c => <span key={c} style={{ fontSize: 12, background: COR.primaryLight, color: COR.primaryDark, borderRadius: 6, padding: "3px 10px" }}>{c}</span>)}
         </div>
+
+        {/* FOTOS — antes do Maps */}
         {im?.fotos?.length > 0 ? (
           <div style={{ marginBottom: "1.2rem" }}>
             <img src={im.fotos[fotoIdx]} alt="" onClick={() => openLightbox(im.fotos, fotoIdx)}
@@ -872,6 +873,7 @@ export default function App() {
             )}
           </div>
         ) : <div style={{ height: 180, background: "#f4f4f4", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>}
+
         {isVenda && im?.preco && <p style={{ fontSize: 24, fontWeight: 500, color: COR.primary, margin: "0 0 8px" }}>Venda: {formatBRL(im.preco)}</p>}
         {isLocacao && <div style={{ marginBottom: "1rem" }}>
           {row("Aluguel", formatBRL(im?.valorAluguel))}{row("Condomínio", formatBRL(im?.valorCondominio))}{row("IPTU", formatBRL(im?.valorIPTU))}
