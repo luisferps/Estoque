@@ -26,9 +26,9 @@ export const LOGO_URL = "https://res.cloudinary.com/demsusjwf/image/upload/v1778
 // ─── Empresa ───
 export const EMPRESA = {
   nome: "Inerente Gestão Imobiliária",
-  whatsapp: "5562999999999", // ⚠️ Substituir pelo WhatsApp real da empresa
+  whatsapp: "62982281861", // ⚠️ Substituir pelo WhatsApp real da empresa
   email: "contato@inerente.com.br",
-  instagram: "@inerente",
+  instagram: "@inerenteimoiliaria",
 };
 
 // ─── Cores (CSS Variables — ver ThemeProvider) ───
