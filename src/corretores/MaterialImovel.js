@@ -21,6 +21,7 @@ export default function MaterialImovel() {
 
   if (loadingAuth || loading) return <div style={pageWrap()}>Carregando...</div>;
   if (!user) { navigate("/corretores"); return null; }
+  if (!im && imoveis.length === 0) return <div style={pageWrap()}>Carregando...</div>;
   if (!im) return <div style={pageWrap()}>Imóvel não encontrado.</div>;
 
   const isLot = isLote(im);
