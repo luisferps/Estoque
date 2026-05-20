@@ -19,6 +19,12 @@ export default function ImovelPublico() {
 
   if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
 
+  // Se ainda não chegou nenhum imóvel mas o loading terminou, aguarda um pouco mais
+  // (evita falso "Imóvel não disponível" em race condition)
+  if (!im && imoveis.length === 0) {
+    return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
+  }
+
   if (!im || statusDoImovel(im) !== "Disponível") {
     return (
       <div>
