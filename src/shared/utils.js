@@ -243,3 +243,12 @@ export function whatsappFotos(im) {
   const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
   window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
 }
+
+// ─── Link WhatsApp pra contato direto do cliente com a empresa ───
+// Usado nos botões "Tenho interesse" do site público e cards
+export function waContatoImovel(im, empresaWhatsapp) {
+  const titulo = im.titulo || "imóvel";
+  const link = `${window.location.origin}/imovel/${im.id}`;
+  const msg = `Olá! Tenho interesse no imóvel: ${titulo}\n${link}`;
+  return `https://wa.me/${empresaWhatsapp}?text=${encodeURIComponent(msg)}`;
+}
