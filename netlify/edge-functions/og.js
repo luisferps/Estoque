@@ -97,29 +97,4 @@ export default async (request, context) => {
     ${imagem ? `<meta property="og:image:width" content="1200" />` : ""}
     ${imagem ? `<meta property="og:image:height" content="630" />` : ""}
     <meta property="og:site_name" content="Inerente Gestão Imobiliária" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${escapeHtml(titulo)}" />
-    <meta name="twitter:description" content="${escapeHtml(descricao)}" />
-    ${imagem ? `<meta name="twitter:image" content="${escapeHtml(imagem)}" />` : ""}
-    <meta name="description" content="${escapeHtml(descricao)}" />
-    <title>${escapeHtml(titulo)} — Inerente Gestão Imobiliária</title>`;
-
-    // Injeta as meta tags no <head> e remove o título e meta-description originais
-    const novoHtml = html
-      .replace(/<title>[\s\S]*?<\/title>/i, "")
-      .replace(/<meta\s+name="description"[^>]*>/i, "")
-      .replace(/<\/head>/i, `${metaTags}\n</head>`);
-
-    return new Response(novoHtml, {
-      status: response.status,
-      headers: response.headers,
-    });
-  } catch (err) {
-    // Em caso de erro, serve o HTML normal sem quebrar
-    return;
-  }
-};
-
-export const config = {
-  path: "/imovel/*",
-};
+    <meta name="twitter:card" content="s
