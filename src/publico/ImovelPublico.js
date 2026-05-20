@@ -75,7 +75,6 @@ export default function ImovelPublico() {
           {im.transacao && <span style={tag()}>{im.transacao}</span>}
           {im.estadoImovel && <span style={tag()}>{im.estadoImovel}</span>}
           {im.condominio && <span style={tag()}>Em condomínio</span>}
-          {im.condicoes?.map(c => <span key={c} style={tag("primary")}>{c}</span>)}
         </div>
 
         {im.fotos?.length > 0 ? (
@@ -128,18 +127,6 @@ export default function ImovelPublico() {
           {!isLot && parseInt(im.quartos) > 0 && row("Quartos", im.quartos)}
           {!isLot && parseInt(im.suites) > 0 && row("Suítes", im.suites)}
           {!isLot && parseInt(im.garagens) > 0 && row("Garagens", im.garagens)}
-          {im.tipo === "Apartamento" && parseFloat(im.valorCondominio) > 0 && row("Condomínio", formatBRL(im.valorCondominio))}
-          {isLot && <>
-            {row("Asfalto", im.asfalto ? "Sim" : null)}
-            {row("Água", im.agua ? "Sim" : null)}
-            {row("Esgoto", im.esgoto ? "Sim" : null)}
-            {row("Murado", im.muro ? "Sim" : null)}
-            {row("Esquina", im.esquina ? "Sim" : null)}
-            {row("Declive", im.declive)}
-            {im.retangular && im.frente && im.laterais
-              ? row("Medidas", `${im.frente} x ${im.laterais} m`)
-              : row("Medidas", im.medidas)}
-          </>}
           {im.condominio && im.nomeCondominio && row("Condomínio", im.nomeCondominio)}
         </>)}
 
@@ -157,12 +144,6 @@ export default function ImovelPublico() {
           </div>
         )}
 
-        {im.descricao && section("Descrição", (
-          <p style={{ fontSize: 14, color: "var(--text-soft)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>
-            {im.descricao}
-          </p>
-        ))}
-
         {im.mapsLink && (
           <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{
             display: "inline-block", marginBottom: "1.2rem",
@@ -173,6 +154,20 @@ export default function ImovelPublico() {
             📍 Ver localização no Google Maps
           </a>
         )}
+
+        {/* Chamada pra contato — "quer saber mais? fala comigo" */}
+        <div style={{
+          background: "var(--primary-light)", border: "1px solid var(--primary-border)",
+          borderRadius: 10, padding: "1.2rem 1rem", textAlign: "center",
+          margin: "1rem 0"
+        }}>
+          <p style={{ margin: "0 0 4px", fontSize: 15, color: "var(--primary-dark)", fontWeight: 600 }}>
+            Quer saber mais sobre esse imóvel?
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-soft)" }}>
+            Fale agora com um dos nossos corretores. Atendimento rápido e sem compromisso.
+          </p>
+        </div>
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem" }}>{RODAPE}</p>
 
