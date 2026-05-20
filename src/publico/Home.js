@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, waContatoImovel } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import { EMPRESA } from "../constants";
 import Header from "./Header";
@@ -79,13 +79,29 @@ export default function Home() {
               onClick={() => navigate(`/imovel/${im.id}`)}
               showStatus={false}
               actions={
-                <button onClick={() => navigate(`/imovel/${im.id}`)} style={{
-                  flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7,
-                  border: "none", background: "var(--primary)", color: "#fff",
-                  cursor: "pointer", fontWeight: 500
-                }}>
-                  Ver detalhes
-                </button>
+                <>
+                  <a
+                    href={waContatoImovel(im, EMPRESA.whatsapp)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7,
+                      border: "none", background: "#25D366", color: "#fff",
+                      cursor: "pointer", fontWeight: 600, textAlign: "center",
+                      textDecoration: "none", display: "flex",
+                      alignItems: "center", justifyContent: "center", gap: 4
+                    }}>
+                    💬 WhatsApp
+                  </a>
+                  <button onClick={() => navigate(`/imovel/${im.id}`)} style={{
+                    flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7,
+                    border: "1px solid var(--primary)", background: "var(--bg-card)",
+                    color: "var(--primary)", cursor: "pointer", fontWeight: 500
+                  }}>
+                    Ver detalhes
+                  </button>
+                </>
               }
             />
           ))}
