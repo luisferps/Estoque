@@ -22,7 +22,6 @@ export default function Form() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
 
-  // Hidrata o form quando os imóveis chegarem (em edição)
   useEffect(() => {
     if (!id) return;
     if (loading) return;
@@ -68,6 +67,7 @@ export default function Form() {
   const addFotos = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
     setUploading(true);
     try {
       const urls = await Promise.all(files.map(f => uploadToCloudinary(f)));
@@ -79,7 +79,6 @@ export default function Form() {
     e.target.value = "";
   };
 
-  // ─── Helpers de input ───
   const inp = (label, key, opts = {}) => (
     <div style={{ marginBottom: "1rem" }}>
       <label style={labelStyle}>{label}</label>
