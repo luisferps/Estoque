@@ -23,6 +23,18 @@ export function telParaWhatsapp(tel) {
 
 // ─── Helpers de imóvel ───
 export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
+
+// Versão dinâmica: consulta o comportamento do tipo na lista de tipos do banco.
+// Cai no comportamento legado (Lote/Área) se não achar.
+export function comportamentoTipo(nomeTipo, tipos) {
+  const t = (tipos || []).find(x => x.nome === nomeTipo);
+  if (t?.comportamento) return t.comportamento;
+  if (nomeTipo === "Lote" || nomeTipo === "Área") return "terreno";
+  if (nomeTipo === "Casa" || nomeTipo === "Apartamento") return "construcao";
+  return "simples";
+}
+export const ehTerreno = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "terreno";
+export const ehConstrucao = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "construcao";
 // "Venda e Locação" é legado — tratado como Venda
 export const isLocacao = (im) => im?.transacao === "Locação";
 export const isVenda = (im) => im?.transacao === "Venda" || im?.transacao === "Venda e Locação";
@@ -247,6 +259,7 @@ export function whatsappFotos(im) {
 }
 
 // ─── Link WhatsApp pra contato direto do cliente com a empresa ───
+// Usado nos botões "Tenho interesse" do site público e cards
 export function waContatoImovel(im, empresaWhatsapp) {
   const titulo = im.titulo || "imóvel";
   const link = `${window.location.origin}/imovel/${im.id}`;
