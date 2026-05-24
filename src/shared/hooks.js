@@ -48,4 +48,41 @@ export function useCorretores() {
   return { corretores, loading };
 }
 
+// ─── Hook que escuta a coleção de tipos de imóvel ───
+// Se a coleção estiver vazia, retorna os tipos padrão (fallback) pra nada quebrar.
+const TIPOS_PADRAO = [
+  { nome: "Lote", icone: "📐", comportamento: "terreno", ordem: 0 },
+  { nome: "Casa", icone: "🏠", comportamento: "construcao", ordem: 1 },
+  { nome: "Apartamento", icone: "🏢", comportamento: "construcao", ordem: 2 },
+  { nome: "Área", icone: "🌳", comportamento: "terreno", ordem: 3 },
+  { nome: "Galpão", icone: "🏭", comportamento: "simples", ordem: 4 },
+];
+
+export function useTipos() {
+  const [tipos, setTipos] = useState(TIPOS_PADRAO);
+  const [loading, setLoading] = useState(true);
+  const [doBanco, setDoBanco] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "tipos"),
+      snap => {
+        if (snap.empty) {
+          setTipos(TIPOS_PADRAO);
+          setDoBanco(false);
+        } else {
+          const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          lista.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+          setTipos(lista);
+          setDoBanco(true);
+        }
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return unsub;
+  }, []);
+
+  return { tipos, loading, doBanco };
+}
+
 
