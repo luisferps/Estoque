@@ -49,7 +49,7 @@ export default function Anuncios() {
           <option value="Todos">Todos os tipos</option>{TIPOS.map(t => <option key={t}>{t}</option>)}
         </select>
         <select value={fTransacao} onChange={e => setFTransacao(e.target.value)} style={selectStyle}>
-          <option value="Todos">Venda e Locação</option>{TRANSACOES.map(t => <option key={t}>{t}</option>)}
+          <option value="Todos">Todas as transações</option>{TRANSACOES.map(t => <option key={t}>{t}</option>)}
         </select>
         <select value={fCidade} onChange={e => setFCidade(e.target.value)} style={selectStyle}>
           {cidades.map(c => <option key={c}>{c}</option>)}
