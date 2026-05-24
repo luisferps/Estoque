@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis, useAuthUser } from "../shared/hooks";
 import { PDF_CAMPOS, RODAPE } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, descricaoCompleta,
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, descricaoCompleta, temRodape,
   whatsappTudo, whatsappDescricao, whatsappMaps, whatsappFotos, downloadFotos, gerarPDF
 } from "../shared/utils";
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
@@ -209,7 +209,7 @@ export default function MaterialImovel() {
 
       {im.descricao && section("Descrição pronta para uso", <>
         <p style={{ fontSize: 14, color: "var(--text-soft)", lineHeight: 1.75, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>{im.descricao}</p>
-        {!im.descricao.includes(RODAPE) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
+        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
       </>)}
 
       {(im.nomeCaptador || im.telefoneCaptador) && section("Captador",
