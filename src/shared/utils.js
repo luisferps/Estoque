@@ -122,7 +122,7 @@ export function descricaoCompleta(im) {
 export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
-    const galeria = `${window.location.origin}/#galeria-${im.id}`;
+    const galeria = `${window.location.origin}/fotos/${im.id}`;
     txt += `\n\nFotos:\n${galeria}`;
   }
   if (im.mapsLink) {
