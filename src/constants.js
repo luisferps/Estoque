@@ -1,7 +1,7 @@
 // ─── Configurações de negócio ───
 export const ADMIN_PASS = "123livre";
 export const TIPOS = ["Lote", "Casa", "Apartamento", "Área", "Galpão"];
-export const TRANSACOES = ["Venda", "Locação", "Venda e Locação"];
+export const TRANSACOES = ["Venda", "Locação"];
 export const ESTADOS_IMOVEL = ["Imóvel Usado", "Imóvel Novo"];
 export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado"];
 export const CANAIS = ["Canal Pro", "Chaves na Mão", "Marketplace Facebook", "Google Business", "Instagram", "Whatsapp", "Grupos"];
@@ -26,9 +26,12 @@ export const LOGO_URL = "https://res.cloudinary.com/demsusjwf/image/upload/v1778
 // ─── Empresa ───
 export const EMPRESA = {
   nome: "Inerente Gestão Imobiliária",
-  whatsapp: "556282281861", // ⚠️ Substituir pelo WhatsApp real da empresa
+  whatsapp: "5562982281861",
+  telefone: "(62) 98228-1861",
   email: "contato@inerente.com.br",
   instagram: "@inerenteimobiliaria",
+  endereco: "Via Gustavo Corção, 281 - Q26, L01 - Condomínio Amin Camargo, Goiânia - GO, 74355-100",
+  creci: "Creci/GO 41.584",
 };
 
 // ─── Cores (CSS Variables — ver ThemeProvider) ───
