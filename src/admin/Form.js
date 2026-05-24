@@ -3,11 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
-  TIPOS, TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, CONDICOES, CANAIS, emptyForm
+  TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
-import { useImoveis } from "../shared/hooks";
+import { useImoveis, useTipos } from "../shared/hooks";
 import {
-  formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP
+  formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP, ehTerreno, ehConstrucao
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
@@ -16,12 +16,14 @@ export default function Form() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { imoveis, loading } = useImoveis();
+  const { tipos } = useTipos();
   const [form, setForm] = useState(emptyForm);
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
 
+  // Hidrata o form quando os imóveis chegarem (em edição)
   useEffect(() => {
     if (!id) return;
     if (loading) return;
@@ -35,7 +37,8 @@ export default function Form() {
     }
   }, [id, imoveis, loading, navigate]);
 
-  const isLote = form.tipo === "Lote" || form.tipo === "Área";
+  const isLote = ehTerreno(form.tipo, tipos);
+  const isConstrucao = ehConstrucao(form.tipo, tipos);
   const isLocacao = form.transacao === "Locação";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Locação";
 
@@ -67,6 +70,7 @@ export default function Form() {
   const addFotos = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
+    // Ordena por nome do arquivo (alfabético natural: foto2 antes de foto10)
     files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
     setUploading(true);
     try {
@@ -79,6 +83,7 @@ export default function Form() {
     e.target.value = "";
   };
 
+  // ─── Helpers de input ───
   const inp = (label, key, opts = {}) => (
     <div style={{ marginBottom: "1rem" }}>
       <label style={labelStyle}>{label}</label>
@@ -128,7 +133,7 @@ export default function Form() {
       {section("Informações gerais", <>
         {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
         <div style={grid2}>
-          {sel("Tipo de imóvel", "tipo", TIPOS)}
+          {sel("Tipo de imóvel", "tipo", tipos.map(t => t.nome))}
           {sel("Tipo de transação", "transacao", TRANSACOES)}
           {sel("Estado do imóvel", "estadoImovel", ESTADOS_IMOVEL)}
           {sel("Status", "status", STATUS_IMOVEL)}
@@ -197,7 +202,7 @@ export default function Form() {
           : inp("Medidas", "medidas", { ph: "Ex: 15x30 irregular" })}
       </>)}
 
-      {(form.tipo === "Casa" || form.tipo === "Apartamento") && section("Detalhes da " + form.tipo, <>
+      {isConstrucao && section("Detalhes da " + form.tipo, <>
         <div style={grid2}>
           {inp("Quartos", "quartos", { type: "number" })}
           {inp("Suítes", "suites", { type: "number" })}
