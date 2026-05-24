@@ -26,7 +26,7 @@ export default function Filtros({
         {TIPOS.map(t => <option key={t}>{t}</option>)}
       </select>
       <select value={transacao} onChange={e => setTransacao(e.target.value)} style={selectStyle}>
-        <option value="Todos">Venda e Locação</option>
+        <option value="Todos">Todas as transações</option>
         {TRANSACOES.map(t => <option key={t}>{t}</option>)}
       </select>
       {showEstado && (
