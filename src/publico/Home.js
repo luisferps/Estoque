@@ -1,17 +1,16 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useImoveis } from "../shared/hooks";
+import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, ordenarImoveis, statusDoImovel, waContatoImovel } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
-import { EMPRESA, TIPOS, TRANSACOES, ORDENACOES } from "../constants";
+import { EMPRESA, TRANSACOES, ORDENACOES } from "../constants";
 import Header from "./Header";
 import ImovelCard from "../shared/ImovelCard";
-
-const ICONE_TIPO = { "Casa": "🏠", "Apartamento": "🏢", "Lote": "📐", "Área": "🌳", "Galpão": "🏭" };
 
 export default function Home() {
   const navigate = useNavigate();
   const { imoveis, loading } = useImoveis();
+  const { tipos } = useTipos();
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -60,7 +59,7 @@ export default function Home() {
           <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch", margin: "6px 0" }} />
           <select value={tipo} onChange={e => setTipo(e.target.value)} style={heroSelectStyle}>
             <option value="Todos">Tipo de imóvel</option>
-            {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+            {tipos.map(t => <option key={t.nome} value={t.nome}>{t.nome}</option>)}
           </select>
           <select value={transacao} onChange={e => setTransacao(e.target.value)} style={heroSelectStyle}>
             <option value="Todos">Venda ou Locação</option>
@@ -70,13 +69,13 @@ export default function Home() {
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", maxWidth: 880, margin: "1.5rem auto 0" }}>
-          {TIPOS.map(t => {
-            const ativo = tipo === t;
+          {tipos.map(t => {
+            const ativo = tipo === t.nome;
             return (
-              <button key={t} onClick={() => setTipo(ativo ? "Todos" : t)} style={{ background: ativo ? "#fff" : "rgba(255,255,255,0.12)", color: ativo ? "var(--primary-dark)" : "#fff", border: ativo ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)", borderRadius: 12, padding: "12px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 92, fontWeight: 600 }}>
-                <span style={{ fontSize: 26 }}>{ICONE_TIPO[t] || "🏘️"}</span>
-                <span style={{ fontSize: 13 }}>{t}</span>
-                <span style={{ fontSize: 11, opacity: 0.75 }}>{contagemPorTipo[t] || 0} {contagemPorTipo[t] === 1 ? "imóvel" : "imóveis"}</span>
+              <button key={t.nome} onClick={() => setTipo(ativo ? "Todos" : t.nome)} style={{ background: ativo ? "#fff" : "rgba(255,255,255,0.12)", color: ativo ? "var(--primary-dark)" : "#fff", border: ativo ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)", borderRadius: 12, padding: "12px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 92, fontWeight: 600 }}>
+                <span style={{ fontSize: 26 }}>{t.icone || "🏘️"}</span>
+                <span style={{ fontSize: 13 }}>{t.nome}</span>
+                <span style={{ fontSize: 11, opacity: 0.75 }}>{contagemPorTipo[t.nome] || 0} {contagemPorTipo[t.nome] === 1 ? "imóvel" : "imóveis"}</span>
               </button>
             );
           })}
