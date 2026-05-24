@@ -21,7 +21,37 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [addTipoOpen, setAddTipoOpen] = useState(false);
+  const [novoTipoNome, setNovoTipoNome] = useState("");
+  const [novoTipoIcone, setNovoTipoIcone] = useState("🏘️");
+  const [novoTipoComp, setNovoTipoComp] = useState("simples");
+  const [salvandoTipo, setSalvandoTipo] = useState(false);
   const fileRef = useRef();
+
+  const TIPOS_PADRAO_SEED = [
+    { nome: "Lote", icone: "📐", comportamento: "terreno", ordem: 0 },
+    { nome: "Casa", icone: "🏠", comportamento: "construcao", ordem: 1 },
+    { nome: "Apartamento", icone: "🏢", comportamento: "construcao", ordem: 2 },
+    { nome: "Área", icone: "🌳", comportamento: "terreno", ordem: 3 },
+    { nome: "Galpão", icone: "🏭", comportamento: "simples", ordem: 4 },
+  ];
+
+  const criarTipoRapido = async () => {
+    const n = novoTipoNome.trim();
+    if (!n) return alert("Digite o nome do tipo.");
+    if (tipos.some(t => t.nome.toLowerCase() === n.toLowerCase())) return alert("Esse tipo já existe.");
+    setSalvandoTipo(true);
+    try {
+      // Se os tipos ainda são os padrão (não estão no banco), semeia primeiro
+      const noBanco = tipos.some(t => t.id);
+      if (!noBanco) for (const t of TIPOS_PADRAO_SEED) await addDoc(collection(db, "tipos"), t);
+      const ordem = tipos.reduce((m, t) => Math.max(m, t.ordem || 0), 0) + 1;
+      await addDoc(collection(db, "tipos"), { nome: n, icone: novoTipoIcone, comportamento: novoTipoComp, ordem });
+      sf("tipo", n); // já seleciona o tipo recém-criado
+      setNovoTipoNome(""); setNovoTipoIcone("🏘️"); setNovoTipoComp("simples"); setAddTipoOpen(false);
+    } catch (e) { alert("Erro: " + e.message); }
+    setSalvandoTipo(false);
+  };
 
   // Hidrata o form quando os imóveis chegarem (em edição)
   useEffect(() => {
@@ -133,11 +163,45 @@ export default function Form() {
       {section("Informações gerais", <>
         {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
         <div style={grid2}>
-          {sel("Tipo de imóvel", "tipo", tipos.map(t => t.nome))}
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={labelStyle}>Tipo de imóvel</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <select value={form.tipo || tipos[0]?.nome} onChange={e => sf("tipo", e.target.value)} style={{ ...inputBase, flex: 1 }}>
+                {tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
+              </select>
+              <button type="button" onClick={() => setAddTipoOpen(o => !o)} title="Criar novo tipo"
+                style={{ padding: "0 14px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 18, fontWeight: 700 }}>
+                {addTipoOpen ? "×" : "+"}
+              </button>
+            </div>
+          </div>
           {sel("Tipo de transação", "transacao", TRANSACOES)}
           {sel("Estado do imóvel", "estadoImovel", ESTADOS_IMOVEL)}
           {sel("Status", "status", STATUS_IMOVEL)}
         </div>
+
+        {addTipoOpen && (
+          <div style={{ background: "var(--bg-muted)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+            <p style={{ margin: "0 0 10px", fontWeight: 500, fontSize: 14, color: "var(--primary-dark)" }}>Criar novo tipo de imóvel</p>
+            <input value={novoTipoNome} onChange={e => setNovoTipoNome(e.target.value)} placeholder="Nome (ex: Chácara)" style={{ ...inputBase, marginBottom: 8 }} />
+            <label style={labelStyle}>Ícone</label>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+              {["🏠","🏢","📐","🌳","🏭","🏘️","🏡","🏬","🏗️","🏞️","🏖️","🚜","🛖","🏟️","🏨","🏪"].map(e => (
+                <button key={e} type="button" onClick={() => setNovoTipoIcone(e)} style={{ fontSize: 20, padding: "3px 7px", borderRadius: 7, cursor: "pointer", border: novoTipoIcone === e ? "2px solid var(--primary)" : "1px solid var(--border-soft)", background: novoTipoIcone === e ? "var(--primary-light)" : "var(--bg-input)" }}>{e}</button>
+              ))}
+            </div>
+            <label style={labelStyle}>Comportamento (campos que aparecem)</label>
+            <select value={novoTipoComp} onChange={e => setNovoTipoComp(e.target.value)} style={{ ...inputBase, marginBottom: 10 }}>
+              <option value="terreno">Terreno (asfalto, água, declive, medidas)</option>
+              <option value="construcao">Construção (quartos, suítes, garagens)</option>
+              <option value="simples">Simples (só campos básicos)</option>
+            </select>
+            <button type="button" onClick={criarTipoRapido} disabled={salvandoTipo}
+              style={{ ...btnPrimary, width: "100%", padding: "10px 0", opacity: salvandoTipo ? 0.6 : 1 }}>
+              {salvandoTipo ? "Criando..." : `Criar e selecionar "${novoTipoNome || "tipo"}"`}
+            </button>
+          </div>
+        )}
         {inp("Metragem de construção (m²)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m²)", "metragemTotal", { type: "number" })}
         {tog("Em condomínio?", "condominio")}
