@@ -19,8 +19,6 @@ export default function ImovelPublico() {
 
   if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
 
-  // Se ainda não chegou nenhum imóvel mas o loading terminou, aguarda um pouco mais
-  // (evita falso "Imóvel não disponível" em race condition)
   if (!im && imoveis.length === 0) {
     return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
   }
@@ -81,6 +79,7 @@ export default function ImovelPublico() {
           {im.transacao && <span style={tag()}>{im.transacao}</span>}
           {im.estadoImovel && <span style={tag()}>{im.estadoImovel}</span>}
           {im.condominio && <span style={tag()}>Em condomínio</span>}
+          {im.condicoes?.map(c => <span key={c} style={tag("primary")}>{c}</span>)}
         </div>
 
         {im.fotos?.length > 0 ? (
@@ -100,7 +99,6 @@ export default function ImovelPublico() {
           <div style={{ height: 200, background: "var(--bg-muted)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>
         )}
 
-        {/* Preço destaque */}
         <div style={{ background: "var(--primary-light)", borderRadius: 12, padding: "1.2rem", marginBottom: "1.2rem", border: "1px solid var(--primary-border)" }}>
           {isVen && im.preco && (
             <p style={{ margin: 0, fontSize: 26, fontWeight: 600, color: "var(--primary-dark)" }}>
@@ -117,7 +115,6 @@ export default function ImovelPublico() {
           )}
         </div>
 
-        {/* CTA WhatsApp */}
         <a href={linkWa} target="_blank" rel="noreferrer" style={{
           display: "block", textAlign: "center",
           background: "#25D366", color: "#fff", padding: "14px 0",
@@ -128,11 +125,24 @@ export default function ImovelPublico() {
         </a>
 
         {section("Características", <>
+          {im.estadoImovel && row("Estado", im.estadoImovel)}
           {im.metragem && row("Metragem construída", im.metragem + " m²")}
           {im.metragemTotal && row("Metragem do terreno", im.metragemTotal + " m²")}
           {!isLot && parseInt(im.quartos) > 0 && row("Quartos", im.quartos)}
           {!isLot && parseInt(im.suites) > 0 && row("Suítes", im.suites)}
           {!isLot && parseInt(im.garagens) > 0 && row("Garagens", im.garagens)}
+          {im.tipo === "Apartamento" && parseFloat(im.valorCondominio) > 0 && row("Condomínio", formatBRL(im.valorCondominio))}
+          {isLot && <>
+            {row("Asfalto", im.asfalto ? "Sim" : null)}
+            {row("Água", im.agua ? "Sim" : null)}
+            {row("Esgoto", im.esgoto ? "Sim" : null)}
+            {row("Murado", im.muro ? "Sim" : null)}
+            {row("Esquina", im.esquina ? "Sim" : null)}
+            {row("Declive", im.declive)}
+            {im.retangular && im.frente && im.laterais
+              ? row("Medidas", `${im.frente} x ${im.laterais} m`)
+              : row("Medidas", im.medidas)}
+          </>}
           {im.condominio && im.nomeCondominio && row("Condomínio", im.nomeCondominio)}
         </>)}
 
@@ -150,6 +160,20 @@ export default function ImovelPublico() {
           </div>
         )}
 
+        {im.condicoes?.length > 0 && section("Condições comerciais",
+          im.condicoes.map(c => (
+            <div key={c} style={{ fontSize: 14, marginBottom: 4, color: "var(--text)" }}>
+              {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
+            </div>
+          ))
+        )}
+
+        {im.descricao && section("Descrição", (
+          <p style={{ fontSize: 14, color: "var(--text-soft)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>
+            {im.descricao}
+          </p>
+        ))}
+
         {im.mapsLink && (
           <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{
             display: "inline-block", marginBottom: "1.2rem",
@@ -161,7 +185,6 @@ export default function ImovelPublico() {
           </a>
         )}
 
-        {/* Chamada pra contato — "quer saber mais? fala comigo" */}
         <div style={{
           background: "var(--primary-light)", border: "1px solid var(--primary-border)",
           borderRadius: 10, padding: "1.2rem 1rem", textAlign: "center",
@@ -177,7 +200,6 @@ export default function ImovelPublico() {
 
         <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem" }}>{RODAPE}</p>
 
-        {/* CTA WhatsApp duplo no final */}
         <a href={linkWa} target="_blank" rel="noreferrer" style={{
           display: "block", textAlign: "center",
           background: "#25D366", color: "#fff", padding: "14px 0",
