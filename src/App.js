@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { ThemeProvider } from "./shared/ThemeProvider";
 import Galeria from "./shared/Galeria";
 
@@ -32,6 +32,7 @@ export default function App() {
             {/* Site público */}
             <Route path="/" element={<Home />} />
             <Route path="/imovel/:id" element={<ImovelPublico />} />
+            <Route path="/fotos/:id" element={<FotosRoute />} />
 
             {/* Admin */}
             <Route path="/admin" element={<AdminRoute element={AdminLista} />} />
@@ -79,6 +80,12 @@ function AdminRoute({ element: Component }) {
   }
 
   return <Component onLogout={onLogout} />;
+}
+
+// ─── Galeria por rota /fotos/:id (com preview de foto no WhatsApp via Edge Function) ───
+function FotosRoute() {
+  const { id } = useParams();
+  return <Galeria id={id} />;
 }
 
 // ─── Suporte ao hash legado #galeria-ID ───
