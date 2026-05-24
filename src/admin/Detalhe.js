@@ -26,7 +26,7 @@ export default function Detalhe() {
   const isLoc = isLocacao(im);
   const isVen = isVenda(im);
 
-  const galeriaLink = im.fotos?.length ? `${window.location.origin}/#galeria-${im.id}` : "";
+  const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
 
   const copiarDescricao = async () => {
     const txt = descricaoPronta(im);
