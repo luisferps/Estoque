@@ -37,7 +37,7 @@ export default function Form() {
   }, [id, imoveis, loading, navigate]);
 
   const isLote = form.tipo === "Lote" || form.tipo === "Área";
-  const isLocacao = form.transacao === "Locação" || form.transacao === "Venda e Locação";
+  const isLocacao = form.transacao === "Locação";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Locação";
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
