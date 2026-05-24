@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape
 } from "../shared/utils";
 import { sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
@@ -19,6 +19,8 @@ export default function ImovelPublico() {
 
   if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
 
+  // Se ainda não chegou nenhum imóvel mas o loading terminou, aguarda um pouco mais
+  // (evita falso "Imóvel não disponível" em race condition)
   if (!im && imoveis.length === 0) {
     return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
   }
@@ -99,6 +101,7 @@ export default function ImovelPublico() {
           <div style={{ height: 200, background: "var(--bg-muted)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>
         )}
 
+        {/* Preço destaque */}
         <div style={{ background: "var(--primary-light)", borderRadius: 12, padding: "1.2rem", marginBottom: "1.2rem", border: "1px solid var(--primary-border)" }}>
           {isVen && im.preco && (
             <p style={{ margin: 0, fontSize: 26, fontWeight: 600, color: "var(--primary-dark)" }}>
@@ -115,6 +118,7 @@ export default function ImovelPublico() {
           )}
         </div>
 
+        {/* CTA WhatsApp */}
         <a href={linkWa} target="_blank" rel="noreferrer" style={{
           display: "block", textAlign: "center",
           background: "#25D366", color: "#fff", padding: "14px 0",
@@ -185,6 +189,7 @@ export default function ImovelPublico() {
           </a>
         )}
 
+        {/* Chamada pra contato — "quer saber mais? fala comigo" */}
         <div style={{
           background: "var(--primary-light)", border: "1px solid var(--primary-border)",
           borderRadius: 10, padding: "1.2rem 1rem", textAlign: "center",
@@ -198,8 +203,9 @@ export default function ImovelPublico() {
           </p>
         </div>
 
-        <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem" }}>{RODAPE}</p>
+        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem" }}>{RODAPE}</p>}
 
+        {/* CTA WhatsApp duplo no final */}
         <a href={linkWa} target="_blank" rel="noreferrer" style={{
           display: "block", textAlign: "center",
           background: "#25D366", color: "#fff", padding: "14px 0",
