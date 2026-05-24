@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteDoc, doc, addDoc, collection } from "firebase/firestore";
 import { db } from "../firebase";
-import { useImoveis } from "../shared/hooks";
+import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, ordenarImoveis, statusDoImovel } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
@@ -12,6 +12,7 @@ import Filtros from "../shared/Filtros";
 export default function Lista({ onLogout }) {
   const navigate = useNavigate();
   const { imoveis, loading } = useImoveis();
+  const { tipos } = useTipos();
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -46,7 +47,7 @@ export default function Lista({ onLogout }) {
     await addDoc(collection(db, "imoveis"), {
       ...data,
       titulo: `${data.titulo} (cópia)`,
-      anuncios: {},
+      anuncios: {}, // limpa anúncios na cópia
       createdAt: Date.now()
     });
   };
@@ -64,6 +65,7 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/anuncios")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Anúncios</button>
           <button onClick={() => navigate("/admin/corretores")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Corretores</button>
           <button onClick={() => navigate("/admin/importar")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Importar</button>
+          <button onClick={() => navigate("/admin/tipos")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Tipos</button>
           <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>Admin</span>
           <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
@@ -79,6 +81,7 @@ export default function Lista({ onLogout }) {
         status={status} setStatus={setStatus}
         ordem={ordem} setOrdem={setOrdem}
         cidades={cidades}
+        tipos={tipos}
         showStatus={true}
       />
 
