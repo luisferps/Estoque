@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
+import { TIPOS } from "../constants";
 import { pageWrap, btnPrimary } from "../shared/styles";
 
 export default function Importar() {
@@ -10,8 +11,32 @@ export default function Importar() {
   const [importando, setImportando] = useState(false);
   const [log, setLog] = useState([]);
   const [feito, setFeito] = useState(false);
+  const [tipoLimpar, setTipoLimpar] = useState("Lote");
 
   const addLog = (msg) => setLog(l => [...l, msg]);
+
+  const limparTipo = async () => {
+    if (!window.confirm(`Tem certeza que deseja APAGAR todos os imóveis do tipo "${tipoLimpar}"? Esta ação não pode ser desfeita.`)) return;
+    setImportando(true);
+    setLog([]);
+    setFeito(false);
+    try {
+      const q = query(collection(db, "imoveis"), where("tipo", "==", tipoLimpar));
+      const snap = await getDocs(q);
+      addLog(`Encontrados ${snap.size} imóveis do tipo "${tipoLimpar}".`);
+      let n = 0;
+      for (const d of snap.docs) {
+        await deleteDoc(doc(db, "imoveis", d.id));
+        n++;
+        addLog(`🗑️ ${n}/${snap.size} apagado`);
+      }
+      addLog(`\n✅ ${n} imóveis do tipo "${tipoLimpar}" foram apagados.`);
+    } catch (e) {
+      addLog(`❌ ERRO: ${e.message}`);
+    }
+    setImportando(false);
+    setFeito(true);
+  };
 
   const importar = async () => {
     let dados;
@@ -35,10 +60,7 @@ export default function Importar() {
     for (let i = 0; i < dados.length; i++) {
       const im = dados[i];
       try {
-        await addDoc(collection(db, "imoveis"), {
-          ...im,
-          createdAt: Date.now() + i,
-        });
+        await addDoc(collection(db, "imoveis"), { ...im, createdAt: Date.now() + i });
         ok++;
         addLog(`✅ ${i + 1}/${dados.length} — ${im.titulo || "sem título"} (${im.cidade || ""})`);
       } catch (e) {
@@ -60,7 +82,22 @@ export default function Importar() {
       </div>
 
       <div style={{ background: "var(--bg-section)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "1rem", marginBottom: "1rem", fontSize: 13, color: "var(--text-soft)" }}>
-        ⚠️ <strong>Atenção:</strong> Esta ferramenta cadastra vários imóveis de uma vez. Cole abaixo o JSON gerado a partir da planilha e clique em Importar. Os imóveis entram como "Disponível" e sem fotos (você adiciona depois).
+        ⚠️ <strong>Atenção:</strong> Cole o JSON gerado da planilha e clique em Importar. Os imóveis entram como "Disponível" e sem fotos.
+      </div>
+
+      <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+        <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 14, color: "var(--text)" }}>🗑️ Limpar antes de importar (opcional)</p>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-muted)" }}>Apaga todos os imóveis de um tipo específico. Útil pra re-importar sem duplicar. NÃO afeta os outros tipos.</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select value={tipoLimpar} onChange={e => setTipoLimpar(e.target.value)} disabled={importando}
+            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)" }}>
+            {TIPOS.map(t => <option key={t}>{t}</option>)}
+          </select>
+          <button onClick={limparTipo} disabled={importando}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
+            Apagar todos os "{tipoLimpar}"
+          </button>
+        </div>
       </div>
 
       <textarea
@@ -69,26 +106,18 @@ export default function Importar() {
         placeholder="Cole aqui o JSON dos imóveis..."
         rows={10}
         disabled={importando}
-        style={{
-          width: "100%", padding: "12px", borderRadius: 8, boxSizing: "border-box",
-          border: "1px solid var(--border-soft)", fontSize: 12, fontFamily: "monospace",
-          background: "var(--bg-input)", color: "var(--text)", resize: "vertical", lineHeight: 1.4
-        }}
+        style={{ width: "100%", padding: "12px", borderRadius: 8, boxSizing: "border-box", border: "1px solid var(--border-soft)", fontSize: 12, fontFamily: "monospace", background: "var(--bg-input)", color: "var(--text)", resize: "vertical", lineHeight: 1.4 }}
       />
 
       <button onClick={importar} disabled={importando || !texto.trim()}
         style={{ ...btnPrimary, width: "100%", padding: "13px 0", marginTop: 12, fontSize: 15, opacity: (importando || !texto.trim()) ? 0.6 : 1 }}>
-        {importando ? "Importando... aguarde" : "Importar imóveis"}
+        {importando ? "Processando... aguarde" : "Importar imóveis"}
       </button>
 
       {log.length > 0 && (
         <div style={{ marginTop: "1.5rem" }}>
           <p style={{ fontWeight: 500, color: "var(--text)", marginBottom: 8 }}>Resultado:</p>
-          <div style={{
-            background: "var(--bg-muted)", border: "1px solid var(--border)", borderRadius: 8,
-            padding: "12px", maxHeight: 360, overflowY: "auto", fontSize: 12, fontFamily: "monospace",
-            color: "var(--text-soft)", whiteSpace: "pre-wrap", lineHeight: 1.6
-          }}>
+          <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px", maxHeight: 360, overflowY: "auto", fontSize: 12, fontFamily: "monospace", color: "var(--text-soft)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
             {log.join("\n")}
           </div>
         </div>
