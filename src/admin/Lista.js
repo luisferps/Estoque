@@ -46,7 +46,7 @@ export default function Lista({ onLogout }) {
     await addDoc(collection(db, "imoveis"), {
       ...data,
       titulo: `${data.titulo} (cópia)`,
-      anuncios: {}, // limpa anúncios na cópia
+      anuncios: {},
       createdAt: Date.now()
     });
   };
@@ -63,6 +63,7 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/consulta")} style={btnOutline}>Consulta</button>
           <button onClick={() => navigate("/admin/anuncios")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Anúncios</button>
           <button onClick={() => navigate("/admin/corretores")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Corretores</button>
+          <button onClick={() => navigate("/admin/importar")} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontWeight: 500 }}>Importar</button>
           <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>Admin</span>
           <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
