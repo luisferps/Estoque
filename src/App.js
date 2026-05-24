@@ -15,6 +15,7 @@ import AdminConsulta from "./admin/Consulta";
 import AdminAnuncios from "./admin/Anuncios";
 import AdminCorretores from "./admin/Corretores";
 import AdminImportar from "./admin/Importar";
+import AdminTipos from "./admin/Tipos";
 import PassModal from "./admin/PassModal";
 
 // Corretores
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/admin/anuncios" element={<AdminRoute element={AdminAnuncios} />} />
             <Route path="/admin/corretores" element={<AdminRoute element={AdminCorretores} />} />
             <Route path="/admin/importar" element={<AdminRoute element={AdminImportar} />} />
+            <Route path="/admin/tipos" element={<AdminRoute element={AdminTipos} />} />
 
             {/* Corretores */}
             <Route path="/corretores" element={<CorretorLogin />} />
