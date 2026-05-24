@@ -2,14 +2,15 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { CANAIS, TIPOS, TRANSACOES } from "../constants";
-import { useImoveis } from "../shared/hooks";
+import { CANAIS, TRANSACOES } from "../constants";
+import { useImoveis, useTipos } from "../shared/hooks";
 import { formatBRL, matchTransacao, statusDoImovel } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 
 export default function Anuncios() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
+  const { tipos } = useTipos();
   const [fTipo, setFTipo] = useState("Todos");
   const [fTransacao, setFTransacao] = useState("Todos");
   const [fCidade, setFCidade] = useState("Todas");
@@ -46,7 +47,7 @@ export default function Anuncios() {
 
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={selectStyle}>
-          <option value="Todos">Todos os tipos</option>{TIPOS.map(t => <option key={t}>{t}</option>)}
+          <option value="Todos">Todos os tipos</option>{tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
         </select>
         <select value={fTransacao} onChange={e => setFTransacao(e.target.value)} style={selectStyle}>
           <option value="Todos">Todas as transações</option>{TRANSACOES.map(t => <option key={t}>{t}</option>)}
