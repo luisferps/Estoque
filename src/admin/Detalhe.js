@@ -2,11 +2,11 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
-import { CANAIS, RODAPE } from "../constants";
+import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel,
-  whatsappTudo, whatsappDescricao, whatsappMaps, whatsappFotos, downloadFotos
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
+  descricaoPronta, downloadFotos, gerarPDF
 } from "../shared/utils";
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
@@ -18,12 +18,32 @@ export default function Detalhe() {
   const im = imoveis.find(i => i.id === id);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
+  const [copiado, setCopiado] = useState(false);
 
   if (!im) return <div style={pageWrap()}>Carregando...</div>;
 
   const isLot = isLote(im);
   const isLoc = isLocacao(im);
   const isVen = isVenda(im);
+
+  const galeriaLink = im.fotos?.length ? `${window.location.origin}/#galeria-${im.id}` : "";
+
+  const copiarDescricao = async () => {
+    const txt = descricaoPronta(im);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      // fallback: seleciona um textarea temporário
+      const ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
+      document.body.removeChild(ta);
+    }
+  };
+
+  const pdfImovel = () => gerarPDF([im], PDF_CAMPOS.map(c => c.key), im.titulo || "Imóvel");
 
   const del = async () => {
     if (!window.confirm("Excluir esse imóvel?")) return;
@@ -153,7 +173,7 @@ export default function Detalhe() {
 
       {im.descricao && section("Descrição", <>
         <p style={{ fontSize: 14, color: "var(--text-soft)", lineHeight: 1.75, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>{im.descricao}</p>
-        {!im.descricao.includes(RODAPE) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
+        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
       </>)}
 
       {(im.nomeCaptador || im.telefoneCaptador) && section("Captador", <>{row("Nome", im.nomeCaptador)}{row("Telefone", im.telefoneCaptador)}</>)}
@@ -168,18 +188,34 @@ export default function Detalhe() {
         ))
       )}
 
-      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-soft)", margin: "1.5rem 0 8px" }}>Compartilhar via WhatsApp</p>
-      <button onClick={() => whatsappTudo(im)} style={{ ...btnPrimary, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-        Compartilhar tudo
+      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-soft)", margin: "1.5rem 0 8px" }}>Divulgação</p>
+
+      <button onClick={copiarDescricao} style={{ ...btnPrimary, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700, marginBottom: 10, background: copiado ? "#25884f" : "var(--primary)" }}>
+        {copiado ? "✓ Copiado! Cole no WhatsApp" : "📋 Criar descrição pronta (copiar tudo)"}
       </button>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-        <button onClick={() => whatsappDescricao(im)} style={{ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Descrição</button>
-        <button onClick={() => whatsappMaps(im)} style={{ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: "#128C7E", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Localização</button>
-        <button onClick={() => whatsappFotos(im)} style={{ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: "#075E54", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Fotos</button>
+
+      {galeriaLink && (
+        <div style={{ marginBottom: 8 }}>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 4px" }}>Link das fotos (galeria):</p>
+          <a href={galeriaLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", wordBreak: "break-all" }}>{galeriaLink}</a>
+        </div>
+      )}
+
+      {im.mapsLink && (
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 4px" }}>Localização:</p>
+          <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", wordBreak: "break-all" }}>{im.mapsLink}</a>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={pdfImovel} style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
+          📄 Gerar PDF
+        </button>
+        <button onClick={() => downloadFotos(im)} style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
+          ⬇️ Baixar todas as fotos
+        </button>
       </div>
-      <button onClick={() => downloadFotos(im)} style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
-        Baixar todas as fotos
-      </button>
     </div>
   );
 }
