@@ -1,4 +1,4 @@
-import { TIPOS, TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, ORDENACOES } from "../constants";
+import { TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
 export default function Filtros({
   search, setSearch,
@@ -9,6 +9,7 @@ export default function Filtros({
   status, setStatus,
   ordem, setOrdem,
   cidades = [],
+  tipos = [],
   showEstado = true,
   showStatus = false,
   showOrdem = true,
@@ -23,7 +24,7 @@ export default function Filtros({
       />
       <select value={tipo} onChange={e => setTipo(e.target.value)} style={selectStyle}>
         <option value="Todos">Todos os tipos</option>
-        {TIPOS.map(t => <option key={t}>{t}</option>)}
+        {(tipos.length ? tipos.map(t => t.nome) : ["Lote","Casa","Apartamento","Área","Galpão"]).map(t => <option key={t}>{t}</option>)}
       </select>
       <select value={transacao} onChange={e => setTransacao(e.target.value)} style={selectStyle}>
         <option value="Todos">Todas as transações</option>
