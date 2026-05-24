@@ -23,7 +23,8 @@ export function telParaWhatsapp(tel) {
 
 // ─── Helpers de imóvel ───
 export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
-export const isLocacao = (im) => im?.transacao === "Locação" || im?.transacao === "Venda e Locação";
+// "Venda e Locação" é legado — tratado como Venda
+export const isLocacao = (im) => im?.transacao === "Locação";
 export const isVenda = (im) => im?.transacao === "Venda" || im?.transacao === "Venda e Locação";
 
 export function statusDoImovel(im) {
@@ -65,7 +66,7 @@ export function gerarDescricao(form) {
   if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
   if (form.extras) linhas.push(...form.extras.split("\n").filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
   linhas.push("");
-  const loc = form.transacao === "Locação" || form.transacao === "Venda e Locação";
+  const loc = form.transacao === "Locação";
   const ven = form.transacao === "Venda" || form.transacao === "Venda e Locação";
   if (ven && parseFloat(form.preco)) {
     linhas.push(`Venda: ${formatBRL(form.preco)}`);
@@ -121,7 +122,7 @@ export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
       ${has("esgoto") ? `<td>${lote(im) ? (im.esgoto ? "Sim" : "Não") : ""}</td>` : ""}
       ${has("muro") ? `<td>${lote(im) ? (im.muro ? "Sim" : "Não") : ""}</td>` : ""}
       ${has("medidas") ? `<td>${lote(im) ? (im.retangular && im.frente && im.laterais ? `${im.frente}x${im.laterais}m` : (im.medidas || "")) : ""}</td>` : ""}
-      ${has("preco") ? `<td>${im.transacao === "Locação" ? (formatBRL(im.valorAluguel) || "") : im.transacao === "Venda e Locação" ? [formatBRL(im.preco), formatBRL(im.valorAluguel)].filter(Boolean).join(" / ") : (formatBRL(im.preco) || "")}</td>` : ""}
+      ${has("preco") ? `<td>${im.transacao === "Locação" ? (formatBRL(im.valorAluguel) || "") : (formatBRL(im.preco) || "")}</td>` : ""}
       ${has("condominio") ? `<td>${formatBRL(im.valorCondominio) || ""}</td>` : ""}
       ${has("iptu") ? `<td>${formatBRL(im.valorIPTU) || ""}</td>` : ""}
       ${has("total") ? `<td>${total > 0 ? formatBRL(total) : ""}</td>` : ""}
@@ -166,10 +167,11 @@ export function buscarCEP(raw, callback) {
   document.head.appendChild(s);
 }
 
-// ─── Match de transação (Venda e Locação aparece nos dois filtros) ───
+// ─── Match de transação ───
 export function matchTransacao(im, filtro) {
   if (filtro === "Todos") return true;
-  if (im.transacao === "Venda e Locação") return filtro === "Venda" || filtro === "Locação" || filtro === "Venda e Locação";
+  // "Venda e Locação" legado conta como Venda
+  if (im.transacao === "Venda e Locação") return filtro === "Venda";
   return im.transacao === filtro;
 }
 
@@ -245,7 +247,6 @@ export function whatsappFotos(im) {
 }
 
 // ─── Link WhatsApp pra contato direto do cliente com a empresa ───
-// Usado nos botões "Tenho interesse" do site público e cards
 export function waContatoImovel(im, empresaWhatsapp) {
   const titulo = im.titulo || "imóvel";
   const link = `${window.location.origin}/imovel/${im.id}`;
