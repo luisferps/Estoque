@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { addDoc, collection, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
-import { TIPOS } from "../constants";
+import { useTipos } from "../shared/hooks";
 import { pageWrap, btnPrimary } from "../shared/styles";
 
 export default function Importar() {
   const navigate = useNavigate();
+  const { tipos } = useTipos();
   const [texto, setTexto] = useState("");
   const [importando, setImportando] = useState(false);
   const [log, setLog] = useState([]);
@@ -91,7 +92,7 @@ export default function Importar() {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <select value={tipoLimpar} onChange={e => setTipoLimpar(e.target.value)} disabled={importando}
             style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)" }}>
-            {TIPOS.map(t => <option key={t}>{t}</option>)}
+            {tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
           </select>
           <button onClick={limparTipo} disabled={importando}
             style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
