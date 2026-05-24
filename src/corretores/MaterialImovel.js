@@ -3,8 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis, useAuthUser } from "../shared/hooks";
 import { PDF_CAMPOS, RODAPE } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, descricaoCompleta, temRodape,
-  whatsappTudo, whatsappDescricao, whatsappMaps, whatsappFotos, downloadFotos, gerarPDF
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape, descricaoPronta,
+  downloadFotos, gerarPDF
 } from "../shared/utils";
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
@@ -31,15 +31,18 @@ export default function MaterialImovel() {
 
   const copiarDescricao = async () => {
     try {
-      await navigator.clipboard.writeText(descricaoCompleta(im));
+      await navigator.clipboard.writeText(descricaoPronta(im));
       setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
+      setTimeout(() => setCopiado(false), 2500);
     } catch {
-      alert("Não foi possível copiar. Selecione o texto manualmente.");
+      const ta = document.createElement("textarea");
+      ta.value = descricaoPronta(im); document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
+      document.body.removeChild(ta);
     }
   };
 
-  const linkGaleria = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+  const linkGaleria = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
   const linkPublico = `${window.location.origin}/imovel/${im.id}`;
 
   const row = (label, val) => val ? (
@@ -140,17 +143,6 @@ export default function MaterialImovel() {
         </div>
       </div>
 
-      {/* WHATSAPP */}
-      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-soft)", margin: "0 0 8px" }}>Compartilhar via WhatsApp</p>
-      <button onClick={() => whatsappTudo(im)} style={{ ...btnPrimary, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-        Compartilhar tudo
-      </button>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: "1.5rem" }}>
-        <button onClick={() => whatsappDescricao(im)} style={waBtn("#25D366")}>Descrição</button>
-        <button onClick={() => whatsappMaps(im)} style={waBtn("#128C7E")}>Localização</button>
-        <button onClick={() => whatsappFotos(im)} style={waBtn("#075E54")}>Fotos</button>
-      </div>
-
       {/* PREÇOS */}
       {isVen && im.preco && <p style={{ fontSize: 22, fontWeight: 600, color: "var(--primary)", margin: "0 0 8px" }}>Venda: {formatBRL(im.preco)}</p>}
       {isLoc && (
@@ -227,5 +219,4 @@ const tag = (variant) => ({
   color: variant === "primary" ? "var(--primary-dark)" : "var(--text-soft)",
   borderRadius: 6, padding: "3px 10px"
 });
-const waBtn = (bg) => ({ flex: 1, minWidth: 110, padding: "10px 0", borderRadius: 8, border: "none", background: bg, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 500 });
 const backBtn = { display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 };
