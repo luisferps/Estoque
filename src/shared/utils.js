@@ -105,10 +105,30 @@ export function gerarDescricao(form) {
   return linhas.join("\n");
 }
 
+// Detecta se a descrição já tem QUALQUER frase de rodapé (mesmo com texto diferente),
+// pra não duplicar com o rodapé padrão do sistema.
+export function temRodape(desc) {
+  if (!desc) return false;
+  return /valores e condi[çc][õo]es/i.test(desc);
+}
+
 export function descricaoCompleta(im) {
   const desc = im.descricao || "";
-  if (desc.includes(RODAPE)) return desc;
+  if (temRodape(desc)) return desc;
   return desc + (desc ? "\n\n" : "") + RODAPE;
+}
+
+// Monta o texto pronto pra divulgação: descrição + link da galeria de fotos + link do mapa.
+export function descricaoPronta(im) {
+  let txt = descricaoCompleta(im);
+  if (im.fotos?.length) {
+    const galeria = `${window.location.origin}/#galeria-${im.id}`;
+    txt += `\n\nFotos:\n${galeria}`;
+  }
+  if (im.mapsLink) {
+    txt += `\n\nLocalização:\n${im.mapsLink}`;
+  }
+  return txt;
 }
 
 // ─── Geração de PDF ───
