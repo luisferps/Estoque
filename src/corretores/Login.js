@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../firebase";
+import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { auth, db } from "../firebase";
 import { LOGO_URL, EMPRESA } from "../constants";
 import { inputBase } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
@@ -19,7 +20,22 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), senha);
+      const cred = await signInWithEmailAndPassword(auth, email.toLowerCase().trim(), senha);
+      // Após login, verifica o papel pra redirecionar
+      try {
+        const q = query(collection(db, "corretores"), where("uid", "==", cred.user.uid), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const dados = snap.docs[0].data();
+          if (dados.admin === true && dados.ativo !== false) {
+            // Marca a sessão como admin (pra coexistir com o esquema antigo de senha)
+            try { sessionStorage.setItem("admin", "1"); } catch {}
+            navigate("/admin");
+            return;
+          }
+        }
+      } catch {}
+      // Fallback: corretor comum
       navigate("/corretores/painel");
     } catch (e) {
       let msg = "Erro ao fazer login.";
@@ -65,7 +81,7 @@ export default function Login() {
         border: "1px solid var(--border)"
       }}>
         {LOGO_URL && <img src={LOGO_URL} alt="Logo" style={{ display: "block", maxHeight: 70, margin: "0 auto 1rem", objectFit: "contain" }} />}
-        <h2 style={{ margin: "0 0 4px", textAlign: "center", color: "var(--primary-dark)", fontSize: 20 }}>Área do Corretor</h2>
+        <h2 style={{ margin: "0 0 4px", textAlign: "center", color: "var(--primary-dark)", fontSize: 20 }}>Login</h2>
         <p style={{ margin: "0 0 1.5rem", textAlign: "center", fontSize: 13, color: "var(--text-muted)" }}>{EMPRESA.nome}</p>
 
         <label style={labelStyle}>E-mail</label>
