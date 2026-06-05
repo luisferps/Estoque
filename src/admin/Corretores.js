@@ -11,17 +11,16 @@ export default function Corretores() {
   const navigate = useNavigate();
   const { corretores, loading } = useCorretores();
   const [showForm, setShowForm] = useState(false);
-  const [novo, setNovo] = useState({ nome: "", email: "", senha: "", telefone: "", creci: "" });
+  const [novo, setNovo] = useState({ nome: "", email: "", senha: "", telefone: "", creci: "", admin: false });
   const [savingNovo, setSavingNovo] = useState(false);
 
   const cadastrar = async () => {
     if (!novo.nome || !novo.email || !novo.senha) return alert("Preencha nome, e-mail e senha.");
     if (novo.senha.length < 6) return alert("A senha precisa ter pelo menos 6 caracteres.");
+    if (novo.admin && !window.confirm(`Cadastrar "${novo.nome}" como ADMINISTRADOR? Ele terá acesso ao painel admin completo.`)) return;
     setSavingNovo(true);
     try {
-      // Cria usuário no Firebase Auth
       const cred = await createUserWithEmailAndPassword(auth, novo.email, novo.senha);
-      // Salva no Firestore com o uid como id do documento
       await addDoc(collection(db, "corretores"), {
         uid: cred.user.uid,
         nome: novo.nome,
@@ -29,11 +28,12 @@ export default function Corretores() {
         telefone: novo.telefone,
         creci: novo.creci,
         ativo: true,
+        admin: !!novo.admin,
         createdAt: Date.now()
       });
-      setNovo({ nome: "", email: "", senha: "", telefone: "", creci: "" });
+      setNovo({ nome: "", email: "", senha: "", telefone: "", creci: "", admin: false });
       setShowForm(false);
-      alert(`Corretor "${novo.nome}" cadastrado com sucesso! Avise-o(a) que pode acessar em /corretores com o e-mail e senha fornecidos.`);
+      alert(`${novo.admin ? "Administrador" : "Corretor"} "${novo.nome}" cadastrado com sucesso! Pode acessar em /corretores com o e-mail e senha fornecidos.`);
     } catch (e) {
       let msg = e.message;
       if (e.code === "auth/email-already-in-use") msg = "Este e-mail já está cadastrado.";
@@ -47,8 +47,15 @@ export default function Corretores() {
     await updateDoc(doc(db, "corretores", c.id), { ativo: !c.ativo });
   };
 
+  const toggleAdmin = async (c) => {
+    const novo = !c.admin;
+    if (novo && !window.confirm(`Promover ${c.nome} a ADMINISTRADOR? Ele terá acesso ao painel admin completo.`)) return;
+    if (!novo && !window.confirm(`Remover privilégios de admin de ${c.nome}? Ele continuará como corretor.`)) return;
+    await updateDoc(doc(db, "corretores", c.id), { admin: novo });
+  };
+
   const remover = async (c) => {
-    if (!window.confirm(`Remover ${c.nome} da lista de corretores? (O login no Firebase Auth não é apagado automaticamente; faça isso pelo console se quiser bloquear definitivamente)`)) return;
+    if (!window.confirm(`Remover ${c.nome} da lista? (O login no Firebase Auth não é apagado automaticamente; faça isso pelo console se quiser bloquear definitivamente)`)) return;
     await deleteDoc(doc(db, "corretores", c.id));
   };
 
@@ -70,12 +77,16 @@ export default function Corretores() {
             <Input label="CRECI" value={novo.creci} onChange={v => setNovo(p => ({ ...p, creci: v }))} />
             <Input label="Telefone" value={novo.telefone} onChange={v => setNovo(p => ({ ...p, telefone: formatTel(v) }))} />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginTop: 10, color: "var(--text)" }}>
+            <input type="checkbox" checked={novo.admin} onChange={e => setNovo(p => ({ ...p, admin: e.target.checked }))} style={{ width: 16, height: 16, accentColor: "var(--primary)" }} />
+            É administrador? (acesso ao painel admin)
+          </label>
           <button onClick={cadastrar} disabled={savingNovo}
             style={{ ...btnPrimary, marginTop: 8, opacity: savingNovo ? 0.6 : 1 }}>
-            {savingNovo ? "Cadastrando..." : "Cadastrar corretor"}
+            {savingNovo ? "Cadastrando..." : "Cadastrar"}
           </button>
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "8px 0 0" }}>
-            ⚠️ O corretor poderá fazer login imediatamente em <strong>/corretores</strong> com o e-mail e senha definidos aqui.
+            ⚠️ Poderá fazer login imediatamente em <strong>/corretores</strong> com o e-mail e senha definidos.
           </p>
         </div>
       )}
@@ -92,11 +103,18 @@ export default function Corretores() {
         {corretores.map(c => (
           <div key={c.id} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div>
-              <p style={{ margin: 0, fontWeight: 500, color: "var(--text)" }}>{c.nome}{!c.ativo && <span style={{ marginLeft: 8, fontSize: 11, color: "#999", fontWeight: 400 }}>(desativado)</span>}</p>
+              <p style={{ margin: 0, fontWeight: 500, color: "var(--text)" }}>
+                {c.nome}
+                {c.admin && <span style={{ marginLeft: 8, fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "var(--primary)", color: "#fff", fontWeight: 600 }}>ADMIN</span>}
+                {!c.ativo && <span style={{ marginLeft: 8, fontSize: 11, color: "#999", fontWeight: 400 }}>(desativado)</span>}
+              </p>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{c.email}</p>
               {(c.telefone || c.creci) && <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--text-muted)" }}>{[c.creci && `CRECI ${c.creci}`, c.telefone].filter(Boolean).join(" • ")}</p>}
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button onClick={() => toggleAdmin(c)} style={{ ...miniBtn, border: c.admin ? "1px solid var(--primary)" : "1px solid var(--border-soft)", background: c.admin ? "var(--primary-light)" : "var(--bg-muted)", color: c.admin ? "var(--primary-dark)" : "var(--text)" }}>
+                {c.admin ? "Tirar admin" : "Tornar admin"}
+              </button>
               <button onClick={() => toggleAtivo(c)} style={miniBtn}>{c.ativo ? "Desativar" : "Ativar"}</button>
               <button onClick={() => remover(c)} style={{ ...miniBtn, border: "1px solid var(--primary-border)", background: "var(--primary-light)", color: "var(--primary-dark)" }}>Remover</button>
             </div>
