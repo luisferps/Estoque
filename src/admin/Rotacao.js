@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
-import { pageWrap, btnPrimary } from "../shared/styles";
+import { pageWrap } from "../shared/styles";
 
 // URL do backend Railway (mesmo usado pelo CRM)
 const WA_AGENT_URL = "https://agentes-de-whatsapp-production.up.railway.app";
