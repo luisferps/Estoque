@@ -7,10 +7,23 @@ import {
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
 import {
-  formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP, ehTerreno, ehConstrucao
+  formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
+  ehTerreno, ehConstrucao, geocodificarEndereco
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
+
+// Canais integrados automaticamente (marcados com indicador visual)
+const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
+
+// Mapeamento de nomes antigos → novos (migração silenciosa ao editar)
+const MIGRAR_CANAIS = {
+  "Whatsapp": "WhatsApp Status",
+  "Grupos": "WhatsApp Grupos",
+  "Google Business": "Google Posts",
+  "Instagram": "Instagram Post",
+  "Marketplace Facebook": "Marketplace Facebook",
+};
 
 export default function Form() {
   const navigate = useNavigate();
@@ -21,6 +34,7 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
   const [addTipoOpen, setAddTipoOpen] = useState(false);
   const [novoTipoNome, setNovoTipoNome] = useState("");
   const [novoTipoIcone, setNovoTipoIcone] = useState("🏘️");
@@ -42,24 +56,35 @@ export default function Form() {
     if (tipos.some(t => t.nome.toLowerCase() === n.toLowerCase())) return alert("Esse tipo já existe.");
     setSalvandoTipo(true);
     try {
-      // Se os tipos ainda são os padrão (não estão no banco), semeia primeiro
       const noBanco = tipos.some(t => t.id);
       if (!noBanco) for (const t of TIPOS_PADRAO_SEED) await addDoc(collection(db, "tipos"), t);
       const ordem = tipos.reduce((m, t) => Math.max(m, t.ordem || 0), 0) + 1;
       await addDoc(collection(db, "tipos"), { nome: n, icone: novoTipoIcone, comportamento: novoTipoComp, ordem });
-      sf("tipo", n); // já seleciona o tipo recém-criado
+      sf("tipo", n);
       setNovoTipoNome(""); setNovoTipoIcone("🏘️"); setNovoTipoComp("simples"); setAddTipoOpen(false);
     } catch (e) { alert("Erro: " + e.message); }
     setSalvandoTipo(false);
   };
 
-  // Hidrata o form quando os imóveis chegarem (em edição)
+  // Migra flags antigos para novos nomes ao carregar imóvel para edição
+  function migrarAnuncios(anuncios) {
+    if (!anuncios) return {};
+    const novo = { ...anuncios };
+    for (const [antigo, novoNome] of Object.entries(MIGRAR_CANAIS)) {
+      if (novo[antigo] && !novo[novoNome]) {
+        novo[novoNome] = novo[antigo];
+        delete novo[antigo];
+      }
+    }
+    return novo;
+  }
+
   useEffect(() => {
     if (!id) return;
     if (loading) return;
     const existing = imoveis.find(i => i.id === id);
     if (existing) {
-      setForm({ ...emptyForm, ...existing });
+      setForm({ ...emptyForm, ...existing, anuncios: migrarAnuncios(existing.anuncios) });
       setHydrated(true);
     } else if (imoveis.length > 0) {
       alert("Imóvel não encontrado.");
@@ -81,6 +106,25 @@ export default function Form() {
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
   };
 
+  // Dispara geocoding manual
+  const buscarCoordenadas = async () => {
+    if (!form.cidade) return alert("Preencha pelo menos a cidade antes de buscar coordenadas.");
+    setGeocoding(true);
+    const coords = await geocodificarEndereco({
+      endereco: form.endereco,
+      bairro: form.bairro,
+      cidade: form.cidade,
+      estado: form.estado,
+      cep: form.cep,
+    });
+    setGeocoding(false);
+    if (coords) {
+      setForm(p => ({ ...p, latitude: coords.latitude, longitude: coords.longitude }));
+    } else {
+      alert("Não foi possível encontrar as coordenadas. Verifique o endereço ou preencha manualmente.");
+    }
+  };
+
   const save = async () => {
     if (!form.titulo) return alert("Preencha o título.");
     setSaving(true);
@@ -88,6 +132,24 @@ export default function Form() {
       const { id: _id, ...data } = form;
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Disponível";
+
+      // Geocoding automático ao salvar se ainda não tem coordenadas
+      if (!data.latitude && !data.longitude && data.cidade) {
+        setGeocoding(true);
+        const coords = await geocodificarEndereco({
+          endereco: data.endereco,
+          bairro: data.bairro,
+          cidade: data.cidade,
+          estado: data.estado,
+          cep: data.cep,
+        });
+        setGeocoding(false);
+        if (coords) {
+          data.latitude = coords.latitude;
+          data.longitude = coords.longitude;
+        }
+      }
+
       if (id) await updateDoc(doc(db, "imoveis", id), data);
       else await addDoc(collection(db, "imoveis"), { ...data, createdAt: Date.now() });
       navigate("/admin");
@@ -100,7 +162,6 @@ export default function Form() {
   const addFotos = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-    // Ordena por nome do arquivo (alfabético natural: foto2 antes de foto10)
     files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
     setUploading(true);
     try {
@@ -145,6 +206,8 @@ export default function Form() {
       {children}
     </div>
   );
+
+  const savingText = geocoding ? "Buscando coordenadas..." : saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar imóvel";
 
   return (
     <div style={pageWrap(680)}>
@@ -242,14 +305,45 @@ export default function Form() {
                 endereco: [data.logradouro, data.complemento].filter(Boolean).join(", ") || p.endereco,
                 bairro: data.bairro || p.bairro,
                 cidade: data.localidade || p.cidade,
+                estado: data.uf || p.estado,
               }));
             });
           }} placeholder="Ex: 74000000" maxLength={8} style={inputBase} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>Digite o CEP (somente números) para preencher automaticamente.</p>
         </div>
-        {inp("Cidade", "cidade", { ph: "Ex: Goiânia" })}
+        <div style={grid2}>
+          {inp("Cidade", "cidade", { ph: "Ex: Goiânia" })}
+          <div style={{ marginBottom: "1rem" }}>
+            <label style={labelStyle}>Estado (UF)</label>
+            <input value={form.estado || ""} onChange={e => sf("estado", e.target.value.toUpperCase().slice(0, 2))}
+              placeholder="GO" maxLength={2} style={inputBase} />
+          </div>
+        </div>
         {inp("Bairro", "bairro", { ph: "Ex: Setor Sul" })}
         {inp("Endereço (visível só para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
+
+        {/* Coordenadas geográficas — usadas pelos portais (Canal Pro, Meta) */}
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={labelStyle}>Coordenadas (latitude / longitude)</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <input value={form.latitude || ""} onChange={e => sf("latitude", e.target.value)}
+                placeholder="Ex: -16.6869" style={inputBase} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <input value={form.longitude || ""} onChange={e => sf("longitude", e.target.value)}
+                placeholder="Ex: -49.2648" style={inputBase} />
+            </div>
+            <button type="button" onClick={buscarCoordenadas} disabled={geocoding}
+              style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: geocoding ? "default" : "pointer", fontSize: 13, whiteSpace: "nowrap", opacity: geocoding ? 0.6 : 1 }}>
+              {geocoding ? "Buscando..." : "📍 Buscar"}
+            </button>
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+            Preenchido automaticamente ao salvar. Clique em "Buscar" para forçar agora. Obrigatório para o Catálogo Meta.
+          </p>
+        </div>
+
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Link do Google Maps</label>
           <input value={form.mapsLink || ""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps" style={inputBase} />
@@ -271,6 +365,7 @@ export default function Form() {
           {inp("Quartos", "quartos", { type: "number" })}
           {inp("Suítes", "suites", { type: "number" })}
           {inp("Garagens", "garagens", { type: "number" })}
+          {inp("Banheiros", "banheiros", { type: "number" })}
           {inp("Valor de avaliação (R$)", "valorAvaliacao", { type: "number" })}
           {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
           {form.tipo === "Apartamento" && inp("Valor do condomínio (R$)", "valorCondominio", { type: "number" })}
@@ -314,13 +409,20 @@ export default function Form() {
       </>)}
 
       {section("Onde foi anunciado (visível só para admin)", <>
+        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px" }}>
+          ⚙ = integração automática via feed XML
+        </p>
         {CANAIS.map(canal => {
           const info = form.anuncios?.[canal];
+          const isAuto = CANAIS_AUTO.includes(canal);
           return (
             <div key={canal} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
                 <input type="checkbox" checked={!!info?.ativo} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
-                <span style={{ fontSize: 14 }}>{canal}</span>
+                <span style={{ fontSize: 14 }}>
+                  {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>⚙</span>}
+                  {canal}
+                </span>
               </label>
               {info?.ativo && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{info.data}</span>}
             </div>
@@ -330,9 +432,9 @@ export default function Form() {
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         <button onClick={() => navigate(-1)} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
-        <button onClick={save} disabled={saving || uploading}
-          style={{ ...btnPrimary, flex: 2, padding: "11px 0", background: (saving || uploading) ? "#aaa" : "var(--primary)", cursor: (saving || uploading) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
-          {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar imóvel"}
+        <button onClick={save} disabled={saving || uploading || geocoding}
+          style={{ ...btnPrimary, flex: 2, padding: "11px 0", background: (saving || uploading || geocoding) ? "#aaa" : "var(--primary)", cursor: (saving || uploading || geocoding) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
+          {savingText}
         </button>
       </div>
       </>}
