@@ -4,7 +4,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { CANAIS, TRANSACOES } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { formatBRL, matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO } from "../shared/utils";
+import { formatBRL, matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO, geocodificarEndereco } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 
 export default function Anuncios() {
@@ -17,7 +17,19 @@ export default function Anuncios() {
   const [fCanal, setFCanal] = useState("Todos");
   const [soPendencias, setSoPendencias] = useState(false);
 
+  const [migrando, setMigrando] = useState(false);
+  const [migracaoTotal, setMigracaoTotal] = useState(0);
+  const [migracaoAtual, setMigracaoAtual] = useState(0);
+  const [migracaoNome, setMigracaoNome] = useState("");
+  const [migracaoLog, setMigracaoLog] = useState({ uf: 0, coords: 0, erros: 0 });
+  const [cancelarMigracao, setCancelarMigracao] = useState(false);
+
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
+
+  const incompletos = useMemo(() =>
+    imoveis.filter(im => !im.estado || !im.latitude || !im.longitude),
+    [imoveis]
+  );
 
   const filtered = useMemo(() => imoveis.filter(im => {
     let matchCanal = true;
@@ -27,7 +39,6 @@ export default function Anuncios() {
     else if (fCanal.startsWith("nao_")) matchCanal = !im.anuncios?.[fCanal.replace("nao_", "")]?.ativo;
     else if (fCanal.startsWith("sim_")) matchCanal = !!im.anuncios?.[fCanal.replace("sim_", "")]?.ativo;
 
-    // Filtro de "só com pendências": imóvel tem flag ativa de canal automático com problemas?
     let matchPendencia = true;
     if (soPendencias) {
       matchPendencia = CANAIS_AUTO.some(c =>
@@ -49,12 +60,116 @@ export default function Anuncios() {
     catch (e) { alert("Erro: " + e.message); }
   };
 
+  const iniciarMigracao = async () => {
+    const confirma = window.confirm(
+      `Vou processar ${incompletos.length} imóveis:\n\n` +
+      `• Imóveis sem UF serão marcados como "GO"\n` +
+      `• Coordenadas serão buscadas automaticamente no OpenStreetMap\n\n` +
+      `O processo leva ~1 segundo por imóvel. Continuar?`
+    );
+    if (!confirma) return;
+
+    setMigrando(true);
+    setCancelarMigracao(false);
+    setMigracaoTotal(incompletos.length);
+    setMigracaoAtual(0);
+    setMigracaoLog({ uf: 0, coords: 0, erros: 0 });
+
+    const log = { uf: 0, coords: 0, erros: 0 };
+    let cancelado = false;
+
+    for (let i = 0; i < incompletos.length; i++) {
+      // Verificação de cancelamento (usa state via closure não funciona, mas o botão muda comportamento)
+      const im = incompletos[i];
+      setMigracaoAtual(i + 1);
+      setMigracaoNome(im.titulo || im.bairro || im.id);
+
+      const updates = {};
+      let estadoFinal = im.estado;
+      if (!estadoFinal) {
+        updates.estado = "GO";
+        estadoFinal = "GO";
+        log.uf++;
+      }
+
+      if ((!im.latitude || !im.longitude) && im.cidade) {
+        try {
+          const coords = await geocodificarEndereco({
+            endereco: im.endereco,
+            bairro: im.bairro,
+            cidade: im.cidade,
+            estado: estadoFinal,
+            cep: im.cep,
+          });
+          if (coords) {
+            updates.latitude = coords.latitude;
+            updates.longitude = coords.longitude;
+            log.coords++;
+          }
+        } catch {
+          log.erros++;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        try {
+          await updateDoc(doc(db, "imoveis", im.id), updates);
+        } catch {
+          log.erros++;
+        }
+      }
+
+      setMigracaoLog({ ...log });
+      await new Promise(r => setTimeout(r, 1100));
+    }
+
+    setMigrando(false);
+    setMigracaoNome("");
+    alert(
+      `Migração concluída!\n\n` +
+      `• ${log.uf} imóveis receberam UF "GO"\n` +
+      `• ${log.coords} imóveis receberam coordenadas\n` +
+      `• ${log.erros} erros\n\n` +
+      `Imóveis que não receberam coordenadas provavelmente têm cidade vazia ou endereço não encontrado pelo OpenStreetMap.`
+    );
+  };
+
   return (
     <div style={pageWrap(1300)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
         <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Controle de Anúncios</h2>
       </div>
+
+      {incompletos.length > 0 && !migrando && (
+        <div style={{ marginBottom: "1rem", padding: "12px 16px", background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ fontSize: 13, color: "#78350f" }}>
+            <strong>⚠️ {incompletos.length} imóveis estão sem UF ou sem coordenadas.</strong>{" "}
+            Isso impede que apareçam corretamente nos feeds dos portais.
+          </div>
+          <button onClick={iniciarMigracao}
+            style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#d97706", color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>
+            🚀 Atualizar todos automaticamente
+          </button>
+        </div>
+      )}
+
+      {migrando && (
+        <div style={{ marginBottom: "1rem", padding: "16px 20px", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: 8 }}>
+          <div style={{ marginBottom: 10 }}>
+            <strong style={{ color: "var(--primary-dark)" }}>🔄 Atualizando imóveis...</strong>
+          </div>
+          <div style={{ marginBottom: 8, fontSize: 12, color: "var(--text-soft)" }}>
+            {migracaoAtual} de {migracaoTotal} — {migracaoNome}
+          </div>
+          <div style={{ height: 8, background: "var(--bg-muted)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${(migracaoAtual / migracaoTotal) * 100}%`, background: "var(--primary)", transition: "width 0.3s" }} />
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
+            UF preenchidas: {migracaoLog.uf} • Coordenadas encontradas: {migracaoLog.coords} • Erros: {migracaoLog.erros}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={selectStyle}>
@@ -126,10 +241,6 @@ export default function Anuncios() {
                     const problemas = ativo && isAuto ? validarParaCanal(im, canal) : [];
                     const temProblema = problemas.length > 0;
 
-                    // Visual:
-                    // - Não ativo → checkbox cinza
-                    // - Ativo + OK → check verde
-                    // - Ativo + com problema → ⚠️ amarelo (com tooltip)
                     const corBorda = !ativo ? "var(--border-soft)"
                       : temProblema ? "#d97706"
                       : "var(--primary)";
@@ -140,7 +251,6 @@ export default function Anuncios() {
                       : temProblema ? "⚠️"
                       : "✅";
 
-                    // Tooltip nativo do navegador
                     const tooltipTitle = temProblema
                       ? `Não será publicado em ${canal}:\n• ${problemas.join("\n• ")}`
                       : "";
@@ -162,7 +272,6 @@ export default function Anuncios() {
         </table>
       </div>
 
-      {/* Legenda */}
       <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--bg-section)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)" }}>
         <strong style={{ color: "var(--text)" }}>Legenda:</strong>{" "}
         <span style={{ marginRight: 14 }}>⬜ Não anunciado</span>
