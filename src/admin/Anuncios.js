@@ -4,7 +4,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { CANAIS, TRANSACOES } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { formatBRL, matchTransacao, statusDoImovel } from "../shared/utils";
+import { formatBRL, matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 
 export default function Anuncios() {
@@ -15,6 +15,7 @@ export default function Anuncios() {
   const [fTransacao, setFTransacao] = useState("Todos");
   const [fCidade, setFCidade] = useState("Todas");
   const [fCanal, setFCanal] = useState("Todos");
+  const [soPendencias, setSoPendencias] = useState(false);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
@@ -25,11 +26,21 @@ export default function Anuncios() {
     else if (fCanal === "Não anunciado") matchCanal = !CANAIS.some(c => im.anuncios?.[c]?.ativo);
     else if (fCanal.startsWith("nao_")) matchCanal = !im.anuncios?.[fCanal.replace("nao_", "")]?.ativo;
     else if (fCanal.startsWith("sim_")) matchCanal = !!im.anuncios?.[fCanal.replace("sim_", "")]?.ativo;
+
+    // Filtro de "só com pendências": imóvel tem flag ativa de canal automático com problemas?
+    let matchPendencia = true;
+    if (soPendencias) {
+      matchPendencia = CANAIS_AUTO.some(c =>
+        im.anuncios?.[c]?.ativo && validarParaCanal(im, c).length > 0
+      );
+    }
+
     return (fTipo === "Todos" || im.tipo === fTipo)
       && matchTransacao(im, fTransacao)
       && (fCidade === "Todas" || im.cidade === fCidade)
-      && matchCanal;
-  }), [imoveis, fTipo, fTransacao, fCidade, fCanal]);
+      && matchCanal
+      && matchPendencia;
+  }), [imoveis, fTipo, fTransacao, fCidade, fCanal, soPendencias]);
 
   const toggle = async (im, canal) => {
     const atual = im.anuncios?.[canal];
@@ -45,7 +56,7 @@ export default function Anuncios() {
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Controle de Anúncios</h2>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={selectStyle}>
           <option value="Todos">Todos os tipos</option>{tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
         </select>
@@ -66,6 +77,10 @@ export default function Anuncios() {
             {CANAIS.map(c => <option key={`sim_${c}`} value={`sim_${c}`}>Ativo: {c}</option>)}
           </optgroup>
         </select>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: soPendencias ? "var(--primary-light)" : "var(--bg-input)", color: soPendencias ? "var(--primary-dark)" : "var(--text)" }}>
+          <input type="checkbox" checked={soPendencias} onChange={e => setSoPendencias(e.target.checked)} style={{ width: 14, height: 14, accentColor: "var(--primary)" }} />
+          ⚠️ Só com pendências
+        </label>
         <span style={{ fontSize: 13, color: "var(--text-muted)", alignSelf: "center" }}>{filtered.length} imóvel(is)</span>
       </div>
 
@@ -79,7 +94,12 @@ export default function Anuncios() {
               <th style={th}>Bairro</th>
               <th style={th}>Preço</th>
               <th style={{ ...th, whiteSpace: "nowrap" }}>Proprietário</th>
-              {CANAIS.map(c => <th key={c} style={{ padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap" }}>{c}</th>)}
+              {CANAIS.map(c => (
+                <th key={c} style={{ padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap" }}>
+                  {CANAIS_AUTO.includes(c) && <span title="Integração automática via feed XML">⚙ </span>}
+                  {c}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -101,12 +121,36 @@ export default function Anuncios() {
                   <td style={{ ...td, whiteSpace: "nowrap" }}>{im.nomeProprietario || "—"}</td>
                   {CANAIS.map(canal => {
                     const info = im.anuncios?.[canal];
+                    const ativo = !!info?.ativo;
+                    const isAuto = CANAIS_AUTO.includes(canal);
+                    const problemas = ativo && isAuto ? validarParaCanal(im, canal) : [];
+                    const temProblema = problemas.length > 0;
+
+                    // Visual:
+                    // - Não ativo → checkbox cinza
+                    // - Ativo + OK → check verde
+                    // - Ativo + com problema → ⚠️ amarelo (com tooltip)
+                    const corBorda = !ativo ? "var(--border-soft)"
+                      : temProblema ? "#d97706"
+                      : "var(--primary)";
+                    const corFundo = !ativo ? "var(--bg-muted)"
+                      : temProblema ? "#fef3c7"
+                      : "var(--primary-light)";
+                    const icone = !ativo ? "⬜"
+                      : temProblema ? "⚠️"
+                      : "✅";
+
+                    // Tooltip nativo do navegador
+                    const tooltipTitle = temProblema
+                      ? `Não será publicado em ${canal}:\n• ${problemas.join("\n• ")}`
+                      : "";
+
                     return (
                       <td key={canal} style={{ padding: 5, textAlign: "center" }}>
-                        <button onClick={() => toggle(im, canal)}
-                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: info?.ativo ? "var(--primary-light)" : "var(--bg-muted)", border: info?.ativo ? "1px solid var(--primary)" : "1px solid var(--border-soft)", borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
-                          <span style={{ fontSize: 14 }}>{info?.ativo ? "✅" : "⬜"}</span>
-                          {info?.ativo && <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{info.data}</span>}
+                        <button onClick={() => toggle(im, canal)} title={tooltipTitle}
+                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: corFundo, border: `1px solid ${corBorda}`, borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
+                          <span style={{ fontSize: 14 }}>{icone}</span>
+                          {ativo && <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{info.data}</span>}
                         </button>
                       </td>
                     );
@@ -116,6 +160,15 @@ export default function Anuncios() {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Legenda */}
+      <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--bg-section)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)" }}>
+        <strong style={{ color: "var(--text)" }}>Legenda:</strong>{" "}
+        <span style={{ marginRight: 14 }}>⬜ Não anunciado</span>
+        <span style={{ marginRight: 14 }}>✅ Anunciado</span>
+        <span style={{ marginRight: 14, color: "#d97706" }}>⚠️ Anunciado mas com pendências (passe o mouse para ver)</span>
+        <span>⚙ Canal com integração automática via feed XML</span>
       </div>
     </div>
   );
