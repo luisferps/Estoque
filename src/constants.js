@@ -4,7 +4,23 @@ export const TIPOS = ["Lote", "Casa", "Apartamento", "Área", "Galpão"];
 export const TRANSACOES = ["Venda", "Locação"];
 export const ESTADOS_IMOVEL = ["Imóvel Usado", "Imóvel Novo"];
 export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado"];
-export const CANAIS = ["Canal Pro", "Chaves na Mão", "Marketplace Facebook", "Google Business", "Instagram", "Whatsapp", "Grupos"];
+
+// ─── Canais de anúncio ───
+// Os canais marcados com ⚙ são integrados automaticamente via XML feed.
+// Os demais são marcação manual (para controle interno do que foi divulgado).
+export const CANAIS = [
+  "Canal Pro",          // ⚙ XML feed (ZAP, Viva Real, OLX)
+  "Chaves na Mão",      // ⚙ XML feed
+  "Catálogo Meta",      // ⚙ XML feed (Facebook + Instagram Ads)
+  "Google Posts",       // 🔜 Fase 3 — API
+  "Google Produtos",    // 🔜 Fase 3 — API
+  "Instagram Post",     // 🔜 Fase 3 — API Meta Graph
+  "Instagram Story",    // 🔜 Fase 3 — API Meta Graph
+  "WhatsApp Status",    // 🔜 Fase 2 — Evolution API
+  "WhatsApp Grupos",    // 🔜 Fase 2 — Evolution API
+  "Marketplace Facebook", // Manual (não há API oficial)
+];
+
 export const CONDICOES = ["À vista", "Financiamento", "Permuta"];
 export const RODAPE = "Valores e condições sujeitos a alteração e/ou análise sem aviso prévio e sem ônus ao anunciante.";
 
@@ -66,10 +82,11 @@ export const emptyForm = {
   id: null, titulo: "", tipo: "Casa", transacao: "Venda", estadoImovel: "Imóvel Usado",
   status: "Disponível",
   preco: "", descricao: "", extras: "", mapsLink: "",
-  cep: "", cidade: "", bairro: "", endereco: "", asfalto: false, agua: false, esgoto: false,
+  cep: "", cidade: "", bairro: "", endereco: "", estado: "", asfalto: false, agua: false, esgoto: false,
+  latitude: "", longitude: "",
   metragem: "", metragemTotal: "", nomeProprietario: "", telefoneProprietario: "",
   nomeCaptador: "", telefoneCaptador: "", condominio: false, nomeCondominio: "", valorCondominioMensal: "",
   declive: "Plano", muro: false, esquina: false, retangular: false, frente: "", laterais: "", medidas: "",
-  quartos: "", suites: "", garagens: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
+  quartos: "", suites: "", garagens: "", banheiros: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
   valorAluguel: "", valorIPTU: "", condicoes: [], permuta: "", anuncios: {}, fotos: [],
 };
