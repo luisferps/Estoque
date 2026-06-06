@@ -22,7 +22,6 @@ export default function Anuncios() {
   const [migracaoAtual, setMigracaoAtual] = useState(0);
   const [migracaoNome, setMigracaoNome] = useState("");
   const [migracaoLog, setMigracaoLog] = useState({ uf: 0, coords: 0, erros: 0 });
-  const [cancelarMigracao, setCancelarMigracao] = useState(false);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
@@ -70,16 +69,13 @@ export default function Anuncios() {
     if (!confirma) return;
 
     setMigrando(true);
-    setCancelarMigracao(false);
     setMigracaoTotal(incompletos.length);
     setMigracaoAtual(0);
     setMigracaoLog({ uf: 0, coords: 0, erros: 0 });
 
     const log = { uf: 0, coords: 0, erros: 0 };
-    let cancelado = false;
 
     for (let i = 0; i < incompletos.length; i++) {
-      // Verificação de cancelamento (usa state via closure não funciona, mas o botão muda comportamento)
       const im = incompletos[i];
       setMigracaoAtual(i + 1);
       setMigracaoNome(im.titulo || im.bairro || im.id);
