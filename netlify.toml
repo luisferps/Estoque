@@ -2,6 +2,13 @@
   command = "npm run build"
   publish = "build"
 
+# Regular Functions (Node.js, runtime completo) — usadas para os feeds XML
+# (Canal Pro, Chaves na Mão, Catálogo Meta). Acessam o Firestore via Admin SDK.
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Edge Function existente — gera meta tags Open Graph para links de imóveis
 [[edge_functions]]
   function = "og"
   path = "/imovel/*"
