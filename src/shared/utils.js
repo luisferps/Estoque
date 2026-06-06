@@ -24,8 +24,6 @@ export function telParaWhatsapp(tel) {
 // ─── Helpers de imóvel ───
 export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
 
-// Versão dinâmica: consulta o comportamento do tipo na lista de tipos do banco.
-// Cai no comportamento legado (Lote/Área) se não achar.
 export function comportamentoTipo(nomeTipo, tipos) {
   const t = (tipos || []).find(x => x.nome === nomeTipo);
   if (t?.comportamento) return t.comportamento;
@@ -35,12 +33,11 @@ export function comportamentoTipo(nomeTipo, tipos) {
 }
 export const ehTerreno = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "terreno";
 export const ehConstrucao = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "construcao";
-// "Venda e Locação" é legado — tratado como Venda
 export const isLocacao = (im) => im?.transacao === "Locação";
 export const isVenda = (im) => im?.transacao === "Venda" || im?.transacao === "Venda e Locação";
 
 export function statusDoImovel(im) {
-  return im?.status || "Disponível"; // imóveis antigos sem status são tratados como Disponível
+  return im?.status || "Disponível";
 }
 
 export function totalLocacao(im) {
@@ -105,8 +102,6 @@ export function gerarDescricao(form) {
   return linhas.join("\n");
 }
 
-// Detecta se a descrição já tem QUALQUER frase de rodapé (mesmo com texto diferente),
-// pra não duplicar com o rodapé padrão do sistema.
 export function temRodape(desc) {
   if (!desc) return false;
   return /valores e condi[çc][õo]es/i.test(desc);
@@ -118,16 +113,13 @@ export function descricaoCompleta(im) {
   return desc + (desc ? "\n\n" : "") + RODAPE;
 }
 
-// Monta o texto pronto pra divulgação: descrição + link da galeria de fotos + link do mapa.
 export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
     const galeria = `${window.location.origin}/fotos/${im.id}`;
     txt += `\n\nFotos:\n${galeria}`;
   }
-  if (im.mapsLink) {
-    txt += `\n\nLocalização:\n${im.mapsLink}`;
-  }
+  if (im.mapsLink) txt += `\n\nLocalização:\n${im.mapsLink}`;
   return txt;
 }
 
@@ -183,6 +175,7 @@ export async function uploadToCloudinary(file) {
 }
 
 // ─── ViaCEP ───
+// Retorna: logradouro, complemento, bairro, localidade, uf
 export function buscarCEP(raw, callback) {
   const c = raw.replace(/\D/g, "");
   if (c.length !== 8) return;
@@ -199,10 +192,49 @@ export function buscarCEP(raw, callback) {
   document.head.appendChild(s);
 }
 
+// ─── Geocoding via OpenStreetMap Nominatim ───
+// Busca latitude/longitude a partir do endereço do imóvel.
+// Gratuito, sem API key. Suficiente para uso manual (1 req por save).
+// Retorna { latitude, longitude } como strings ou null se não encontrar.
+export async function geocodificarEndereco({ endereco, bairro, cidade, estado, cep }) {
+  try {
+    const partes = [endereco, bairro, cidade, estado, "Brasil"].filter(Boolean);
+    const q = encodeURIComponent(partes.join(", "));
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`,
+      { headers: { "Accept-Language": "pt-BR" } }
+    );
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat).toFixed(7),
+        longitude: parseFloat(data[0].lon).toFixed(7),
+      };
+    }
+    // Fallback: tenta só cidade + estado
+    if (cidade) {
+      const q2 = encodeURIComponent(`${cidade}, ${estado || ""}, Brasil`);
+      const res2 = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1&countrycodes=br`,
+        { headers: { "Accept-Language": "pt-BR" } }
+      );
+      const data2 = await res2.json();
+      if (data2 && data2.length > 0) {
+        return {
+          latitude: parseFloat(data2[0].lat).toFixed(7),
+          longitude: parseFloat(data2[0].lon).toFixed(7),
+        };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Match de transação ───
 export function matchTransacao(im, filtro) {
   if (filtro === "Todos") return true;
-  // "Venda e Locação" legado conta como Venda
   if (im.transacao === "Venda e Locação") return filtro === "Venda";
   return im.transacao === filtro;
 }
@@ -211,19 +243,13 @@ export function matchTransacao(im, filtro) {
 export function ordenarImoveis(imoveis, ordem) {
   const arr = [...imoveis];
   switch (ordem) {
-    case "antigo":
-      return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    case "preco_menor":
-      return arr.sort((a, b) => precoBase(a) - precoBase(b));
-    case "preco_maior":
-      return arr.sort((a, b) => precoBase(b) - precoBase(a));
-    case "metragem_menor":
-      return arr.sort((a, b) => metragemBase(a) - metragemBase(b));
-    case "metragem_maior":
-      return arr.sort((a, b) => metragemBase(b) - metragemBase(a));
+    case "antigo": return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    case "preco_menor": return arr.sort((a, b) => precoBase(a) - precoBase(b));
+    case "preco_maior": return arr.sort((a, b) => precoBase(b) - precoBase(a));
+    case "metragem_menor": return arr.sort((a, b) => metragemBase(a) - metragemBase(b));
+    case "metragem_maior": return arr.sort((a, b) => metragemBase(b) - metragemBase(a));
     case "recente":
-    default:
-      return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    default: return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }
 }
 
@@ -278,8 +304,6 @@ export function whatsappFotos(im) {
   window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
 }
 
-// ─── Link WhatsApp pra contato direto do cliente com a empresa ───
-// Usado nos botões "Tenho interesse" do site público e cards
 export function waContatoImovel(im, empresaWhatsapp) {
   const titulo = im.titulo || "imóvel";
   const link = `${window.location.origin}/imovel/${im.id}`;
