@@ -310,3 +310,78 @@ export function waContatoImovel(im, empresaWhatsapp) {
   const msg = `Olá! Tenho interesse no imóvel: ${titulo}\n${link}`;
   return `https://wa.me/${empresaWhatsapp}?text=${encodeURIComponent(msg)}`;
 }
+
+// ─── Validação para feeds automáticos ───
+// Tipos suportados pelo Canal Pro
+const TIPOS_CANALPRO = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Loft","Studio","Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
+const TIPOS_TERRENO_VALIDACAO = ["Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito"];
+const TIPOS_CHAVES_RESIDENCIAL = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno"];
+const TIPOS_CHAVES_COMERCIAL = ["Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
+const TIPOS_META = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial"];
+
+// Canais com integração automática via feed XML
+export const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
+
+// Valida se um imóvel atende aos requisitos do canal automático.
+// Retorna array de strings com os problemas (vazio = OK).
+// Para canais manuais, sempre retorna [].
+export function validarParaCanal(im, canal) {
+  if (!CANAIS_AUTO.includes(canal)) return [];
+
+  const problemas = [];
+  const status = (im.status || "").toLowerCase();
+  if (status && status !== "disponível" && status !== "disponivel") {
+    problemas.push("Status não está como Disponível");
+  }
+
+  const fotos = (im.fotos || []).filter(Boolean);
+  const desc = (im.descricao || "").trim();
+  const cidade = (im.cidade || "").trim();
+  const bairro = (im.bairro || "").trim();
+  const estado = (im.estado || "").trim();
+  const trans = im.transacao || "";
+  const isLocacao = trans === "Locação";
+  const isVenda = trans === "Venda" || trans === "Venda e Locação";
+  const isLote = TIPOS_TERRENO_VALIDACAO.includes(im.tipo);
+  const metragem = parseFloat(im.metragem) || 0;
+  const metragemTotal = parseFloat(im.metragemTotal) || 0;
+  const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
+
+  if (canal === "Canal Pro") {
+    if (!TIPOS_CANALPRO.includes(im.tipo)) problemas.push("Tipo não suportado pelo Canal Pro");
+    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
+    if (desc.length < 50) problemas.push("Descrição precisa ter no mínimo 50 caracteres");
+    if (area === 0) problemas.push("Preencha a metragem");
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!bairro) problemas.push("Preencha o bairro");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  if (canal === "Chaves na Mão") {
+    if (!TIPOS_CHAVES_RESIDENCIAL.includes(im.tipo) && !TIPOS_CHAVES_COMERCIAL.includes(im.tipo)) {
+      problemas.push("Tipo não suportado pelo Chaves na Mão");
+    }
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!bairro) problemas.push("Preencha o bairro");
+    if (!estado) problemas.push("Preencha o estado (UF)");
+    if (!desc) problemas.push("Preencha a descrição");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  if (canal === "Catálogo Meta") {
+    if (!TIPOS_META.includes(im.tipo)) problemas.push("Tipo não suportado pelo Catálogo Meta");
+    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!estado) problemas.push("Preencha o estado (UF)");
+    if (!im.latitude || !im.longitude) problemas.push("Coordenadas não foram encontradas — verifique cidade/bairro");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  return problemas;
+}
