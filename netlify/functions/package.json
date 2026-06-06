@@ -1,0 +1,9 @@
+{
+  "name": "estoque-feeds",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Netlify Functions que geram feeds XML para Canal Pro, Chaves na Mão e Catálogo Meta",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
