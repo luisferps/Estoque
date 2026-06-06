@@ -266,25 +266,68 @@ export default function Rotacao({ onLogout }) {
 
 // ─── Aba Configuração ─────────────────────────────────────────────────────
 function AbaConfig({ agenda, categorias, mapeamento, setRegraModalidade, toggleRotacaoSlot, toggleAtivoSlot, dispararAgora, disparando }) {
-  if (categorias.length === 0) {
+  // Estado de quais categorias estão expandidas
+  // Padrão: abre só as que têm pelo menos 1 slot com Rotação ON ou regra configurada
+  const [catsAbertas, setCatsAbertas] = useState(() => {
+    const set = new Set();
+    categorias.forEach(cat => {
+      const slots = agenda.cats?.[cat.id]?.slots || [];
+      const temRotacaoOn = slots.some(s => s.rotacao_estoque === true);
+      const temRegra = (mapeamento[cat.id] || "nao_receber") !== "nao_receber";
+      if (temRotacaoOn || temRegra) set.add(cat.id);
+    });
+    return set;
+  });
+
+  function toggleCat(catId) {
+    setCatsAbertas(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) next.delete(catId); else next.add(catId);
+      return next;
+    });
+  }
+
+  // Filtra categorias indesejadas (Outros / sem categoria)
+  const categoriasFiltradas = categorias.filter(c => {
+    const nome = (c.name || "").toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const id = (c.id || "").toLowerCase().trim();
+    return nome !== "outros" && nome !== "outro" && id !== "sem-categoria" && id !== "outros" && id !== "outro";
+  });
+
+  if (categoriasFiltradas.length === 0) {
     return <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
       Nenhuma categoria cadastrada no WA Scheduler. Cadastre as categorias primeiro pelo painel do scheduler.
     </div>;
   }
   return (
     <div>
-      {categorias.map(cat => {
+      {categoriasFiltradas.map(cat => {
         const regra = mapeamento[cat.id] || "nao_receber";
         const slots = agenda.cats?.[cat.id]?.slots || [];
         const grupos = (agenda.grupos || []).filter(g => g.cat === cat.id);
         const regraInfo = REGRAS_MODALIDADE.find(r => r.key === regra);
+        const aberta = catsAbertas.has(cat.id);
+        const slotsAtivos = slots.filter(s => s.rotacao_estoque === true && s.ativo !== false).length;
         return (
           <div key={cat.id} style={{ marginBottom: 14, border: "1px solid var(--border-soft)", borderRadius: 10, overflow: "hidden", background: "var(--bg-card)" }}>
-            <div style={{ padding: "12px 16px", background: "var(--bg-section)", borderBottom: "1px solid var(--border-soft)", display: "flex", alignItems: "center", gap: 10 }}>
+            <div onClick={() => toggleCat(cat.id)}
+              style={{ padding: "12px 16px", background: aberta ? "var(--primary-light)" : "var(--bg-section)", borderBottom: aberta ? "1px solid var(--border-soft)" : "none", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
               <div style={{ width: 10, height: 10, borderRadius: "50%", background: cat.cor || "#888" }} />
               <strong style={{ flex: 1, fontSize: 14, color: "var(--text)" }}>{cat.name}</strong>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{grupos.length} grupo(s)</span>
+              {regra !== "nao_receber" && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "var(--bg-card)", color: "var(--primary-dark)", fontWeight: 600 }}>
+                  {regraInfo?.emoji} {regraInfo?.label}
+                </span>
+              )}
+              {slotsAtivos > 0 && (
+                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "#dcfce7", color: "#15803d", fontWeight: 600 }}>
+                  {slotsAtivos} ativo(s)
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{grupos.length}g</span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)", marginLeft: 4 }}>{aberta ? "▲" : "▼"}</span>
             </div>
+            {aberta && (
             <div style={{ padding: 14 }}>
               {/* Regra de modalidade */}
               <div style={{ marginBottom: 14 }}>
@@ -380,6 +423,7 @@ function AbaConfig({ agenda, categorias, mapeamento, setRegraModalidade, toggleR
                 </button>
               )}
             </div>
+            )}
           </div>
         );
       })}
@@ -389,14 +433,19 @@ function AbaConfig({ agenda, categorias, mapeamento, setRegraModalidade, toggleR
 
 // ─── Aba Fila ─────────────────────────────────────────────────────────────
 function AbaFila({ categorias, mapeamento, calcularFila }) {
+  const categoriasFiltradas = categorias.filter(c => {
+    const nome = (c.name || "").toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const id = (c.id || "").toLowerCase().trim();
+    return nome !== "outros" && nome !== "outro" && id !== "sem-categoria" && id !== "outros" && id !== "outro";
+  });
   return (
     <div>
-      {categorias.filter(cat => (mapeamento[cat.id] || "nao_receber") !== "nao_receber").length === 0 && (
+      {categoriasFiltradas.filter(cat => (mapeamento[cat.id] || "nao_receber") !== "nao_receber").length === 0 && (
         <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
           Nenhuma categoria configurada com Rotação Estoque. Configure as regras na aba Configuração.
         </div>
       )}
-      {categorias.map(cat => {
+      {categoriasFiltradas.map(cat => {
         const regra = mapeamento[cat.id] || "nao_receber";
         if (regra === "nao_receber") return null;
         const fila = calcularFila(cat.id);
