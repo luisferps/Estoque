@@ -64,25 +64,21 @@ export function useTipos() {
   const [doBanco, setDoBanco] = useState(false);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "tipos"),
-      snap => {
-        if (snap.empty) {
-          setTipos(TIPOS_PADRAO);
-          setDoBanco(false);
-        } else {
-          const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          lista.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
-          setTipos(lista);
-          setDoBanco(true);
-        }
+    let ativo = true;
+    // Fonte única: cadastro central (mesmo do CRM e do WA Scheduler).
+    // Lido via endpoint do backend WA, que devolve { tipos: [{id, nome, comportamento, permite_condominio, ...}] }.
+    fetch('https://agentes-de-whatsapp-production.up.railway.app/scheduler/tipos-imovel')
+      .then(r => r.json())
+      .then(data => {
+        if (!ativo) return;
+        const lista = Array.isArray(data?.tipos) ? data.tipos : [];
+        if (lista.length) { setTipos(lista); setDoBanco(true); }
+        else { setTipos(TIPOS_PADRAO); setDoBanco(false); }
         setLoading(false);
-      },
-      () => setLoading(false)
-    );
-    return unsub;
+      })
+      .catch(() => { if (ativo) { setTipos(TIPOS_PADRAO); setLoading(false); } });
+    return () => { ativo = false; };
   }, []);
 
   return { tipos, loading, doBanco };
 }
-
-
