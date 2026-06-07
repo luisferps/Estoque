@@ -1,0 +1,219 @@
+# Manual — Sistema Inerente (WA Scheduler + CRM + Estoque)
+
+Referência do sistema que dispara imóveis/demandas para grupos de WhatsApp
+e publica o catálogo nos portais (Canal Pro, Chaves na Mão, Meta).
+Atualizado após as Etapas 4, 5 e 6, os feeds XML dos portais e o módulo de destaques do Canal Pro.
+
+---
+
+## Visão geral
+
+O backend **WA Scheduler** (Node.js no Railway) roda um loop a cada 30s e dispara em 3 horários por dia:
+
+- **Horário 1 — CRM:** puxa demandas do CRM (Supabase) e manda pros grupos com finalidade *Tenho Cliente*.
+- **Horários 2 e 3 — Estoque:** varrem o catálogo (Firebase) e mandam imóveis pros grupos com finalidade *Tenho Imóvel*.
+
+CRM e Estoque não conversam entre si — o WA Scheduler lê os dois (Supabase pro CRM, Firestore pro Estoque) e dispara via Evolution API.
+
+---
+
+## CRM — modelo dimensional do tipo de imóvel (Etapa 5)
+
+A demanda do CRM (tabela Supabase `negociacoes`) guarda o tipo em **dois campos dimensionais**:
+
+| Campo | Conteúdo |
+|---|---|
+| `tipo_id` | id do tipo no cadastro central (ex: `casa`, `lote`, `apartamento`) |
+| `em_condominio` | boolean |
+| `imovel` | string legada ("Casa em Condomínio") — mantida por retrocompatibilidade |
+
+- O formulário do CRM (`ClienteModal.js`) tem **dropdown de tipo** (mostra o nome, salva o id) + **checkbox "Em condomínio"** que só aparece se o tipo selecionado tem `permite_condominio: true`.
+- Ao salvar (`App.js` → `splitForm`), grava `tipo_id`, `em_condominio` e também o `imovel` montado.
+- O backend, ao montar a mensagem, usa o **nome ATUAL do cadastro central** via `tipo_id` (`montarImovelDisplay`), então renomear um tipo (ex: "Lote/Terreno" → "Lote") reflete em todas as mensagens, mesmo nas demandas antigas. Só cai na string `imovel` antiga se não houver `tipo_id` (`obterTipoEcondominio`).
+- O matching (`demandaCasaGrupo`) também usa `tipo_id`/`em_condominio` direto, com fallback pro parsing da string.
+
+Migração feita: 30/30 demandas migradas pro modelo dimensional.
+
+---
+
+## Tipos de imóvel — fonte única (Etapa 6)
+
+Os 3 sistemas (CRM, Estoque, WA Scheduler) usam a **mesma lista de tipos**, vinda do cadastro central no Supabase (`configuracoes.imoveis`, ~22 tipos).
+
+- Cada tipo tem um campo **`comportamento`** (`terreno` / `construcao` / `simples`) que define quais campos o **formulário do Estoque** mostra: terreno → medidas/declive; construção → quartos/suítes; simples → básicos.
+- O **app Estoque** (`useTipos` em `src/shared/hooks.js`) lê os tipos do endpoint `GET /scheduler/tipos-imovel` do backend WA — não tem mais lista própria no Firebase nem botão "+" de criar tipo. Tipos são gerenciados só no **painel WA**.
+- O formulário do Estoque (`src/admin/Form.js`) grava o tipo por **nome** ("Casa"); o CRM grava por **id** ("casa"). O matching funciona nos dois porque o backend converte nome→id em tempo real (`resolverTipoId`). Não foi feita migração dos imóveis do Estoque (decisão: desnecessária, o espelhamento de tags já funciona).
+- "Casa em Condomínio" deixou de ser um tipo na lista — condomínio é o checkbox "Em condomínio?" do formulário.
+
+Para renomear/criar/classificar tipos: usar a tela de Tipos no painel WA. Mudanças refletem em todos os sistemas após o cache de 5 min.
+
+---
+
+## Infraestrutura
+
+| Item | Valor |
+|---|---|
+| Backend (Railway) | https://agentes-de-whatsapp-production.up.railway.app |
+| Painel WA | https://gruposdecorretores.netlify.app |
+| App Estoque | https://imoveisdisponiveis.netlify.app |
+| CRM | https://crm-inerente.netlify.app |
+| GitHub backend | https://github.com/luisferps/Agentes-de-Whatsapp (arquivo: `index.js`) |
+| GitHub CRM | https://github.com/luisferps/CRM-Inerente (`src/App.js`, `src/components/ClienteModal.js`) |
+| GitHub Estoque | https://github.com/luisferps/Estoque (`src/admin/Form.js`, `src/shared/hooks.js`, `src/admin/Destaques.js`, `src/App.js`, `src/admin/Lista.js`, `netlify/functions/feed-*.js`) |
+| Firebase project | estoque-53f1e |
+| Supabase project | jmklizgsdxojesvtwpcd |
+| Evolution API | https://evolution-api-production-6f9a.up.railway.app |
+| Instância WhatsApp | `LuisFernando` (case-sensitive) |
+| `INSTANCE_NAME` (Railway) | `LuisFernando` |
+| Nº notificação admin | 5562992893573 |
+
+Como subir alterações no backend: GitHub → **Add file → Upload files** → commit. Railway redeploya sozinho (~1-2 min). Conferir: `/status`.
+
+---
+
+## Schema do imóvel no Firestore (coleção `imoveis`)
+
+Nomes reais dos campos (confirmados no código do app Estoque):
+
+| Campo | Conteúdo |
+|---|---|
+| `tipo` | NOME do tipo: "Casa", "Apartamento", "Lote", "Área", "Galpão" |
+| `transacao` | "Venda" / "Locação" / "Venda e Locação" |
+| `status` | "Disponível" / "Reservado" / "Vendido" / "Alugado" |
+| `condominio` | boolean |
+| `nomeCondominio` | nome do condomínio |
+| `cidade`, `bairro`, `descricao` | texto |
+| `anuncios` | objeto `{ [canal]: { ativo, data } | null }` — canais relevantes: "WhatsApp Grupos", "Canal Pro", "Chaves na Mão", "Catálogo Meta" |
+| `destaqueCanalPro` | nível de destaque no Canal Pro: `STANDARD` / `PREMIUM` / `SUPER_PREMIUM` / `TRIPLE` (gerenciado no módulo Destaques) |
+| `divulgacoesAutomaticas` | contador de divulgações |
+| `ultimaDivulgacao` | data/hora da última divulgação |
+
+> O `tipo` vem como nome ("Casa") e o backend converte pro id do cadastro central via resolvedor de hierarquia.
+
+---
+
+## Regra de elegibilidade (o que entra na rotação)
+
+Um imóvel entra na rotação se: **status Disponível** + **descrição preenchida**. Todos os disponíveis com descrição rodam automaticamente (não precisa marcar nada).
+
+## Regra de matching (imóvel × grupo)
+
+O grupo recebe um imóvel se as tags do grupo casarem:
+
+1. **Finalidade:** grupo precisa ter *Tenho Imóvel* (`oferta`). Sem isso, não recebe Estoque.
+2. **Modalidade:** `Aquisição`=venda, `Locação`=locação. Vazio = aceita ambas. "Venda e Locação" casa com qualquer uma.
+3. **Tipos:** vazio = todos. Com hierarquia (tag "casa" pega sobrado etc.).
+4. **Regiões:** vazio = todas. Casa por palavra-chave em cidade/bairro/condomínio.
+
+## Sorteio
+
+- 1 imóvel por grupo, por disparo.
+- Ordem: menos divulgado primeiro (`ultimaDivulgacao` mais antiga → `divulgacoesAutomaticas` menor → id).
+- Cada grupo tenta pegar um imóvel **diferente** no mesmo disparo (espalha a vitrine).
+- Não repete o mesmo imóvel pro mesmo grupo no mesmo dia.
+
+## Ao divulgar, o backend grava na ficha do imóvel:
+
+- `divulgacoesAutomaticas` +1
+- `ultimaDivulgacao` = agora
+- `anuncios["WhatsApp Grupos"] = { ativo: true, data: dd/mm/aaaa }` (acende na ficha e no Controle de Anúncios)
+
+---
+
+## Horários (configurados no painel WA → aba Horários)
+
+- H1 CRM: 15:17, Seg–Sáb
+- H2 Estoque: 18:55, Seg–Sáb
+- H3 Estoque: 08:00, Seg–Sáb
+
+Robustez: o disparo é persistido no Postgres (tabela `disparos_slot`) com janela de tolerância de 5 min — sobrevive a reinício do Railway sem perder nem repetir.
+
+Anti-ban: delay de 3-7s entre envios; atraso aleatório inicial de até 90s.
+
+---
+
+## Endpoints úteis (testar pelo console F12 numa página liberada, ex. o próprio painel WA — NÃO no GitHub)
+
+**Preview do Estoque (não dispara) — ver funil e matching:**
+```
+GET /scheduler/preview-estoque?instancia=LuisFernando
+```
+Campos do `funil`: totalImoveis → statusDisponivel → comDescricao → elegiveis.
+
+**Disparar Estoque agora (manda de verdade):**
+```javascript
+fetch('https://agentes-de-whatsapp-production.up.railway.app/scheduler/testar-estoque', {
+  method:'POST', headers:{'Content-Type':'application/json'},
+  body: JSON.stringify({ instancia:'LuisFernando', horario:'estoque1' })
+}).then(r=>r.json()).then(console.log)
+```
+
+**Histórico de disparos do Estoque:**
+```
+GET /scheduler/historico?instancia=LuisFernando&tipo=estoque
+```
+
+**Status do backend:**
+```
+GET /status
+```
+
+---
+
+## Feeds XML dos portais (Canal Pro, Chaves na Mão, Meta)
+
+O app Estoque publica o catálogo nos portais via 3 feeds, que são **funções Netlify** (pasta `netlify/functions/`): `feed-canalpro.js`, `feed-chavesnamao.js`, `feed-meta.js` (mais os auxiliares `_firebase.js` e `_helpers.js`). URLs públicas:
+
+- Canal Pro (ZAP, Viva Real, OLX): `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-canalpro`
+- Chaves na Mão: `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-chavesnamao`
+- Meta (Facebook/Instagram): `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-meta`
+
+**O que entra em cada feed:** imóvel com **status Disponível** + o canal marcado como ativo em `anuncios` (ex: `anuncios["Canal Pro"].ativo`). Marcar/desmarcar o canal na tela **Anúncios** do admin.
+
+**Tipos por portal (blindagem):** cada portal usa uma taxonomia diferente. Os feeds puxam os tipos do **cadastro central** (endpoint `GET /scheduler/tipos-imovel`, campo `vrsync`). Se um tipo não tiver código, em vez de **excluir** o imóvel, o feed publica com um tipo **genérico por comportamento** (`terreno` → lote/terreno; `simples` → comercial; demais → casa/residencial). Resultado: nenhum imóvel some do feed por falta de mapeamento.
+
+- **Canal Pro** usa o formato **VRSync** (o `vrsync` do central já é o valor exato, ex: "Residential / Home"). O Grupo OLX relê o feed **a cada 12h**, esteja atualizado ou não.
+- **Chaves na Mão** usa códigos próprios (finalidade + tipo), montados a partir do comportamento.
+- **Meta** usa RSS (formato Google/`g:`). O catálogo no Commerce Manager precisa ser do tipo **Imóveis** (não Produtos) — catálogo "Inerente Imobiliária", ID `962214053314326`, portfólio "Luis Fernando – Corretor Imobiliário".
+
+> Metragens absurdas que aparecem no feed (ex: lotes com dezenas de milhares de m²) são **erro de digitação no cadastro**, não do feed — corrigir em admin/novo, imóvel a imóvel.
+
+---
+
+## Módulo de Destaques do Canal Pro
+
+Tela **`/admin/destaques`** (botão **⭐ Destaques** no painel admin). Serve pra escolher quais anúncios saem com destaque no ZAP/Viva Real/OLX.
+
+**Por que um módulo e não um campo no cadastro:** no VRSync o destaque é a tag `<PublicationType>` de cada imóvel **dentro do feed** — não se marca no painel do portal (o feed sobrescreve a cada 12h). Como a cota contratada varia mês a mês, o módulo dá visão geral + contadores.
+
+- Campo no Firestore por imóvel: **`destaqueCanalPro`** com o valor VRSync já pronto. Mapa: Sem destaque = `STANDARD`; Destaque = `PREMIUM`; Super Destaque = `SUPER_PREMIUM`; Destaque Triplo = `TRIPLE`.
+- O `feed-canalpro.js` lê esse campo (`publicationType()`) e gera o `PublicationType`; valor ausente/desconhecido cai em `STANDARD` (nunca quebra o feed).
+- A tela lista só os imóveis **ativos no Canal Pro**. Em cada um, um seletor define o nível.
+- **Cota do mês:** salva no Firestore em `configuracoes/destaquesCanalPro` (`{ premium, superPremium, triple }`). Os contadores mostram "Usados: X de N" e ficam **vermelhos** ao exceder. A cota é só um aviso visual — não altera o feed.
+- **Regras do Firestore:** a coleção `configuracoes` precisa estar liberada (`match /configuracoes/{doc} { allow read, write: if true; }`). Já adicionada.
+- Destaque acima da grade contratada é **recusado pelo portal** (ver o Relatório de Integração do Canal Pro), sem afetar os demais imóveis do feed.
+
+---
+
+## Status pessoal (PAUSADO)
+
+A função existe mas está desligada (`STATUS_AUTOMATICO_ATIVO = false` em `dispararEstoque`).
+Motivo: a Evolution exige `statusJidList` com contatos; mandar pros ~12 mil contatos é risco de ban e alcance real baixo (~200 views orgânicos). Retomar só com público segmentado (ex: chats ativos via `/chat/findChats`, limitado).
+Endpoint de teste isolado: `POST /scheduler/testar-status`.
+
+---
+
+## Pendências
+
+- [ ] Marcar os grupos reais com *Tenho Imóvel* no painel WA (operacional). Recomendação: começar com poucos grupos e ampliar aos poucos (anti-ban).
+- [ ] Feed **Meta**: catálogo de imóveis criado (ID `962214053314326`), feed conectado, mas a Meta ainda acusa erro de leitura ("formato incompatível"). Aguardando a rodada automática das 06:30. Se persistir, blindar o `feed-meta.js` (timeout na busca dos tipos). É o feed menos crítico — Canal Pro e Chaves na Mão já funcionam.
+- [ ] Status pessoal com público segmentado.
+- [ ] Rotação de credenciais: chave secreta do Supabase `sb_secret_2RuYi…` ficou exposta — trocar quando possível (gerar nova no Supabase → atualizar `SUPABASE_KEY` no Railway → testar preview → apagar a antiga). Avaliar também Evolution Key e senha do Postgres.
+
+---
+
+## Convenções
+
+- Editar `index.js` via upload no GitHub (evita truncação do editor web). Railway auto-deploy.
+- Testar JS antes de subir.
+- Console F12 como canal de teste — usar numa página liberada (painel WA), não no GitHub (CSP bloqueia).
