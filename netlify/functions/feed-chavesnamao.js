@@ -8,6 +8,7 @@
 const { getDb } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toFloat, toInt, isDisponivel, temFlagAnuncio,
+  carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
 // Mapeamento tipo do app → tipo aceito pelo Chaves na Mão (residencial).
@@ -43,7 +44,9 @@ const TIPO_MAP_COMERCIAL = {
 };
 
 // Decide finalidade ("RE" residencial / "CO" comercial / "RU" rural).
-function finalidadeETipo(imovelTipo) {
+// Se o tipo não estiver nos mapas curados, usa o comportamento do cadastro
+// central pra escolher um tipo genérico — assim o imóvel publica em vez de sumir.
+function finalidadeETipo(imovelTipo, central) {
   if (TIPO_MAP_RESIDENCIAL[imovelTipo]) {
     // Sítio/Chácara/Fazenda/Área podem ser "RU" (rural) também
     if (["Sítio", "Chácara", "Fazenda", "Área"].includes(imovelTipo)) {
@@ -54,7 +57,11 @@ function finalidadeETipo(imovelTipo) {
   if (TIPO_MAP_COMERCIAL[imovelTipo]) {
     return { finalidade: "CO", tipo: TIPO_MAP_COMERCIAL[imovelTipo] };
   }
-  return null;
+  // Fallback por comportamento (tipo novo/não mapeado)
+  const comp = central && central.comportamento;
+  if (comp === "simples") return { finalidade: "CO", tipo: "Sala Comercial" };
+  if (comp === "terreno") return { finalidade: "RE", tipo: "Terreno / Lote" };
+  return { finalidade: "RE", tipo: "Casa / Sobrado" }; // construcao ou desconhecido
 }
 
 // Decide transação principal e secundária.
@@ -69,15 +76,12 @@ function transacoes(t) {
   return { principal: "V", secundaria: "" };
 }
 
-function buildImovel(imovel) {
+function buildImovel(imovel, tiposCentral) {
   const id = String(imovel.id);
 
-  // Tipo e finalidade obrigatórios
-  const ft = finalidadeETipo(imovel.tipo || "");
-  if (!ft) {
-    console.log(`[ChavesNaMao] Pulado ${id}: tipo "${imovel.tipo}" não mapeado`);
-    return null;
-  }
+  // Tipo (sempre resolve — usa central como fallback, não exclui mais)
+  const central = acharTipoCentral(tiposCentral, imovel.tipo || "");
+  const ft = finalidadeETipo(imovel.tipo || "", central);
 
   // Localização (obrigatórios: estado, cidade, bairro)
   const uf = (imovel.estado || "").substring(0, 2).toUpperCase();
@@ -176,7 +180,10 @@ ${fotosXml}
 exports.handler = async () => {
   try {
     const db = getDb();
-    const snap = await db.collection("imoveis").get();
+    const [snap, tiposCentral] = await Promise.all([
+      db.collection("imoveis").get(),
+      carregarTiposCentral(),
+    ]);
 
     const imoveis = [];
     let totalCount = 0;
@@ -188,7 +195,7 @@ exports.handler = async () => {
       if (!isDisponivel(imovel)) return;
       if (!temFlagAnuncio(imovel, "Chaves na Mão")) return;
       flagCount++;
-      const item = buildImovel(imovel);
+      const item = buildImovel(imovel, tiposCentral);
       if (item) imoveis.push(item);
     });
 
