@@ -8,13 +8,14 @@
 const { getDb } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toInt, isDisponivel, temFlagAnuncio,
+  carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
-// Mapeamento tipo do app → PropertyType do VRSync.
-// IMPORTANTE: tipos cadastrados aqui pelo Luis precisam estar listados.
-// Tipos não mapeados resultam em exclusão do imóvel do feed.
+// Mapa local tipo→VRSync (fallback). A fonte principal agora é o cadastro
+// central (campo vrsync); este mapa só é usado se o central não tiver o tipo.
+// Tipos sem nenhum código caem num genérico por comportamento (não são excluídos).
 const PROPERTY_TYPE_MAP = {
   "Apartamento": "Residential / Apartment",
   "Casa": "Residential / Home",
@@ -69,18 +70,36 @@ function transactionType(t) {
   return "For Sale";
 }
 
+// Default de PropertyType por comportamento (quando o tipo não tem código próprio).
+function propTypePorComportamento(comportamento) {
+  if (comportamento === "terreno") return "Residential / Land Lot";
+  if (comportamento === "simples") return "Commercial / Business";
+  return "Residential / Home"; // construcao ou desconhecido
+}
+
+// Resolve o PropertyType VRSync do imóvel.
+// Ordem: código VRSync do cadastro central (variante condomínio se houver) →
+// mapa local → genérico por comportamento → "Residential / Home".
+// NUNCA retorna vazio: tipo desconhecido publica em vez de sumir.
+function resolvePropType(imovel, tipo, central) {
+  if (central) {
+    const cod = (imovel.condominio && central.vrsync_condominio)
+      ? central.vrsync_condominio
+      : central.vrsync;
+    if (cod) return cod;
+  }
+  if (PROPERTY_TYPE_MAP[tipo]) return PROPERTY_TYPE_MAP[tipo];
+  return propTypePorComportamento(central && central.comportamento);
+}
+
 // Constrói um único <Listing> a partir do documento Firestore.
 // Retorna null se o imóvel não atende requisitos mínimos (e loga o motivo).
-function buildListing(imovel) {
+function buildListing(imovel, tiposCentral) {
   const id = String(imovel.id).substring(0, 50);
 
-  // Tipo obrigatório e precisa estar mapeado
   const tipo = imovel.tipo || "";
-  const propType = PROPERTY_TYPE_MAP[tipo];
-  if (!propType) {
-    console.log(`[CanalPro] Pulado ${id}: tipo "${tipo}" não mapeado`);
-    return null;
-  }
+  const central = acharTipoCentral(tiposCentral, tipo);
+  const propType = resolvePropType(imovel, tipo, central);
 
   // Fotos obrigatórias
   const fotos = (imovel.fotos || []).map(normalizeImageUrl).filter(Boolean);
@@ -102,7 +121,7 @@ function buildListing(imovel) {
   if (titulo.length > 100) titulo = titulo.substring(0, 97) + "...";
 
   // Área obrigatória
-  const isLote = TIPOS_TERRENO.includes(tipo);
+  const isLote = (central && central.comportamento === "terreno") || TIPOS_TERRENO.includes(tipo);
   const metragem = toInt(imovel.metragem);
   const metragemTotal = toInt(imovel.metragemTotal);
   const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
@@ -173,7 +192,7 @@ function buildListing(imovel) {
 
   const details = [
     `        <PropertyType>${propType}</PropertyType>`,
-    `        <UsageType>${usageType(tipo)}</UsageType>`,
+    `        <UsageType>${propType.split(" / ")[0] || usageType(tipo)}</UsageType>`,
     `        <Description>${cdata(descricao)}</Description>`,
     areaTag,
     listPriceTag && `        ${listPriceTag}`,
@@ -215,7 +234,10 @@ ${details}
 exports.handler = async () => {
   try {
     const db = getDb();
-    const snap = await db.collection("imoveis").get();
+    const [snap, tiposCentral] = await Promise.all([
+      db.collection("imoveis").get(),
+      carregarTiposCentral(),
+    ]);
 
     const listings = [];
     let totalCount = 0;
@@ -227,7 +249,7 @@ exports.handler = async () => {
       if (!isDisponivel(imovel)) return;
       if (!temFlagAnuncio(imovel, "Canal Pro")) return;
       flagCount++;
-      const listing = buildListing(imovel);
+      const listing = buildListing(imovel, tiposCentral);
       if (listing) listings.push(listing);
     });
 
