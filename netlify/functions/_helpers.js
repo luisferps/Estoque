@@ -78,6 +78,36 @@ function urlPublica(imovel, baseUrl) {
   return `${baseUrl.replace(/\/$/, "")}/imovel/${imovel.id}`;
 }
 
+// ─── Cadastro central de tipos (fonte única, gerenciado no painel WA) ───
+// Os feeds buscam a lista central pra resolver o "comportamento" de cada tipo
+// (terreno / construcao / simples) e o código VRSync. Assim, tipos novos
+// nunca são excluídos silenciosamente — caem num genérico por comportamento.
+const TIPOS_CENTRAL_ENDPOINT =
+  "https://agentes-de-whatsapp-production.up.railway.app/scheduler/tipos-imovel";
+
+async function carregarTiposCentral() {
+  try {
+    const r = await fetch(TIPOS_CENTRAL_ENDPOINT);
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data && data.tipos) ? data.tipos : [];
+  } catch (e) {
+    console.log("[feeds] Falha ao carregar tipos central:", e.message);
+    return [];
+  }
+}
+
+// Acha o tipo central correspondente ao nome (ou id) gravado no imóvel.
+function acharTipoCentral(tiposCentral, nomeOuId) {
+  const n = String(nomeOuId || "").trim().toLowerCase();
+  if (!n) return null;
+  return (tiposCentral || []).find(
+    (t) =>
+      String(t.nome || "").trim().toLowerCase() === n ||
+      String(t.id || "").trim().toLowerCase() === n
+  ) || null;
+}
+
 module.exports = {
   xmlEscape,
   cdata,
@@ -87,4 +117,6 @@ module.exports = {
   isDisponivel,
   temFlagAnuncio,
   urlPublica,
+  carregarTiposCentral,
+  acharTipoCentral,
 };
