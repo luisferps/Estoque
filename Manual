@@ -83,7 +83,10 @@ Nomes reais dos campos (confirmados no código do app Estoque):
 | `condominio` | boolean |
 | `nomeCondominio` | nome do condomínio |
 | `cidade`, `bairro`, `descricao` | texto |
-| `anuncios` | objeto `{ [canal]: { ativo, data } | null }` — canais relevantes: "WhatsApp Grupos", "Canal Pro", "Chaves na Mão", "Catálogo Meta" |
+| `titulo` | título do imóvel (usado no rodapé do story) |
+| `fotos` | array de URLs do Cloudinary (carrossel do feed / foto 1 do story) |
+| `preco` / `valorAluguel` | venda / locação (preço no rodapé do story) |
+| `anuncios` | objeto `{ [canal]: { ativo, data } | null }` — canais relevantes: "WhatsApp Grupos", "Canal Pro", "Chaves na Mão", "Catálogo Meta", "Instagram Post", "Instagram Story" |
 | `destaqueCanalPro` | nível de destaque no Canal Pro: `STANDARD` / `PREMIUM` / `SUPER_PREMIUM` / `TRIPLE` (gerenciado no módulo Destaques) |
 | `divulgacoesAutomaticas` | contador de divulgações |
 | `ultimaDivulgacao` | data/hora da última divulgação |
@@ -158,6 +161,15 @@ GET /scheduler/historico?instancia=LuisFernando&tipo=estoque
 GET /status
 ```
 
+**Testar SÓ o Instagram (não dispara WhatsApp):**
+```javascript
+// rotação completa do IG (stories + feed) — devolve um relatorio do que postou
+fetch('https://agentes-de-whatsapp-production.up.railway.app/scheduler/testar-instagram-rotacao', {
+  method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({})
+}).then(r=>r.json()).then(console.log)
+```
+Também há `POST /scheduler/testar-instagram-story` e `POST /scheduler/testar-instagram-feed` (ambos aceitam `{ id }` opcional pra testar um imóvel específico; o de feed devolve a `legenda` montada). Pra forçar um novo feed no mesmo dia, resetar a chave `ultimo_feed_dia` na tabela `ig_config`.
+
 ---
 
 ## Feeds XML dos portais (Canal Pro, Chaves na Mão, Meta)
@@ -195,7 +207,27 @@ Tela **`/admin/destaques`** (botão **⭐ Destaques** no painel admin). Serve pr
 
 ---
 
-## Status pessoal (PAUSADO)
+## Automação do Instagram (feed + story)
+
+Roda **junto com a rotação do Estoque** (mesmos horários H2/H3), no backend Railway (`index.js`), usando a API "com login do Instagram" (base `graph.instagram.com/v23.0`). Isolada em try/catch: se algo do Instagram falhar, **não afeta** o disparo do WhatsApp.
+
+**O que posta a cada rotação:**
+- **Story:** até **3 imóveis** (os mais relevantes do disparo; se nada casou em grupo, usa os elegíveis menos divulgados). Cada story é a **foto 1** ajustada pra 9:16 (1080×1920, fundo preto) com o **título e o preço no rodapé** (formato "Título. R$ 000.000"), via transformação do Cloudinary. Pode repetir todo dia.
+- **Feed:** **no máximo 1 por DIA** (mesmo com 2 rotações no dia, sai só 1) e **só imóveis que ainda não foram pro feed**. Carrossel com até 10 fotos. Legenda = **só a descrição** do imóvel.
+
+**Marcação na ficha:** acende `anuncios["Instagram Story"]` e `anuncios["Instagram Post"]` (com data) — aparece no Controle de Anúncios. O controle de "1 feed por dia" fica no Postgres (tabela `ig_config`, chave `ultimo_feed_dia`).
+
+**Token:** o token de longa duração (~60 dias) é **renovado automaticamente 1×/dia** e guardado no Postgres (`ig_config`, chave `token`) — não expira sozinho enquanto o backend estiver rodando.
+
+**Variáveis no Railway:** `IG_USER_ID` (= `17841403143886779`) e `IG_ACCESS_TOKEN`.
+
+**Ligar/desligar:** constante `INSTAGRAM_AUTOMATICO_ATIVO` em `dispararEstoque` (hoje `true`).
+
+> Etiqueta de local (o "lugar" embaixo do @) **não** é usada: a API só aceita ID de um local já registrado no Instagram, sem busca confiável — decidido deixar de fora.
+
+---
+
+
 
 A função existe mas está desligada (`STATUS_AUTOMATICO_ATIVO = false` em `dispararEstoque`).
 Motivo: a Evolution exige `statusJidList` com contatos; mandar pros ~12 mil contatos é risco de ban e alcance real baixo (~200 views orgânicos). Retomar só com público segmentado (ex: chats ativos via `/chat/findChats`, limitado).
@@ -208,6 +240,7 @@ Endpoint de teste isolado: `POST /scheduler/testar-status`.
 - [ ] Marcar os grupos reais com *Tenho Imóvel* no painel WA (operacional). Recomendação: começar com poucos grupos e ampliar aos poucos (anti-ban).
 - [ ] Feed **Meta**: catálogo de imóveis criado (ID `962214053314326`), feed conectado, mas a Meta ainda acusa erro de leitura ("formato incompatível"). Aguardando a rodada automática das 06:30. Se persistir, blindar o `feed-meta.js` (timeout na busca dos tipos). É o feed menos crítico — Canal Pro e Chaves na Mão já funcionam.
 - [ ] Status pessoal com público segmentado.
+- [ ] **Google Posts** (post no perfil do Google da empresa): a API existe (`localPosts.create`, com suporte a posts recorrentes), mas o acesso **não é aberto** — exige projeto no Google Cloud, pedido de acesso ao Google (aprovação sem prazo) e OAuth. **Adiado a pedido.** *Google Produtos* não se aplica a imóveis (é varejo/Merchant) — fora de escopo. *Marketplace Facebook* não tem API — segue manual.
 - [ ] Rotação de credenciais: chave secreta do Supabase `sb_secret_2RuYi…` ficou exposta — trocar quando possível (gerar nova no Supabase → atualizar `SUPABASE_KEY` no Railway → testar preview → apagar a antiga). Avaliar também Evolution Key e senha do Postgres.
 
 ---
