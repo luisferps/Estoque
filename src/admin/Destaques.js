@@ -10,6 +10,7 @@ import { btnOutline, btnPrimary, inputBase, pageWrap, sectionBox } from "../shar
 const NIVEIS = [
   { valor: "STANDARD", rotulo: "Sem destaque", chaveCota: null },
   { valor: "PREMIUM", rotulo: "Destaque", chaveCota: "premium" },
+  { valor: "SUPER_PREMIUM", rotulo: "Super Destaque", chaveCota: "superPremium" },
   { valor: "TRIPLE", rotulo: "Destaque Triplo", chaveCota: "triple" },
 ];
 
@@ -20,8 +21,8 @@ export default function Destaques({ onLogout }) {
   const { imoveis, loading } = useImoveis();
 
   const [busca, setBusca] = useState("");
-  const [cota, setCota] = useState({ premium: 0, triple: 0 });
-  const [cotaSalva, setCotaSalva] = useState({ premium: 0, triple: 0 });
+  const [cota, setCota] = useState({ premium: 0, superPremium: 0, triple: 0 });
+  const [cotaSalva, setCotaSalva] = useState({ premium: 0, superPremium: 0, triple: 0 });
   const [carregandoCota, setCarregandoCota] = useState(true);
   const [salvandoCota, setSalvandoCota] = useState(false);
 
@@ -33,7 +34,7 @@ export default function Destaques({ onLogout }) {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const d = snap.data();
-          const c = { premium: Number(d.premium) || 0, triple: Number(d.triple) || 0 };
+          const c = { premium: Number(d.premium) || 0, superPremium: Number(d.superPremium) || 0, triple: Number(d.triple) || 0 };
           setCota(c);
           setCotaSalva(c);
         }
@@ -64,13 +65,15 @@ export default function Destaques({ onLogout }) {
   // Contadores de uso atual
   const usados = useMemo(() => {
     let premium = 0;
+    let superPremium = 0;
     let triple = 0;
     noCanalPro.forEach((im) => {
       const v = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
       if (v === "PREMIUM") premium++;
+      else if (v === "SUPER_PREMIUM") superPremium++;
       else if (v === "TRIPLE") triple++;
     });
-    return { premium, triple };
+    return { premium, superPremium, triple };
   }, [noCanalPro]);
 
   const alterarNivel = async (im, valor) => {
@@ -85,7 +88,7 @@ export default function Destaques({ onLogout }) {
     setSalvandoCota(true);
     try {
       const ref = doc(db, "configuracoes", "destaquesCanalPro");
-      const c = { premium: Number(cota.premium) || 0, triple: Number(cota.triple) || 0 };
+      const c = { premium: Number(cota.premium) || 0, superPremium: Number(cota.superPremium) || 0, triple: Number(cota.triple) || 0 };
       await setDoc(ref, c, { merge: true });
       setCotaSalva(c);
     } catch (e) {
@@ -95,7 +98,7 @@ export default function Destaques({ onLogout }) {
     }
   };
 
-  const cotaMudou = cota.premium !== cotaSalva.premium || cota.triple !== cotaSalva.triple;
+  const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple;
 
   return (
     <div style={pageWrap(1000)}>
@@ -134,6 +137,12 @@ export default function Destaques({ onLogout }) {
                 valor={cota.premium}
                 onChange={(v) => setCota((c) => ({ ...c, premium: v }))}
                 usado={usados.premium}
+              />
+              <CampoCota
+                rotulo="Super Destaques"
+                valor={cota.superPremium}
+                onChange={(v) => setCota((c) => ({ ...c, superPremium: v }))}
+                usado={usados.superPremium}
               />
               <CampoCota
                 rotulo="Destaques Triplos"
