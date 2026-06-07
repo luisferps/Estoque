@@ -11,6 +11,7 @@
 const { getDb } = require("./_firebase");
 const {
   xmlEscape, cdata, normalizeImageUrl, toInt, isDisponivel, temFlagAnuncio,
+  carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
@@ -50,15 +51,20 @@ function listingType(t) {
   return "for_sale";
 }
 
-function buildItem(imovel) {
+// Default de property_type por comportamento (tipo não mapeado).
+function propertyTypePorComportamento(comportamento) {
+  if (comportamento === "terreno") return "Land";
+  if (comportamento === "simples") return "Commercial";
+  return "House"; // construcao ou desconhecido
+}
+
+function buildItem(imovel, tiposCentral) {
   const id = String(imovel.id);
 
-  // Tipo obrigatório
-  const propertyType = PROPERTY_TYPE_MAP[imovel.tipo || ""];
-  if (!propertyType) {
-    console.log(`[Meta] Pulado ${id}: tipo "${imovel.tipo}" não mapeado`);
-    return null;
-  }
+  // Tipo (sempre resolve — mapa local ou fallback por comportamento, não exclui)
+  const central = acharTipoCentral(tiposCentral, imovel.tipo || "");
+  const propertyType = PROPERTY_TYPE_MAP[imovel.tipo || ""]
+    || propertyTypePorComportamento(central && central.comportamento);
 
   // Latitude e longitude OBRIGATÓRIAS na Meta
   const lat = parseFloat(imovel.latitude);
@@ -142,7 +148,10 @@ ${imagensAdicionais}
 exports.handler = async () => {
   try {
     const db = getDb();
-    const snap = await db.collection("imoveis").get();
+    const [snap, tiposCentral] = await Promise.all([
+      db.collection("imoveis").get(),
+      carregarTiposCentral(),
+    ]);
 
     const items = [];
     let totalCount = 0;
@@ -154,7 +163,7 @@ exports.handler = async () => {
       if (!isDisponivel(imovel)) return;
       if (!temFlagAnuncio(imovel, "Catálogo Meta")) return;
       flagCount++;
-      const item = buildItem(imovel);
+      const item = buildItem(imovel, tiposCentral);
       if (item) items.push(item);
     });
 
