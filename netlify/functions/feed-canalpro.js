@@ -13,6 +13,16 @@ const {
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
+// Tipo de publicação (destaque) gerenciado no módulo "Destaques" do admin.
+// O campo imovel.destaqueCanalPro guarda o valor VRSync já pronto.
+// Valores aceitos pelo VRSync: STANDARD, PREMIUM (Destaque), TRIPLE (Destaque Triplo).
+// Qualquer valor ausente/desconhecido cai em STANDARD (nunca quebra o feed).
+const PUBLICATION_TYPES_VALIDOS = ["STANDARD", "PREMIUM", "TRIPLE", "SUPER_PREMIUM", "PREMIERE_1", "PREMIERE_2"];
+function publicationType(imovel) {
+  const v = (imovel && imovel.destaqueCanalPro ? String(imovel.destaqueCanalPro) : "").toUpperCase();
+  return PUBLICATION_TYPES_VALIDOS.includes(v) ? v : "STANDARD";
+}
+
 // Mapa local tipo→VRSync (fallback). A fonte principal agora é o cadastro
 // central (campo vrsync); este mapa só é usado se o central não tiver o tipo.
 // Tipos sem nenhum código caem num genérico por comportamento (não são excluídos).
@@ -209,7 +219,7 @@ function buildListing(imovel, tiposCentral) {
       <ListingID>${id}</ListingID>
       <Title>${cdata(titulo)}</Title>
       <TransactionType>${trans}</TransactionType>
-      <PublicationType>STANDARD</PublicationType>
+      <PublicationType>${publicationType(imovel)}</PublicationType>
       <Location displayAddress="${displayAddress}">
         <Country abbreviation="BR">Brasil</Country>
         <State abbreviation="${uf}">${cdata(estadoNome)}</State>
