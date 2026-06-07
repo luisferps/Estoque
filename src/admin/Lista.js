@@ -64,6 +64,7 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/consulta")} style={btnOutline}>Consulta</button>
           <button onClick={() => navigate("/admin/anuncios")} style={menuBtn}>Anúncios</button>
           <button onClick={() => navigate("/admin/rotacao")} style={menuBtnDestaque}>🏠 Rotação</button>
+          <button onClick={() => navigate("/admin/destaques")} style={menuBtnDestaque}>⭐ Destaques</button>
           <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
           <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
           <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
