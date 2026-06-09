@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, waContatoImovel } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, waContatoImovel, descricaoPronta } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import { EMPRESA, TRANSACOES, ORDENACOES } from "../constants";
 import Header from "./Header";
@@ -15,6 +15,7 @@ export default function Home() {
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
   const [ordem, setOrdem] = useState("recente");
+  const [copiadoId, setCopiadoId] = useState(null);
 
   const publicos = useMemo(() => imoveis.filter(im => statusDoImovel(im) === "Disponível"), [imoveis]);
 
@@ -34,10 +35,27 @@ export default function Home() {
     return c;
   }, [publicos]);
 
+  const copiarImovel = async (im) => {
+    const texto = descricaoPronta(im);
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(im.id);
+      setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 2500);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = texto; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); setCopiadoId(im.id); setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 2500); } catch {}
+      document.body.removeChild(ta);
+    }
+  };
+
   const cardActions = (im) => (
-    <div style={{ display: "flex", gap: 6, width: "100%" }}>
+    <div style={{ display: "flex", gap: 6, width: "100%", flexWrap: "wrap" }}>
       <a href={waContatoImovel(im, EMPRESA.whatsapp)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={waBtnStyle}>💬 WhatsApp</a>
-      <button onClick={() => navigate(`/imovel/${im.id}`)} style={verBtnStyle}>Ver detalhes</button>
+      <button onClick={e => { e.stopPropagation(); navigate(`/imovel/${im.id}`); }} style={verBtnStyle}>Ver detalhes</button>
+      <button onClick={e => { e.stopPropagation(); copiarImovel(im); }} style={copiarBtnStyle}>
+        {copiadoId === im.id ? "✓ Copiado!" : "📋 Copiar"}
+      </button>
     </div>
   );
 
@@ -123,5 +141,6 @@ export default function Home() {
 }
 
 const heroSelectStyle = { flex: "1 1 150px", padding: "12px 10px", borderRadius: 10, border: "none", outline: "none", background: "var(--bg-muted)", fontSize: 14, color: "var(--text)", cursor: "pointer" };
-const waBtnStyle = { flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontWeight: 600, textAlign: "center", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 };
+const waBtnStyle = { flex: "1 1 100%", padding: "8px 0", fontSize: 13, borderRadius: 7, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontWeight: 600, textAlign: "center", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 };
 const verBtnStyle = { flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7, border: "1px solid var(--primary)", background: "var(--bg-card)", color: "var(--primary)", cursor: "pointer", fontWeight: 500 };
+const copiarBtnStyle = { flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer", fontWeight: 500 };
