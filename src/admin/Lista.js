@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteDoc, doc, addDoc, collection } from "firebase/firestore";
+import { deleteDoc, doc, addDoc, collection, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, gerarCodigoImovel } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
 import ImovelCard from "../shared/ImovelCard";
@@ -20,8 +20,11 @@ export default function Lista({ onLogout }) {
   const [cidade, setCidade] = useState("Todas");
   const [status, setStatus] = useState("Todos");
   const [ordem, setOrdem] = useState("recente");
+  const [migrando, setMigrando] = useState(false);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
+
+  const semCodigo = useMemo(() => imoveis.filter(im => !(im.codigo || "").trim()).length, [imoveis]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -52,6 +55,47 @@ export default function Lista({ onLogout }) {
     });
   };
 
+  // Gera código para todos os imóveis que ainda não têm, sem mexer nos que já têm.
+  // Ordena por createdAt (estável) e numera dentro de cada bairro.
+  const gerarCodigosFaltantes = async () => {
+    const faltantes = imoveis
+      .filter(im => !(im.codigo || "").trim() && (im.bairro || "").trim())
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+    const semBairro = imoveis.filter(im => !(im.codigo || "").trim() && !(im.bairro || "").trim()).length;
+
+    if (faltantes.length === 0) {
+      alert(semBairro > 0
+        ? `Nenhum imóvel para gerar.\n\n${semBairro} imóvel(is) estão sem código E sem bairro — preencha o bairro deles primeiro.`
+        : "Todos os imóveis já têm código. Nada a fazer.");
+      return;
+    }
+
+    const aviso = `Vou gerar código para ${faltantes.length} imóvel(is) sem código.\n`
+      + `Os que já têm código não serão alterados.\n`
+      + (semBairro > 0 ? `\n⚠️ ${semBairro} imóvel(is) sem bairro serão ignorados.\n` : "")
+      + `\nDeseja continuar?`;
+    if (!window.confirm(aviso)) return;
+
+    setMigrando(true);
+    // "acumulado" começa com os imóveis que já têm código, e vai recebendo os novos
+    // para a numeração ficar coerente conforme processa.
+    const acumulado = imoveis.map(im => ({ id: im.id, codigo: (im.codigo || "").trim(), bairro: im.bairro }));
+    let feitos = 0, erros = 0;
+    for (const im of faltantes) {
+      try {
+        const codigo = gerarCodigoImovel(im.bairro, acumulado, im.id);
+        await updateDoc(doc(db, "imoveis", im.id), { codigo });
+        // registra no acumulado para o próximo do mesmo bairro numerar certo
+        const ref = acumulado.find(x => x.id === im.id);
+        if (ref) ref.codigo = codigo;
+        feitos++;
+      } catch (e) { erros++; }
+    }
+    setMigrando(false);
+    alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
+  };
+
   return (
     <div style={pageWrap(1100)}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
@@ -73,6 +117,19 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
         </div>
       </div>
+
+      {/* Migração de códigos faltantes — aparece só se houver imóveis sem código */}
+      {semCodigo > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", background: "var(--bg-section)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "10px 14px", marginBottom: "1rem" }}>
+          <span style={{ fontSize: 13, color: "var(--text-soft)" }}>
+            🏷️ {semCodigo} imóvel(is) sem código. Gere os códigos pelo bairro de uma vez.
+          </span>
+          <button onClick={gerarCodigosFaltantes} disabled={migrando}
+            style={{ fontSize: 13, padding: "7px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: migrando ? "var(--bg-muted)" : "var(--primary-light)", color: "var(--primary-dark)", cursor: migrando ? "default" : "pointer", fontWeight: 600 }}>
+            {migrando ? "Gerando..." : "Gerar códigos faltantes"}
+          </button>
+        </div>
+      )}
 
       <Filtros
         search={search} setSearch={setSearch}
