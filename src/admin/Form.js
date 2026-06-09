@@ -8,7 +8,7 @@ import {
 import { useImoveis, useTipos } from "../shared/hooks";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
-  ehTerreno, ehConstrucao, geocodificarEndereco
+  ehTerreno, ehConstrucao, geocodificarEndereco, gerarCodigoImovel
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
@@ -73,6 +73,18 @@ export default function Form() {
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
   };
 
+  // Gera o codigo automaticamente a partir do bairro, se o campo codigo ainda estiver vazio.
+  // Usa a lista de imoveis para numerar (primeiro do bairro sem numero, proximos 2,3...).
+  const gerarCodigoSeVazio = (bairroAtual) => {
+    setForm(p => {
+      if ((p.codigo || "").trim()) return p; // ja tem codigo, nao mexe
+      const bairro = (bairroAtual ?? p.bairro ?? "").trim();
+      if (!bairro) return p;
+      const codigo = gerarCodigoImovel(bairro, imoveis, id);
+      return { ...p, codigo };
+    });
+  };
+
   // Geocoding silencioso -- chamado automaticamente ao mudar cidade/bairro
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
     if (!cidade) return;
@@ -87,6 +99,10 @@ export default function Form() {
       const { id: _id, ...data } = form;
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
+      // Garante codigo: se vazio, gera pelo bairro
+      if (!(data.codigo || "").trim() && (data.bairro || "").trim()) {
+        data.codigo = gerarCodigoImovel(data.bairro, imoveis, id);
+      }
       // Geocoding automatico ao salvar se ainda nao tem coordenadas
       if (!data.latitude && !data.longitude && data.cidade) {
         const coords = await geocodificarEndereco({
@@ -163,6 +179,23 @@ export default function Form() {
 
       {section("Informa\u00e7\u00f5es gerais", <>
         {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
+
+        {/* Codigo do imovel: preenche pelo bairro, edit\u00e1vel */}
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={labelStyle}>C\u00f3digo do im\u00f3vel</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={form.codigo || ""} onChange={e => sf("codigo", e.target.value)}
+              placeholder="Gerado pelo bairro (edit\u00e1vel)" style={{ ...inputBase, flex: 1 }} />
+            <button type="button" onClick={() => { const c = gerarCodigoImovel((form.bairro || "").trim(), imoveis, id); if (c) sf("codigo", c); }}
+              style={{ padding: "0 14px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary)", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
+              Gerar do bairro
+            </button>
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
+            Por padr\u00e3o usa o nome do bairro. Se j\u00e1 houver im\u00f3vel no mesmo bairro, numera (ex: Rosa dos Ventos 2).
+          </p>
+        </div>
+
         <div style={grid2}>
           <div style={{ marginBottom: "1rem" }}>
             <label style={labelStyle}>Tipo de im\u00f3vel</label>
@@ -216,6 +249,7 @@ export default function Form() {
               const endereco = [data.logradouro, data.complemento].filter(Boolean).join(", ") || form.endereco;
               setForm(p => ({ ...p, endereco, bairro, cidade, estado }));
               geocodingSilencioso(cidade, bairro, estado, endereco, e.target.value);
+              gerarCodigoSeVazio(bairro);
             });
           }} placeholder="Ex: 74000000" maxLength={8} style={inputBase} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>Digite o CEP (somente n\u00fameros) para preencher automaticamente.</p>
@@ -239,7 +273,7 @@ export default function Form() {
           <input value={form.bairro || ""} onChange={e => {
             sf("bairro", e.target.value);
             geocodingSilencioso(form.cidade, e.target.value, form.estado, form.endereco, form.cep);
-          }} placeholder="Ex: Setor Sul" style={inputBase} />
+          }} onBlur={e => gerarCodigoSeVazio(e.target.value)} placeholder="Ex: Setor Sul" style={inputBase} />
         </div>
         {inp("Endere\u00e7o (vis\u00edvel s\u00f3 para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
         <div style={{ marginBottom: "1rem" }}>
