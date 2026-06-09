@@ -54,7 +54,6 @@ export function totalLocacao(im) {
 export function gerarCodigoImovel(bairro, imoveis, idAtual) {
   const base = (bairro || "").trim();
   if (!base) return "";
-  const baseLower = base.toLowerCase();
   // Regex que casa "Bairro" ou "Bairro N" (com espaço e número no fim)
   const escapar = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp("^" + escapar + "(?:\\s+(\\d+))?$", "i");
