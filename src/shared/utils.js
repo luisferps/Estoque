@@ -44,6 +44,36 @@ export function totalLocacao(im) {
   return (parseFloat(im?.valorAluguel) || 0) + (parseFloat(im?.valorCondominio) || 0) + (parseFloat(im?.valorIPTU) || 0);
 }
 
+// ─── Código do imóvel (baseado no bairro/setor, com numeração) ───
+// Regra: o código padrão é o nome do bairro. Se já houver imóvel(is) com código
+// daquele bairro, numera os próximos (primeiro sem número, depois " 2", " 3"...).
+// Ex: "Rosa dos Ventos", "Rosa dos Ventos 2", "Rosa dos Ventos 3".
+// - bairro: nome do bairro do imóvel atual
+// - imoveis: lista completa de imóveis (para contar quantos já têm código do bairro)
+// - idAtual: id do imóvel sendo editado (ignora ele mesmo na contagem)
+export function gerarCodigoImovel(bairro, imoveis, idAtual) {
+  const base = (bairro || "").trim();
+  if (!base) return "";
+  const baseLower = base.toLowerCase();
+  // Regex que casa "Bairro" ou "Bairro N" (com espaço e número no fim)
+  const escapar = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("^" + escapar + "(?:\\s+(\\d+))?$", "i");
+  let maior = 0;          // maior número já usado naquele bairro
+  let temBase = false;    // se já existe o código sem número (o "1" implícito)
+  for (const im of (imoveis || [])) {
+    if (idAtual && im.id === idAtual) continue; // ignora o próprio
+    const cod = (im.codigo || "").trim();
+    if (!cod) continue;
+    const m = cod.match(re);
+    if (!m) continue;
+    if (m[1]) { const n = parseInt(m[1], 10); if (n > maior) maior = n; }
+    else { temBase = true; }
+  }
+  if (!temBase && maior === 0) return base;        // primeiro do bairro
+  const proximo = Math.max(maior, temBase ? 1 : 0) + 1;
+  return `${base} ${proximo}`;
+}
+
 // ─── Geração de descrição automática ───
 export function gerarDescricao(form) {
   const isLoteForm = form.tipo === "Lote" || form.tipo === "Área";
