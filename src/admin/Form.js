@@ -8,7 +8,7 @@ import {
 import { useImoveis, useTipos } from "../shared/hooks";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
-  ehTerreno, ehConstrucao, geocodificarEndereco, gerarCodigoImovel
+  ehTerreno, ehConstrucao, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
@@ -32,7 +32,6 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [codigoEditado, setCodigoEditado] = useState(false); // true quando o usuario edita o codigo manualmente
   const fileRef = useRef();
 
   function migrarAnuncios(anuncios) {
@@ -53,7 +52,6 @@ export default function Form() {
     const existing = imoveis.find(i => i.id === id);
     if (existing) {
       setForm({ ...emptyForm, ...existing, anuncios: migrarAnuncios(existing.anuncios) });
-      if ((existing.codigo || "").trim()) setCodigoEditado(true); // ja tem codigo salvo, nao sobrescreve
       setHydrated(true);
     } else if (imoveis.length > 0) {
       alert("Im\u00f3vel n\u00e3o encontrado.");
@@ -75,17 +73,6 @@ export default function Form() {
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
   };
 
-  // Auto-preenche o codigo a partir do bairro, ENQUANTO o usuario nao editar manualmente.
-  // Assim o codigo "segue" o bairro digitado; se o usuario mexer no codigo, para de seguir.
-  useEffect(() => {
-    if (codigoEditado) return;
-    const bairro = (form.bairro || "").trim();
-    if (!bairro) return;
-    const novo = gerarCodigoImovel(bairro, imoveis, id);
-    setForm(p => (p.codigo === novo ? p : { ...p, codigo: novo }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.bairro, codigoEditado, imoveis, id]);
-
   // Geocoding silencioso -- chamado automaticamente ao mudar cidade/bairro
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
     if (!cidade) return;
@@ -100,9 +87,10 @@ export default function Form() {
       const { id: _id, ...data } = form;
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
-      // Garante codigo: se vazio, gera pelo bairro
+      // Código automático: se ainda não tem código e há bairro, reserva o próximo
+      // do contador persistente (atômico, nunca repete). Imóveis que já têm código mantêm.
       if (!(data.codigo || "").trim() && (data.bairro || "").trim()) {
-        data.codigo = gerarCodigoImovel(data.bairro, imoveis, id);
+        data.codigo = await reservarCodigoImovel(db, data.bairro);
       }
       // Geocoding automatico ao salvar se ainda nao tem coordenadas
       if (!data.latitude && !data.longitude && data.cidade) {
@@ -181,13 +169,16 @@ export default function Form() {
       {section("Informa\u00e7\u00f5es gerais", <>
         {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
-        {/* Código do imóvel: preenche automaticamente pelo bairro, editável */}
+        {/* Código do imóvel: automático pelo bairro (somente leitura). */}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Código do imóvel</label>
-          <input value={form.codigo || ""} onChange={e => { setCodigoEditado(true); sf("codigo", e.target.value); }}
-            placeholder="Preenchido pelo bairro (você pode editar)" style={inputBase} />
+          <input
+            value={form.codigo || (form.bairro ? `(ao salvar: ${gerarCodigoImovel(form.bairro, imoveis, id)})` : "")}
+            readOnly disabled
+            placeholder="Definido automaticamente pelo bairro ao salvar"
+            style={{ ...inputBase, background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "not-allowed" }} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-            Preenchido automaticamente pelo bairro. Se já houver imóvel no mesmo bairro, numera (ex: Rosa dos Ventos 2). Você pode editar.
+            Gerado automaticamente pelo bairro. O número definitivo é atribuído ao salvar e nunca se repete (mesmo se você excluir imóveis).
           </p>
         </div>
 

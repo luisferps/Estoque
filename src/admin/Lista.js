@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deleteDoc, doc, addDoc, collection, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, gerarCodigoImovel } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
 import ImovelCard from "../shared/ImovelCard";
@@ -55,8 +55,9 @@ export default function Lista({ onLogout }) {
     });
   };
 
-  // Gera código para todos os imóveis que ainda não têm, sem mexer nos que já têm.
-  // Ordena por createdAt (estável) e numera dentro de cada bairro.
+  // Gera código para todos os imóveis que ainda não têm, usando o contador persistente.
+  // Primeiro inicializa os contadores com base nos códigos JÁ existentes (para não repetir),
+  // depois reserva (atômico) um código novo para cada imóvel sem código.
   const gerarCodigosFaltantes = async () => {
     const faltantes = imoveis
       .filter(im => !(im.codigo || "").trim() && (im.bairro || "").trim())
@@ -78,19 +79,35 @@ export default function Lista({ onLogout }) {
     if (!window.confirm(aviso)) return;
 
     setMigrando(true);
-    // "acumulado" começa com os imóveis que já têm código, e vai recebendo os novos
-    // para a numeração ficar coerente conforme processa.
-    const acumulado = imoveis.map(im => ({ id: im.id, codigo: (im.codigo || "").trim(), bairro: im.bairro }));
     let feitos = 0, erros = 0;
-    for (const im of faltantes) {
-      try {
-        const codigo = gerarCodigoImovel(im.bairro, acumulado, im.id);
-        await updateDoc(doc(db, "imoveis", im.id), { codigo });
-        // registra no acumulado para o próximo do mesmo bairro numerar certo
-        const ref = acumulado.find(x => x.id === im.id);
-        if (ref) ref.codigo = codigo;
-        feitos++;
-      } catch (e) { erros++; }
+    try {
+      // 1) Inicializa contadores com base nos maiores números já usados em cada bairro
+      //    (assim os códigos novos nunca colidem com os existentes).
+      const maxPorBairro = {}; // chaveBairro -> maior numero usado (base conta como 1)
+      for (const im of imoveis) {
+        const cod = (im.codigo || "").trim();
+        const bai = (im.bairro || "").trim();
+        if (!cod || !bai) continue;
+        const ch = chaveBairro(bai);
+        const esc = bai.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const m = cod.match(new RegExp("^" + esc + "(?:\\s+(\\d+))?$", "i"));
+        const n = m ? (m[1] ? parseInt(m[1], 10) : 1) : 1; // se nao casa, conta como ocupando 1
+        if (!maxPorBairro[ch] || n > maxPorBairro[ch].n) maxPorBairro[ch] = { n, bairro: bai };
+      }
+      for (const ch of Object.keys(maxPorBairro)) {
+        await ajustarContadorMinimo(db, maxPorBairro[ch].bairro, maxPorBairro[ch].n);
+      }
+
+      // 2) Reserva um código novo (atômico) para cada imóvel sem código.
+      for (const im of faltantes) {
+        try {
+          const codigo = await reservarCodigoImovel(db, im.bairro);
+          await updateDoc(doc(db, "imoveis", im.id), { codigo });
+          feitos++;
+        } catch (e) { erros++; }
+      }
+    } catch (e) {
+      alert("Erro na migração: " + e.message);
     }
     setMigrando(false);
     alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
