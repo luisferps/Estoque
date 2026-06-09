@@ -9,11 +9,24 @@ import { sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 import Header from "./Header";
 
+// Normaliza um texto para comparar código (sem acento, minúsculo, espaços colapsados).
+function normCod(s) {
+  return (s || "").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
 export default function ImovelPublico() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { imoveis, loading } = useImoveis();
-  const im = imoveis.find(i => i.id === id);
+  // Acha o imóvel pelo id do Firebase OU pelo código (ex: "Rosa dos Ventos").
+  // O parâmetro da URL pode vir codificado (%20), então decodifica antes de comparar.
+  const alvo = (() => { try { return decodeURIComponent(id || ""); } catch { return id || ""; } })();
+  const alvoNorm = normCod(alvo);
+  const im = imoveis.find(i => i.id === id)
+    || imoveis.find(i => i.id === alvo)
+    || imoveis.find(i => normCod(i.codigo) && normCod(i.codigo) === alvoNorm);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
 
