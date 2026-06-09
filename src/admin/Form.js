@@ -32,6 +32,7 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [codigoEditado, setCodigoEditado] = useState(false); // true quando o usuario edita o codigo manualmente
   const fileRef = useRef();
 
   function migrarAnuncios(anuncios) {
@@ -52,6 +53,7 @@ export default function Form() {
     const existing = imoveis.find(i => i.id === id);
     if (existing) {
       setForm({ ...emptyForm, ...existing, anuncios: migrarAnuncios(existing.anuncios) });
+      if ((existing.codigo || "").trim()) setCodigoEditado(true); // ja tem codigo salvo, nao sobrescreve
       setHydrated(true);
     } else if (imoveis.length > 0) {
       alert("Im\u00f3vel n\u00e3o encontrado.");
@@ -73,17 +75,16 @@ export default function Form() {
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
   };
 
-  // Gera o codigo automaticamente a partir do bairro, se o campo codigo ainda estiver vazio.
-  // Usa a lista de imoveis para numerar (primeiro do bairro sem numero, proximos 2,3...).
-  const gerarCodigoSeVazio = (bairroAtual) => {
-    setForm(p => {
-      if ((p.codigo || "").trim()) return p; // ja tem codigo, nao mexe
-      const bairro = (bairroAtual ?? p.bairro ?? "").trim();
-      if (!bairro) return p;
-      const codigo = gerarCodigoImovel(bairro, imoveis, id);
-      return { ...p, codigo };
-    });
-  };
+  // Auto-preenche o codigo a partir do bairro, ENQUANTO o usuario nao editar manualmente.
+  // Assim o codigo "segue" o bairro digitado; se o usuario mexer no codigo, para de seguir.
+  useEffect(() => {
+    if (codigoEditado) return;
+    const bairro = (form.bairro || "").trim();
+    if (!bairro) return;
+    const novo = gerarCodigoImovel(bairro, imoveis, id);
+    setForm(p => (p.codigo === novo ? p : { ...p, codigo: novo }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.bairro, codigoEditado, imoveis, id]);
 
   // Geocoding silencioso -- chamado automaticamente ao mudar cidade/bairro
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
@@ -180,19 +181,13 @@ export default function Form() {
       {section("Informa\u00e7\u00f5es gerais", <>
         {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
-        {/* Codigo do imovel: preenche pelo bairro, edit\u00e1vel */}
+        {/* Código do imóvel: preenche automaticamente pelo bairro, editável */}
         <div style={{ marginBottom: "1rem" }}>
-          <label style={labelStyle}>C\u00f3digo do im\u00f3vel</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input value={form.codigo || ""} onChange={e => sf("codigo", e.target.value)}
-              placeholder="Gerado pelo bairro (edit\u00e1vel)" style={{ ...inputBase, flex: 1 }} />
-            <button type="button" onClick={() => { const c = gerarCodigoImovel((form.bairro || "").trim(), imoveis, id); if (c) sf("codigo", c); }}
-              style={{ padding: "0 14px", borderRadius: 8, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary)", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}>
-              Gerar do bairro
-            </button>
-          </div>
+          <label style={labelStyle}>Código do imóvel</label>
+          <input value={form.codigo || ""} onChange={e => { setCodigoEditado(true); sf("codigo", e.target.value); }}
+            placeholder="Preenchido pelo bairro (você pode editar)" style={inputBase} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-            Por padr\u00e3o usa o nome do bairro. Se j\u00e1 houver im\u00f3vel no mesmo bairro, numera (ex: Rosa dos Ventos 2).
+            Preenchido automaticamente pelo bairro. Se já houver imóvel no mesmo bairro, numera (ex: Rosa dos Ventos 2). Você pode editar.
           </p>
         </div>
 
@@ -249,7 +244,6 @@ export default function Form() {
               const endereco = [data.logradouro, data.complemento].filter(Boolean).join(", ") || form.endereco;
               setForm(p => ({ ...p, endereco, bairro, cidade, estado }));
               geocodingSilencioso(cidade, bairro, estado, endereco, e.target.value);
-              gerarCodigoSeVazio(bairro);
             });
           }} placeholder="Ex: 74000000" maxLength={8} style={inputBase} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>Digite o CEP (somente n\u00fameros) para preencher automaticamente.</p>
@@ -273,7 +267,7 @@ export default function Form() {
           <input value={form.bairro || ""} onChange={e => {
             sf("bairro", e.target.value);
             geocodingSilencioso(form.cidade, e.target.value, form.estado, form.endereco, form.cep);
-          }} onBlur={e => gerarCodigoSeVazio(e.target.value)} placeholder="Ex: Setor Sul" style={inputBase} />
+          }} placeholder="Ex: Setor Sul" style={inputBase} />
         </div>
         {inp("Endere\u00e7o (vis\u00edvel s\u00f3 para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
         <div style={{ marginBottom: "1rem" }}>
