@@ -1,4 +1,5 @@
 import { CLOUDINARY_CLOUD, CLOUDINARY_PRESET, RODAPE, PDF_CAMPOS } from "../constants";
+import { runTransaction, doc } from "firebase/firestore";
 
 // ─── Formatadores ───
 export function formatBRL(v) {
@@ -71,6 +72,49 @@ export function gerarCodigoImovel(bairro, imoveis, idAtual) {
   if (!temBase && maior === 0) return base;        // primeiro do bairro
   const proximo = Math.max(maior, temBase ? 1 : 0) + 1;
   return `${base} ${proximo}`;
+}
+
+// Normaliza o nome do bairro para usar como ID do documento de contador.
+// (minúsculas, sem acento, espaços colapsados). Ex: "Rosa dos Ventos" -> "rosa dos ventos"
+export function chaveBairro(bairro) {
+  return (bairro || "").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+// Reserva (de forma ATÔMICA) o próximo código para um bairro, usando um contador
+// persistente no Firestore (coleção "contadores"). O contador só CRESCE — nunca
+// reutiliza número, mesmo que imóveis sejam excluídos. Garante unicidade global.
+// Primeiro do bairro = só "{Bairro}"; demais = "{Bairro} N".
+// - db: instância do Firestore
+// - bairro: nome do bairro (mantém capitalização original no código final)
+// Retorna o código string (ex: "Rosa dos Ventos" ou "Rosa dos Ventos 4").
+export async function reservarCodigoImovel(db, bairro) {
+  const base = (bairro || "").trim();
+  if (!base) return "";
+  const chave = chaveBairro(base);
+  const ref = doc(db, "contadores", chave);
+  const seq = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
+    const novo = atual + 1;
+    tx.set(ref, { seq: novo, bairro: base }, { merge: true });
+    return novo;
+  });
+  return seq <= 1 ? base : `${base} ${seq}`;
+}
+
+// Inicializa o contador de um bairro com um valor mínimo (usado na migração,
+// para que os contadores reflitam os códigos já existentes). Só aumenta, nunca diminui.
+export async function ajustarContadorMinimo(db, bairro, minimo) {
+  const base = (bairro || "").trim();
+  if (!base || !minimo) return;
+  const ref = doc(db, "contadores", chaveBairro(base));
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
+    if (minimo > atual) tx.set(ref, { seq: minimo, bairro: base }, { merge: true });
+  });
 }
 
 // ─── Geração de descrição automática ───
