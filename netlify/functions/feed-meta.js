@@ -16,6 +16,17 @@ const {
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
+// Identificador do anúncio (home_listing_id) — usa o código legível do Estoque
+// (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
+function refImovel(imovel) {
+  const bruto = (imovel.codigo || "").trim() || String(imovel.id || "");
+  const limpo = bruto
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9 \-]/g, "")
+    .replace(/\s+/g, " ").trim();
+  return limpo || String(imovel.id || "");
+}
+
 // Mapeamento tipo → property_type (texto livre aceito pela Meta).
 const PROPERTY_TYPE_MAP = {
   "Apartamento": "Apartment",
@@ -60,6 +71,8 @@ function propertyTypePorComportamento(comportamento) {
 
 function buildItem(imovel, tiposCentral) {
   const id = String(imovel.id);
+  const ref = refImovel(imovel);
+  const linkRef = encodeURIComponent(ref);
 
   // Tipo (sempre resolve — mapa local ou fallback por comportamento, não exclui)
   const central = acharTipoCentral(tiposCentral, imovel.tipo || "");
@@ -119,13 +132,13 @@ function buildItem(imovel, tiposCentral) {
   ).join("\n");
 
   return `    <item>
-      <g:home_listing_id>${xmlEscape(id)}</g:home_listing_id>
+      <g:home_listing_id>${xmlEscape(ref)}</g:home_listing_id>
       <g:name>${cdata(name)}</g:name>
       <g:availability>for_sale</g:availability>
       <g:listing_type>${tipoTransacao}</g:listing_type>
       <g:property_type>${xmlEscape(propertyType)}</g:property_type>
       <g:description>${cdata(descricao)}</g:description>
-      <g:url>${xmlEscape(BASE_URL + "/imovel/" + id)}</g:url>
+      <g:url>${xmlEscape(BASE_URL + "/imovel/" + linkRef)}</g:url>
       <g:image_link>${xmlEscape(fotos[0])}</g:image_link>
 ${imagensAdicionais}
       <g:price>${preco}.00 BRL</g:price>

@@ -11,6 +11,20 @@ const {
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
+const BASE_URL = "https://imoveisdisponiveis.netlify.app";
+
+// Identificador/refrência do anúncio — usa o código legível do Estoque
+// (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
+// Sanitiza para algo seguro como referência.
+function refImovel(imovel) {
+  const bruto = (imovel.codigo || "").trim() || String(imovel.id || "");
+  const limpo = bruto
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9 \-]/g, "")
+    .replace(/\s+/g, " ").trim();
+  return limpo || String(imovel.id || "");
+}
+
 // Mapeamento tipo do app → tipo aceito pelo Chaves na Mão (residencial).
 // Lista oficial: https://tecnologiacnm.github.io/cnm-xml-documentation/arquivo/dados-suportados/residencial.html
 const TIPO_MAP_RESIDENCIAL = {
@@ -78,6 +92,8 @@ function transacoes(t) {
 
 function buildImovel(imovel, tiposCentral) {
   const id = String(imovel.id);
+  const ref = refImovel(imovel);
+  const linkRef = encodeURIComponent(ref);
 
   // Tipo (sempre resolve — usa central como fallback, não exclui mais)
   const central = acharTipoCentral(tiposCentral, imovel.tipo || "");
@@ -138,9 +154,9 @@ function buildImovel(imovel, tiposCentral) {
   const aceitaPermuta = (imovel.condicoes || []).includes("Permuta") ? 1 : 0;
 
   return `        <imovel>
-            <referencia>${id}</referencia>
-            <codigo_cliente>${id}</codigo_cliente>
-            <link_cliente><![CDATA[https://imoveisdisponiveis.netlify.app/imovel/${id}]]></link_cliente>
+            <referencia>${cdata(ref)}</referencia>
+            <codigo_cliente>${cdata(ref)}</codigo_cliente>
+            <link_cliente><![CDATA[${BASE_URL}/imovel/${linkRef}]]></link_cliente>
             <titulo>${cdata(imovel.titulo || "")}</titulo>
             <transacao>${trans.principal}</transacao>
             <transacao2>${trans.secundaria}</transacao2>

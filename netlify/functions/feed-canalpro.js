@@ -13,6 +13,18 @@ const {
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
+// Identificador do anúncio (ListingID) — usa o código legível do Estoque
+// (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
+// Sanitiza para um identificador seguro: mantém letras/números/espaço/hífen.
+function listingId(imovel) {
+  const bruto = (imovel.codigo || "").trim() || String(imovel.id || "");
+  const limpo = bruto
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .replace(/[^A-Za-z0-9 \-]/g, "")                  // só seguro pra XML/URL
+    .replace(/\s+/g, " ").trim();
+  return (limpo || String(imovel.id || "")).substring(0, 50);
+}
+
 // Tipo de publicação (destaque) gerenciado no módulo "Destaques" do admin.
 // O campo imovel.destaqueCanalPro guarda o valor VRSync já pronto.
 // Valores aceitos pelo VRSync: STANDARD, PREMIUM (Destaque), TRIPLE (Destaque Triplo).
@@ -105,7 +117,7 @@ function resolvePropType(imovel, tipo, central) {
 // Constrói um único <Listing> a partir do documento Firestore.
 // Retorna null se o imóvel não atende requisitos mínimos (e loga o motivo).
 function buildListing(imovel, tiposCentral) {
-  const id = String(imovel.id).substring(0, 50);
+  const id = listingId(imovel);
 
   const tipo = imovel.tipo || "";
   const central = acharTipoCentral(tiposCentral, tipo);
