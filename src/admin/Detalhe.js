@@ -19,6 +19,7 @@ export default function Detalhe() {
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
   const [copiado, setCopiado] = useState(false);
+  const [mostrarSensiveis, setMostrarSensiveis] = useState(false);
 
   if (!im) return <div style={pageWrap()}>Carregando...</div>;
 
@@ -27,6 +28,8 @@ export default function Detalhe() {
   const isVen = isVenda(im);
 
   const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
+  const temCaptador = im.nomeCaptador || im.telefoneCaptador;
+  const temProprietario = im.nomeProprietario || im.telefoneProprietario;
 
   const copiarDescricao = async () => {
     const txt = descricaoPronta(im);
@@ -35,7 +38,6 @@ export default function Detalhe() {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
     } catch {
-      // fallback: seleciona um textarea temporário
       const ta = document.createElement("textarea");
       ta.value = txt; document.body.appendChild(ta); ta.select();
       try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
@@ -176,9 +178,24 @@ export default function Detalhe() {
         {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
       </>)}
 
-      {(im.nomeCaptador || im.telefoneCaptador) && section("Captador", <>{row("Nome", im.nomeCaptador)}{row("Telefone", im.telefoneCaptador)}</>)}
-
-      {(im.nomeProprietario || im.telefoneProprietario) && section("Proprietário", <>{row("Nome", im.nomeProprietario)}{row("Telefone", im.telefoneProprietario)}</>)}
+      {/* Dados sensíveis (proprietário/captador): escondidos por padrão, revelados sob demanda */}
+      {(temCaptador || temProprietario) && (
+        !mostrarSensiveis ? (
+          <button onClick={() => setMostrarSensiveis(true)}
+            style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px dashed var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 14, marginBottom: "1rem" }}>
+            👁️ Ver dados do proprietário / captador
+          </button>
+        ) : (
+          <>
+            <button onClick={() => setMostrarSensiveis(false)}
+              style={{ width: "100%", padding: "9px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13, marginBottom: 10 }}>
+              🙈 Ocultar dados do proprietário / captador
+            </button>
+            {temCaptador && section("Captador", <>{row("Nome", im.nomeCaptador)}{row("Telefone", im.telefoneCaptador)}</>)}
+            {temProprietario && section("Proprietário", <>{row("Nome", im.nomeProprietario)}{row("Telefone", im.telefoneProprietario)}</>)}
+          </>
+        )
+      )}
 
       {Object.values(im.anuncios || {}).some(a => a?.ativo) && section("Anúncios",
         CANAIS.filter(c => im.anuncios?.[c]?.ativo).map(c => (

@@ -195,10 +195,13 @@ export default function Anuncios() {
         <span style={{ fontSize: 13, color: "var(--text-muted)", alignSelf: "center" }}>{filtered.length} imóvel(is)</span>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
+      {/* Container com altura limitada: a barra de rolagem horizontal fica sempre
+          visível na base (sem precisar descer até o fim da tabela) e o cabeçalho
+          fica fixo no topo ao rolar verticalmente. */}
+      <div style={{ overflow: "auto", maxHeight: "calc(100vh - 230px)", border: "1px solid var(--border-soft)", borderRadius: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, color: "var(--text)" }}>
           <thead>
-            <tr style={{ background: "var(--primary)", color: "#fff" }}>
+            <tr>
               <th style={th}>Tipo</th>
               <th style={th}>Status</th>
               <th style={th}>Cidade</th>
@@ -206,7 +209,7 @@ export default function Anuncios() {
               <th style={th}>Preço</th>
               <th style={{ ...th, whiteSpace: "nowrap" }}>Proprietário</th>
               {CANAIS.map(c => (
-                <th key={c} style={{ padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap" }}>
+                <th key={c} style={{ ...thCanal }}>
                   {CANAIS_AUTO.includes(c) && <span title="Integração automática via feed XML">⚙ </span>}
                   {c}
                 </th>
@@ -279,7 +282,8 @@ export default function Anuncios() {
   );
 }
 
-const th = { padding: "8px 10px", textAlign: "left" };
+const th = { padding: "8px 10px", textAlign: "left", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
+const thCanal = { padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
 const td = { padding: "8px 10px" };
 const selectStyle = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 13, background: "var(--bg-input)", color: "var(--text)" };
 const tag = (variant) => ({
