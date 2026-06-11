@@ -190,8 +190,9 @@ export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
     const galeria = `${window.location.origin}/fotos/${im.id}`;
-    txt += `\n\nFotos:\n${galeria}`;
+    txt += `\n\nFotos:\n${galeria}\n(esse link é único para as fotos desse imóvel, mas caso precise delas por mensagem me avise)`;
   }
+
   if (im.mapsLink) txt += `\n\nLocalização:\n${im.mapsLink}`;
   return txt;
 }
