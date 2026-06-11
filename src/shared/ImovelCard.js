@@ -1,15 +1,22 @@
 import { formatBRL, isLocacao, isVenda, statusDoImovel } from "./utils";
-
 const STATUS_COLOR = {
   "Disponível": { bg: "#d4edda", color: "#155724", border: "#c3e6cb" },
   "Reservado":  { bg: "#fff3cd", color: "#856404", border: "#ffeaa7" },
   "Vendido":    { bg: "#f8d7da", color: "#721c24", border: "#f5c6cb" },
   "Alugado":    { bg: "#d1ecf1", color: "#0c5460", border: "#bee5eb" },
 };
-
+// Metragem para exibição: usa construção; se não houver (ex: lote), usa a do terreno.
+function metragemImovel(im) {
+  const c = parseFloat(im.metragem);
+  if (c) return { valor: c, label: "m²" };
+  const t = parseFloat(im.metragemTotal);
+  if (t) return { valor: t, label: "m² (terreno)" };
+  return null;
+}
 export default function ImovelCard({ im, onClick, actions, showStatus = true }) {
   const status = statusDoImovel(im);
   const cor = STATUS_COLOR[status] || STATUS_COLOR["Disponível"];
+  const met = metragemImovel(im);
   return (
     <div style={{
       background: "var(--bg-card)", border: "1px solid var(--border)",
@@ -45,6 +52,11 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
             {[im.bairro, im.cidade].filter(Boolean).join(", ")}
           </p>
         )}
+        {met && (
+          <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--text-muted)" }}>
+            📏 {met.valor} {met.label}
+          </p>
+        )}
         {isVenda(im) && im.preco && (
           <p style={{ margin: "0 0 2px", fontWeight: 500, fontSize: 15, color: "var(--primary)" }}>
             {formatBRL(im.preco)}
@@ -60,7 +72,6 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
     </div>
   );
 }
-
 const tag = (variant) => ({
   fontSize: 11,
   background: variant === "primary" ? "var(--primary-light)" : "var(--bg-muted)",
