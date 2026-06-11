@@ -7,6 +7,28 @@ import { EMPRESA, TRANSACOES, ORDENACOES } from "../constants";
 import Header from "./Header";
 import ImovelCard from "../shared/ImovelCard";
 
+// Remove acentos e baixa caixa — pra busca não diferenciar "São" de "sao".
+const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Emoji por tipo de imóvel (casa o nome, sem acento). Cai no padrão 🏘️ se não achar.
+function emojiTipo(nome) {
+  const n = semAcento(nome);
+  if (n.includes("apart")) return "🏢";
+  if (n.includes("sobrado")) return "🏡";
+  if (n.includes("cobertura")) return "🏙️";
+  if (n.includes("studio") || n.includes("kitnet") || n.includes("flat") || n.includes("loft")) return "🛏️";
+  if (n.includes("lote comercial") || n.includes("area comercial") || n.includes("sala") || n.includes("loja") || n.includes("andar corporativo") || n.includes("ponto")) return "🏬";
+  if (n.includes("lote") || n.includes("terreno") || n.includes("area")) return "🟩";
+  if (n.includes("fazenda") || n.includes("chacara") || n.includes("sitio") || n.includes("rural")) return "🌾";
+  if (n.includes("galpao") || n.includes("deposito") || n.includes("armazem")) return "🏭";
+  if (n.includes("hotel") || n.includes("pousada") || n.includes("motel")) return "🏨";
+  if (n.includes("predio") || n.includes("edificio")) return "🏗️";
+  if (n.includes("consultorio")) return "🩺";
+  if (n.includes("garagem")) return "🚗";
+  if (n.includes("casa")) return "🏠";
+  return "🏘️";
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const { imoveis, loading } = useImoveis();
@@ -20,9 +42,9 @@ export default function Home() {
   const publicos = useMemo(() => imoveis.filter(im => statusDoImovel(im) === "Disponível"), [imoveis]);
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase();
+    const q = semAcento(search);
     const base = publicos.filter(im =>
-      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q))
+      (!q || semAcento(im.titulo).includes(q) || semAcento(im.descricao).includes(q) || semAcento(im.cidade).includes(q) || semAcento(im.bairro).includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
       && matchTransacao(im, transacao)
     );
@@ -34,6 +56,14 @@ export default function Home() {
     publicos.forEach(im => { if (im.tipo) c[im.tipo] = (c[im.tipo] || 0) + 1; });
     return c;
   }, [publicos]);
+
+  // Só os tipos com pelo menos 1 imóvel, em ordem alfabética.
+  const tiposVisiveis = useMemo(() => {
+    return tipos
+      .filter(t => (contagemPorTipo[t.nome] || 0) > 0)
+      .slice()
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [tipos, contagemPorTipo]);
 
   const copiarImovel = async (im) => {
     const texto = descricaoPronta(im);
@@ -86,18 +116,21 @@ export default function Home() {
           <button onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })} style={{ flex: "0 0 auto", padding: "0 22px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 10, fontSize: 18, cursor: "pointer", fontWeight: 600 }}>🔍</button>
         </div>
 
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", maxWidth: 880, margin: "1.5rem auto 0" }}>
-          {tipos.map(t => {
-            const ativo = tipo === t.nome;
-            return (
-              <button key={t.nome} onClick={() => setTipo(ativo ? "Todos" : t.nome)} style={{ background: ativo ? "#fff" : "rgba(255,255,255,0.12)", color: ativo ? "var(--primary-dark)" : "#fff", border: ativo ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)", borderRadius: 12, padding: "12px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 92, fontWeight: 600 }}>
-                <span style={{ fontSize: 26 }}>{t.icone || "🏘️"}</span>
-                <span style={{ fontSize: 13 }}>{t.nome}</span>
-                <span style={{ fontSize: 11, opacity: 0.75 }}>{contagemPorTipo[t.nome] || 0} {contagemPorTipo[t.nome] === 1 ? "imóvel" : "imóveis"}</span>
-              </button>
-            );
-          })}
-        </div>
+        {tiposVisiveis.length > 0 && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 10, maxWidth: 880, margin: "1.5rem auto 0" }}>
+            {tiposVisiveis.map(t => {
+              const ativo = tipo === t.nome;
+              const qtd = contagemPorTipo[t.nome] || 0;
+              return (
+                <button key={t.nome} onClick={() => setTipo(ativo ? "Todos" : t.nome)} style={{ background: ativo ? "#fff" : "rgba(255,255,255,0.12)", color: ativo ? "var(--primary-dark)" : "#fff", border: ativo ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)", borderRadius: 12, padding: "12px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontWeight: 600 }}>
+                  <span style={{ fontSize: 26 }}>{emojiTipo(t.nome)}</span>
+                  <span style={{ fontSize: 13, textAlign: "center", lineHeight: 1.15 }}>{t.nome}</span>
+                  <span style={{ fontSize: 11, opacity: 0.75 }}>{qtd} {qtd === 1 ? "imóvel" : "imóveis"}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={pageWrap(1100)} id="lista-imoveis">
