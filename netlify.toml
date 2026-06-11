@@ -1,14 +1,14 @@
 [build]
   command = "npm run build"
   publish = "build"
-
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
-
 [[edge_functions]]
   function = "og"
   path = "/imovel/*"
+[[edge_functions]]
+  function = "og"
+  path = "/fotos/*"
