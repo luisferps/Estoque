@@ -1,20 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis } from "../shared/hooks";
 import { btnOutline, btnPrimary, inputBase, pageWrap, sectionBox } from "../shared/styles";
 
-// Níveis de destaque do Canal Pro (valores VRSync prontos para o feed).
-// Para adicionar Super Destaque / Premiere no futuro, basta incluir aqui.
-const NIVEIS = [
-  { valor: "STANDARD", rotulo: "Sem destaque", chaveCota: null },
-  { valor: "PREMIUM", rotulo: "Destaque", chaveCota: "premium" },
-  { valor: "SUPER_PREMIUM", rotulo: "Super Destaque", chaveCota: "superPremium" },
-  { valor: "TRIPLE", rotulo: "Destaque Triplo", chaveCota: "triple" },
-];
+// Backend Railway (mesmo usado pelo CRM / WA Scheduler)
+const WA_AGENT_URL = "https://agentes-de-whatsapp-production.up.railway.app";
 
 const CANAL = "Canal Pro";
+
+// Rótulos amigáveis dos níveis VRSync
+const ROTULO_NIVEL = {
+  STANDARD: "Sem destaque",
+  PREMIUM: "Destaque",
+  SUPER_PREMIUM: "Super Destaque",
+  TRIPLE: "Destaque Triplo",
+};
+const COR_NIVEL = {
+  STANDARD: { bg: "var(--bg-section)", fg: "var(--text-muted)" },
+  PREMIUM: { bg: "#eff6ff", fg: "#1d4ed8" },
+  SUPER_PREMIUM: { bg: "#f5f3ff", fg: "#7c3aed" },
+  TRIPLE: { bg: "#fff7ed", fg: "#c2410c" },
+};
+
+function fmtData(iso) {
+  if (!iso) return "—";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+function fmtDataCurta(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
 
 export default function Destaques({ onLogout }) {
   const navigate = useNavigate();
@@ -26,7 +52,19 @@ export default function Destaques({ onLogout }) {
   const [carregandoCota, setCarregandoCota] = useState(true);
   const [salvandoCota, setSalvandoCota] = useState(false);
 
-  // Carrega a cota contratada do mês (Firestore: configuracoes/destaquesCanalPro)
+  // Relatório do backend (fila, histórico, última rotação)
+  const [relatorio, setRelatorio] = useState(null);
+  const [carregandoRel, setCarregandoRel] = useState(true);
+  const [erroRel, setErroRel] = useState("");
+  const [forcando, setForcando] = useState(false);
+  const [toast, setToast] = useState("");
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
+
+  // Carrega a cota contratada (Firestore: configuracoes/destaquesCanalPro)
   useEffect(() => {
     (async () => {
       try {
@@ -46,27 +84,40 @@ export default function Destaques({ onLogout }) {
     })();
   }, []);
 
-  // Imóveis que estão ativos no Canal Pro (os que realmente vão pro feed)
+  // Carrega o relatório da rotação (backend)
+  const carregarRelatorio = useCallback(async () => {
+    setCarregandoRel(true);
+    setErroRel("");
+    try {
+      const r = await fetch(`${WA_AGENT_URL}/destaques/relatorio`);
+      const d = await r.json();
+      if (d.ok) setRelatorio(d);
+      else setErroRel(d.motivo || d.error || "Não foi possível carregar o relatório.");
+    } catch (e) {
+      setErroRel("Erro de conexão com o servidor da rotação.");
+    } finally {
+      setCarregandoRel(false);
+    }
+  }, []);
+
+  useEffect(() => { carregarRelatorio(); }, [carregarRelatorio]);
+
+  // Imóveis ativos no Canal Pro (os que vão pro feed)
   const noCanalPro = useMemo(
     () => imoveis.filter((im) => im.anuncios?.[CANAL]?.ativo),
     [imoveis]
   );
 
-  const filtrados = useMemo(() => {
-    const t = busca.trim().toLowerCase();
-    if (!t) return noCanalPro;
-    return noCanalPro.filter((im) =>
-      [im.titulo, im.bairro, im.cidade, im.tipo, im.codigo]
-        .filter(Boolean)
-        .some((c) => String(c).toLowerCase().includes(t))
-    );
-  }, [noCanalPro, busca]);
+  // Indexa o relatório por id pra cruzar com a lista de imóveis
+  const filaPorId = useMemo(() => {
+    const m = new Map();
+    (relatorio?.todos_na_fila || []).forEach((x) => m.set(x.id, x));
+    return m;
+  }, [relatorio]);
 
-  // Contadores de uso atual
+  // Contadores de uso atual (quantos estão em cada nível agora)
   const usados = useMemo(() => {
-    let premium = 0;
-    let superPremium = 0;
-    let triple = 0;
+    let premium = 0, superPremium = 0, triple = 0;
     noCanalPro.forEach((im) => {
       const v = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
       if (v === "PREMIUM") premium++;
@@ -76,13 +127,28 @@ export default function Destaques({ onLogout }) {
     return { premium, superPremium, triple };
   }, [noCanalPro]);
 
-  const alterarNivel = async (im, valor) => {
-    try {
-      await updateDoc(doc(db, "imoveis", im.id), { destaqueCanalPro: valor });
-    } catch (e) {
-      alert("Erro ao salvar destaque: " + e.message);
-    }
-  };
+  const filtrados = useMemo(() => {
+    const t = busca.trim().toLowerCase();
+    const base = noCanalPro;
+    const arr = !t
+      ? base
+      : base.filter((im) =>
+          [im.titulo, im.bairro, im.cidade, im.tipo, im.codigo]
+            .filter(Boolean)
+            .some((c) => String(c).toLowerCase().includes(t))
+        );
+    // Ordena pela posição na fila (quem entra antes primeiro); destacados agora vão pro topo
+    return arr.slice().sort((a, b) => {
+      const fa = filaPorId.get(a.id);
+      const fb = filaPorId.get(b.id);
+      const na = String(a.destaqueCanalPro || "STANDARD").toUpperCase() !== "STANDARD" ? 0 : 1;
+      const nb = String(b.destaqueCanalPro || "STANDARD").toUpperCase() !== "STANDARD" ? 0 : 1;
+      if (na !== nb) return na - nb;
+      const pa = fa?.posicao ?? 99999;
+      const pb = fb?.posicao ?? 99999;
+      return pa - pb;
+    });
+  }, [noCanalPro, busca, filaPorId]);
 
   const salvarCota = async () => {
     setSalvandoCota(true);
@@ -91,6 +157,8 @@ export default function Destaques({ onLogout }) {
       const c = { premium: Number(cota.premium) || 0, superPremium: Number(cota.superPremium) || 0, triple: Number(cota.triple) || 0 };
       await setDoc(ref, c, { merge: true });
       setCotaSalva(c);
+      showToast("Cota salva ✓");
+      carregarRelatorio();
     } catch (e) {
       alert("Erro ao salvar cota: " + e.message);
     } finally {
@@ -98,7 +166,33 @@ export default function Destaques({ onLogout }) {
     }
   };
 
+  const forcarRotacao = async () => {
+    if (!window.confirm("Forçar uma rotação de destaques agora?\nIsso vai revezar os imóveis destacados no Canal Pro imediatamente.\n\nO portal leva algumas horas pra refletir a mudança.")) return;
+    setForcando(true);
+    try {
+      const r = await fetch(`${WA_AGENT_URL}/destaques/rotacionar`, { method: "POST" });
+      const d = await r.json();
+      if (d.ok) {
+        showToast(`Rotação feita: ${d.aplicados || 0} destacados ✓`);
+        carregarRelatorio();
+      } else {
+        showToast(d.error || "Erro ao rotacionar");
+      }
+    } catch (e) {
+      showToast("Erro ao rotacionar");
+    } finally {
+      setForcando(false);
+    }
+  };
+
   const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple;
+
+  // Calcula a próxima rotação prevista (última + intervalo de dias)
+  const proximaRotacao = useMemo(() => {
+    if (!relatorio?.ultima_rotacao || !relatorio?.intervalo_dias) return null;
+    const base = new Date(relatorio.ultima_rotacao).getTime();
+    return new Date(base + relatorio.intervalo_dias * 24 * 60 * 60 * 1000).toISOString();
+  }, [relatorio]);
 
   return (
     <div style={pageWrap(1000)}>
@@ -109,6 +203,7 @@ export default function Destaques({ onLogout }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <button onClick={() => navigate("/admin")} style={btnOutline}>← Voltar</button>
           <button onClick={() => navigate("/admin/anuncios")} style={btnOutline}>Anúncios</button>
+          <button onClick={() => { carregarRelatorio(); }} style={btnOutline}>🔄 Atualizar</button>
           {onLogout && (
             <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           )}
@@ -116,11 +211,37 @@ export default function Destaques({ onLogout }) {
       </div>
 
       <p style={{ fontSize: 13, color: "var(--text-soft)", marginTop: 0 }}>
-        Escolha aqui quais anúncios saem com destaque no ZAP, Viva Real e OLX. O feed é relido
-        pelo portal a cada 12h e respeita exatamente o que estiver marcado nesta tela — não é
-        preciso mexer no painel do Canal Pro. Lembre-se de respeitar a grade contratada: destaques
-        acima da cota são recusados pelo portal.
+        Os destaques do Canal Pro são revezados <strong>automaticamente</strong> pelo sistema, de forma
+        rotativa entre os imóveis ativos. Esta tela é de <strong>acompanhamento</strong>: mostra quem está
+        destacado agora, quando cada imóvel foi destaque e a posição dele na fila. O portal relê o feed a
+        cada 12h, então mudanças levam algumas horas pra aparecer no ZAP/Viva/OLX.
       </p>
+
+      {/* Status da rotação */}
+      <div style={sectionBox}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div style={{ fontWeight: 600, color: "var(--primary-dark)", marginBottom: 6 }}>Status da rotação</div>
+            {carregandoRel ? (
+              <div style={{ fontSize: 13, color: "var(--text-soft)" }}>Carregando…</div>
+            ) : erroRel ? (
+              <div style={{ fontSize: 13, color: "#c0392b" }}>{erroRel}</div>
+            ) : (
+              <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.7 }}>
+                <div>Última rotação: <strong>{fmtData(relatorio?.ultima_rotacao)}</strong></div>
+                <div>Próxima prevista: <strong>{fmtData(proximaRotacao)}</strong> <span style={{ color: "var(--text-soft)" }}>(a cada {relatorio?.intervalo_dias || "?"} dias)</span></div>
+                <div style={{ color: "var(--text-soft)" }}>
+                  {relatorio?.total_elegiveis || 0} imóveis na rotação · {relatorio?.cota?.total || 0} vagas de destaque
+                </div>
+              </div>
+            )}
+          </div>
+          <button onClick={forcarRotacao} disabled={forcando}
+            style={{ ...btnPrimary, opacity: forcando ? 0.5 : 1, cursor: forcando ? "default" : "pointer" }}>
+            {forcando ? "Rotacionando…" : "⚡ Forçar rotação agora"}
+          </button>
+        </div>
+      </div>
 
       {/* Cota do mês + contadores */}
       <div style={sectionBox}>
@@ -130,37 +251,41 @@ export default function Destaques({ onLogout }) {
         {carregandoCota ? (
           <div style={{ fontSize: 13, color: "var(--text-soft)" }}>Carregando cota…</div>
         ) : (
-          <>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-              <CampoCota
-                rotulo="Destaques"
-                valor={cota.premium}
-                onChange={(v) => setCota((c) => ({ ...c, premium: v }))}
-                usado={usados.premium}
-              />
-              <CampoCota
-                rotulo="Super Destaques"
-                valor={cota.superPremium}
-                onChange={(v) => setCota((c) => ({ ...c, superPremium: v }))}
-                usado={usados.superPremium}
-              />
-              <CampoCota
-                rotulo="Destaques Triplos"
-                valor={cota.triple}
-                onChange={(v) => setCota((c) => ({ ...c, triple: v }))}
-                usado={usados.triple}
-              />
-              <button
-                onClick={salvarCota}
-                disabled={!cotaMudou || salvandoCota}
-                style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}
-              >
-                {salvandoCota ? "Salvando…" : "Salvar cota"}
-              </button>
-            </div>
-          </>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <CampoCota rotulo="Destaques" valor={cota.premium} onChange={(v) => setCota((c) => ({ ...c, premium: v }))} usado={usados.premium} />
+            <CampoCota rotulo="Super Destaques" valor={cota.superPremium} onChange={(v) => setCota((c) => ({ ...c, superPremium: v }))} usado={usados.superPremium} />
+            <CampoCota rotulo="Destaques Triplos" valor={cota.triple} onChange={(v) => setCota((c) => ({ ...c, triple: v }))} usado={usados.triple} />
+            <button onClick={salvarCota} disabled={!cotaMudou || salvandoCota}
+              style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}>
+              {salvandoCota ? "Salvando…" : "Salvar cota"}
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Histórico das rotações */}
+      {relatorio?.historico?.length > 0 && (
+        <div style={sectionBox}>
+          <div style={{ fontWeight: 600, color: "var(--primary-dark)", marginBottom: 10 }}>
+            📊 Últimas rotações
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {relatorio.historico.slice(0, 8).map((h) => (
+              <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, padding: "6px 10px", background: "var(--bg-section)", borderRadius: 8 }}>
+                <span style={{ minWidth: 110, color: "var(--text)" }}>{fmtData(h.quando)}</span>
+                <span style={{ color: "var(--text-soft)" }}>
+                  {h.aplicados} destacado(s){h.forcado ? " · manual" : ""}
+                </span>
+                <span style={{ flex: 1 }} />
+                <span style={{ color: "var(--text-muted)", fontSize: 11 }}>
+                  {(h.destacados || []).slice(0, 3).map((d) => d.titulo || d.id).join(" · ")}
+                  {(h.destacados || []).length > 3 ? ` +${h.destacados.length - 3}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Busca */}
       <input
@@ -174,8 +299,7 @@ export default function Destaques({ onLogout }) {
         <div style={{ fontSize: 14, color: "var(--text-soft)" }}>Carregando imóveis…</div>
       ) : noCanalPro.length === 0 ? (
         <div style={{ fontSize: 14, color: "var(--text-soft)" }}>
-          Nenhum imóvel está ativo no Canal Pro ainda. Ative os imóveis na tela de <b>Anúncios</b> para
-          poder destacá-los aqui.
+          Nenhum imóvel está ativo no Canal Pro ainda. Ative os imóveis na tela de <b>Anúncios</b>.
         </div>
       ) : (
         <>
@@ -184,10 +308,16 @@ export default function Destaques({ onLogout }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filtrados.map((im) => (
-              <LinhaImovel key={im.id} im={im} onAlterar={alterarNivel} />
+              <LinhaImovel key={im.id} im={im} info={filaPorId.get(im.id)} />
             ))}
           </div>
         </>
+      )}
+
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", padding: "10px 18px", background: "var(--primary-light)", color: "var(--primary-dark)", border: "1px solid var(--primary)", borderRadius: 8, fontSize: 13, fontWeight: 500, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 100 }}>
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -197,36 +327,34 @@ function CampoCota({ rotulo, valor, onChange, usado }) {
   const excedeu = usado > (Number(valor) || 0);
   return (
     <div style={{ minWidth: 150 }}>
-      <label style={{ fontSize: 12, color: "var(--text-soft)", display: "block", marginBottom: 4 }}>
-        {rotulo}
-      </label>
-      <input
-        type="number"
-        min={0}
-        value={valor}
+      <label style={{ fontSize: 12, color: "var(--text-soft)", display: "block", marginBottom: 4 }}>{rotulo}</label>
+      <input type="number" min={0} value={valor}
         onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
-        style={{ ...inputBase, width: 110 }}
-      />
+        style={{ ...inputBase, width: 110 }} />
       <div style={{ fontSize: 12, marginTop: 4, fontWeight: 600, color: excedeu ? "#c0392b" : "var(--text-soft)" }}>
-        Usados: {usado} de {Number(valor) || 0}
-        {excedeu && " ⚠ acima da cota"}
+        Usados: {usado} de {Number(valor) || 0}{excedeu && " ⚠ acima da cota"}
       </div>
     </div>
   );
 }
 
-function LinhaImovel({ im, onAlterar }) {
+function LinhaImovel({ im, info }) {
   const nivelAtual = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
   const destacado = nivelAtual !== "STANDARD";
+  const cor = COR_NIVEL[nivelAtual] || COR_NIVEL.STANDARD;
+  const posicao = info?.posicao;
+  const entraNaProxima = info?.entraNaProxima;
+  const nivelPrevisto = info?.nivelPrevisto;
+  // "ultimoDestaque" vem tanto do imóvel (Firebase) quanto do relatório
+  const ultimo = info?.ultimoDestaque || im.ultimoDestaque || null;
+
   return (
-    <div
-      style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12, padding: "10px 12px", borderRadius: 10, flexWrap: "wrap",
-        background: "var(--bg-card)",
-        border: destacado ? "1px solid var(--primary)" : "1px solid var(--border-soft)",
-      }}
-    >
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 12, padding: "10px 12px", borderRadius: 10, flexWrap: "wrap",
+      background: "var(--bg-card)",
+      border: destacado ? "1px solid var(--primary)" : "1px solid var(--border-soft)",
+    }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontWeight: 500, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis" }}>
           {im.titulo || im.bairro || "(sem título)"}
@@ -235,20 +363,33 @@ function LinhaImovel({ im, onAlterar }) {
           {[im.tipo, im.bairro, im.cidade].filter(Boolean).join(" · ")}
           {im.codigo ? `  ·  cód. ${im.codigo}` : ""}
         </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
+          Última vez em destaque: <strong>{fmtDataCurta(ultimo)}</strong>
+        </div>
       </div>
-      <select
-        value={NIVEIS.some((n) => n.valor === nivelAtual) ? nivelAtual : "STANDARD"}
-        onChange={(e) => onAlterar(im, e.target.value)}
-        style={{
-          ...inputBase, width: "auto", minWidth: 170, cursor: "pointer",
-          fontWeight: destacado ? 600 : 400,
-          color: destacado ? "var(--primary-dark)" : "var(--text)",
-        }}
-      >
-        {NIVEIS.map((n) => (
-          <option key={n.valor} value={n.valor}>{n.rotulo}</option>
-        ))}
-      </select>
+
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 150 }}>
+        {/* Destaque atual */}
+        <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: cor.bg, color: cor.fg }}>
+          {destacado ? "⭐ " : ""}{ROTULO_NIVEL[nivelAtual] || nivelAtual}
+        </span>
+        {/* Posição na fila / próxima */}
+        {destacado ? (
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>destacado agora</span>
+        ) : posicao ? (
+          entraNaProxima ? (
+            <span style={{ fontSize: 11, color: "var(--primary)", fontWeight: 600 }}>
+              {posicao}º da fila · entra na próxima
+            </span>
+          ) : (
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              {posicao}º da fila
+            </span>
+          )
+        ) : (
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
+        )}
+      </div>
     </div>
   );
 }
