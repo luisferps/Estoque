@@ -344,7 +344,6 @@ function LinhaImovel({ im, info }) {
   const cor = COR_NIVEL[nivelAtual] || COR_NIVEL.STANDARD;
   const posicao = info?.posicao;
   const entraNaProxima = info?.entraNaProxima;
-  const nivelPrevisto = info?.nivelPrevisto;
   // "ultimoDestaque" vem tanto do imóvel (Firebase) quanto do relatório
   const ultimo = info?.ultimoDestaque || im.ultimoDestaque || null;
 
