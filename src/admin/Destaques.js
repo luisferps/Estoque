@@ -47,8 +47,8 @@ export default function Destaques({ onLogout }) {
   const { imoveis, loading } = useImoveis();
 
   const [busca, setBusca] = useState("");
-  const [cota, setCota] = useState({ premium: 0, superPremium: 0, triple: 0 });
-  const [cotaSalva, setCotaSalva] = useState({ premium: 0, superPremium: 0, triple: 0 });
+  const [cota, setCota] = useState({ premium: 0, superPremium: 0, triple: 0, intervaloDias: 3 });
+  const [cotaSalva, setCotaSalva] = useState({ premium: 0, superPremium: 0, triple: 0, intervaloDias: 3 });
   const [carregandoCota, setCarregandoCota] = useState(true);
   const [salvandoCota, setSalvandoCota] = useState(false);
 
@@ -72,7 +72,13 @@ export default function Destaques({ onLogout }) {
         const snap = await getDoc(ref);
         if (snap.exists()) {
           const d = snap.data();
-          const c = { premium: Number(d.premium) || 0, superPremium: Number(d.superPremium) || 0, triple: Number(d.triple) || 0 };
+          const iv = Math.floor(Number(d.intervaloDias));
+          const c = {
+            premium: Number(d.premium) || 0,
+            superPremium: Number(d.superPremium) || 0,
+            triple: Number(d.triple) || 0,
+            intervaloDias: iv >= 1 && iv <= 60 ? iv : 3,
+          };
           setCota(c);
           setCotaSalva(c);
         }
@@ -154,13 +160,20 @@ export default function Destaques({ onLogout }) {
     setSalvandoCota(true);
     try {
       const ref = doc(db, "configuracoes", "destaquesCanalPro");
-      const c = { premium: Number(cota.premium) || 0, superPremium: Number(cota.superPremium) || 0, triple: Number(cota.triple) || 0 };
+      const iv = Math.floor(Number(cota.intervaloDias));
+      const c = {
+        premium: Number(cota.premium) || 0,
+        superPremium: Number(cota.superPremium) || 0,
+        triple: Number(cota.triple) || 0,
+        intervaloDias: iv >= 1 && iv <= 60 ? iv : 3,
+      };
       await setDoc(ref, c, { merge: true });
       setCotaSalva(c);
-      showToast("Cota salva ✓");
+      setCota(c);
+      showToast("Configurações salvas ✓");
       carregarRelatorio();
     } catch (e) {
-      alert("Erro ao salvar cota: " + e.message);
+      alert("Erro ao salvar: " + e.message);
     } finally {
       setSalvandoCota(false);
     }
@@ -185,7 +198,7 @@ export default function Destaques({ onLogout }) {
     }
   };
 
-  const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple;
+  const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple || cota.intervaloDias !== cotaSalva.intervaloDias;
 
   // Calcula a próxima rotação prevista (última + intervalo de dias)
   const proximaRotacao = useMemo(() => {
@@ -257,10 +270,42 @@ export default function Destaques({ onLogout }) {
             <CampoCota rotulo="Destaques Triplos" valor={cota.triple} onChange={(v) => setCota((c) => ({ ...c, triple: v }))} usado={usados.triple} />
             <button onClick={salvarCota} disabled={!cotaMudou || salvandoCota}
               style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}>
-              {salvandoCota ? "Salvando…" : "Salvar cota"}
+              {salvandoCota ? "Salvando…" : "Salvar"}
             </button>
           </div>
         )}
+      </div>
+
+      {/* Intervalo da rotação */}
+      <div style={sectionBox}>
+        <div style={{ fontWeight: 600, color: "var(--primary-dark)", marginBottom: 6 }}>
+          Frequência da rotação
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-soft)", marginBottom: 10 }}>
+          De quantos em quantos dias o sistema revezar os destaques automaticamente. O padrão é 3 dias.
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 150 }}>
+            <label style={{ fontSize: 12, color: "var(--text-soft)", display: "block", marginBottom: 4 }}>
+              Rotacionar a cada (dias)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={cota.intervaloDias}
+              onChange={(e) => {
+                const n = Math.floor(Number(e.target.value));
+                setCota((c) => ({ ...c, intervaloDias: Number.isFinite(n) ? Math.min(60, Math.max(1, n)) : 1 }));
+              }}
+              style={{ ...inputBase, width: 110 }}
+            />
+          </div>
+          <button onClick={salvarCota} disabled={!cotaMudou || salvandoCota}
+            style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}>
+            {salvandoCota ? "Salvando…" : "Salvar"}
+          </button>
+        </div>
       </div>
 
       {/* Histórico das rotações */}
