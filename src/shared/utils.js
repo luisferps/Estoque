@@ -322,6 +322,8 @@ export function ordenarImoveis(imoveis, ordem) {
     case "preco_maior": return arr.sort((a, b) => precoBase(b) - precoBase(a));
     case "metragem_menor": return arr.sort((a, b) => metragemBase(a) - metragemBase(b));
     case "metragem_maior": return arr.sort((a, b) => metragemBase(b) - metragemBase(a));
+    case "bairro_az": return arr.sort((a, b) => bairroBase(a).localeCompare(bairroBase(b), "pt-BR"));
+    case "bairro_za": return arr.sort((a, b) => bairroBase(b).localeCompare(bairroBase(a), "pt-BR"));
     case "recente":
     default: return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }
@@ -334,6 +336,13 @@ function precoBase(im) {
 
 function metragemBase(im) {
   return parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+}
+
+// Bairro normalizado para ordenação. Vazios vão pro fim (caractere alto)
+// para não aparecerem antes dos preenchidos na ordem A-Z.
+function bairroBase(im) {
+  const b = (im.bairro || "").trim();
+  return b ? b.toLocaleLowerCase("pt-BR") : "\uffff";
 }
 
 // ─── Download de fotos ───
