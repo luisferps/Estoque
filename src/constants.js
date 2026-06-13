@@ -32,6 +32,8 @@ export const ORDENACOES = [
   { key: "preco_maior", label: "Maior preço" },
   { key: "metragem_menor", label: "Menor metragem" },
   { key: "metragem_maior", label: "Maior metragem" },
+  { key: "bairro_az", label: "Setor/Bairro (A-Z)" },
+  { key: "bairro_za", label: "Setor/Bairro (Z-A)" },
 ];
 
 // ─── Cloudinary ───
