@@ -73,6 +73,15 @@ export default function Form() {
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
   };
 
+  // Validação de telefone (proprietário e captador são obrigatórios).
+  // Aceita 10 dígitos (fixo) ou 11 dígitos (celular: 3º dígito = 9). Vazio ou incompleto não passa.
+  const telefoneValido = (value) => {
+    const d = (value || "").replace(/\D/g, "");
+    if (d.length === 10) return true;            // fixo (DDD + 8)
+    if (d.length === 11 && d[2] === "9") return true; // celular (DDD + 9 + 8)
+    return false;
+  };
+
   // Geocoding silencioso -- chamado automaticamente ao mudar cidade/bairro
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
     if (!cidade) return;
@@ -82,6 +91,10 @@ export default function Form() {
 
   const save = async () => {
     if (!form.titulo) return alert("Preencha o t\u00edtulo.");
+    if (!telefoneValido(form.telefoneProprietario))
+      return alert("Informe o telefone do propriet\u00e1rio (completo): fixo com 10 d\u00edgitos ou celular com 11 (DDD + 9 + n\u00famero).");
+    if (!telefoneValido(form.telefoneCaptador))
+      return alert("Informe o telefone do captador (completo): fixo com 10 d\u00edgitos ou celular com 11 (DDD + 9 + n\u00famero).");
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
@@ -126,12 +139,18 @@ export default function Form() {
       <input type={opts.type || "text"} value={form[key] || ""} onChange={e => sf(key, e.target.value)} placeholder={opts.ph || ""} style={inputBase} />
     </div>
   );
-  const inpTel = (label, key) => (
-    <div style={{ marginBottom: "1rem" }}>
-      <label style={labelStyle}>{label}</label>
-      <input type="tel" value={form[key] || ""} onChange={e => sf(key, formatTel(e.target.value))} placeholder="(62) 9 9999-9999" style={inputBase} />
-    </div>
-  );
+  const inpTel = (label, key) => {
+    const val = form[key] || "";
+    const invalido = val.trim() !== "" && !telefoneValido(val);
+    return (
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={labelStyle}>{label}</label>
+        <input type="tel" value={val} onChange={e => sf(key, formatTel(e.target.value))} placeholder="(62) 9 9999-9999"
+          style={{ ...inputBase, ...(invalido ? { borderColor: "#c0392b" } : {}) }} />
+        {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>N\u00famero incompleto. Use fixo (10 d\u00edgitos) ou celular (11 d\u00edgitos com 9).</p>}
+      </div>
+    );
+  };
   const tog = (label, key) => (
     <label style={togStyle}>
       <input type="checkbox" checked={!!form[key]} onChange={e => sf(key, e.target.checked)} style={cbStyle} />{label}
@@ -317,12 +336,12 @@ export default function Form() {
           style={{ ...inputBase, resize: "vertical", lineHeight: 1.6 }} />
       </>)}
 
-      {section("Propriet\u00e1rio (vis\u00edvel s\u00f3 para admin)", <>
-        <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone", "telefoneProprietario")}</div>
+      {section("Propriet\u00e1rio (vis\u00edvel s\u00f3 para admin) *", <>
+        <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone *", "telefoneProprietario")}</div>
       </>)}
 
-      {section("Captador", <>
-        <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone", "telefoneCaptador")}</div>
+      {section("Captador *", <>
+        <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone *", "telefoneCaptador")}</div>
       </>)}
 
       {section("Onde foi anunciado (vis\u00edvel s\u00f3 para admin)", <>
