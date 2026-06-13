@@ -23,6 +23,18 @@ const MIGRAR_CANAIS = {
   "Marketplace Facebook": "Marketplace Facebook",
 };
 
+// Tipos que SAO "em condominio" (viraram tipos proprios). O nome do condominio
+// e o valor do condominio passam a depender do TIPO escolhido, nao mais de uma flag.
+const TIPOS_EM_CONDOMINIO = [
+  "Casa em Condom\u00ednio",
+  "Sobrado em Condom\u00ednio",
+  "Lote em Condom\u00ednio",
+  "Ch\u00e1cara em Condom\u00ednio",
+];
+function ehEmCondominio(tipo) {
+  return TIPOS_EM_CONDOMINIO.includes(String(tipo || "").trim());
+}
+
 export default function Form() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -63,6 +75,7 @@ export default function Form() {
   const isConstrucao = ehConstrucao(form.tipo, tipos);
   const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
+  const emCondominio = ehEmCondominio(form.tipo);
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
   const valorFinalLoc = () => (parseFloat(form.valorAluguel) || 0) + (parseFloat(form.valorCondominio) || 0) + (parseFloat(form.valorIPTU) || 0) || "";
@@ -98,6 +111,10 @@ export default function Form() {
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
+      // Tipos "em condominio" sao tipos proprios; a flag antiga nao e mais usada.
+      // Garante coerencia: tipo de condominio -> condominio=true; senao limpa a flag.
+      data.condominio = ehEmCondominio(data.tipo);
+      if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
       // Código automático: se ainda não tem código e há bairro, reserva o próximo
@@ -215,8 +232,7 @@ export default function Form() {
 
         {inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
-        {tog("Em condom\u00ednio?", "condominio")}
-        {form.condominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
+        {emCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
       </>)}
 
       {section("Condi\u00e7\u00f5es comerciais", <>
@@ -304,7 +320,7 @@ export default function Form() {
           {inp("Banheiros", "banheiros", { type: "number" })}
           {inp("Valor de avalia\u00e7\u00e3o (R$)", "valorAvaliacao", { type: "number" })}
           {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
-          {form.tipo === "Apartamento" && inp("Valor do condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
+          {(form.tipo === "Apartamento" || form.tipo === "Casa em Condom\u00ednio" || form.tipo === "Sobrado em Condom\u00ednio") && inp("Valor do condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
         </div>
       </>)}
 
