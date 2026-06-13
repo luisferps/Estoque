@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { PDF_CAMPOS } from "../constants";
@@ -6,18 +6,36 @@ import { formatBRL, gerarPDF, isLote, isLocacao, isVenda, matchTransacao, ordena
 import { btnPrimary, pageWrap } from "../shared/styles";
 import Filtros from "../shared/Filtros";
 
+// Mantém os filtros da consulta enquanto a aba estiver aberta, para que ao
+// abrir uma ficha e voltar (← Voltar) o usuário caia no mesmo resultado.
+const FILTROS_KEY = "consulta_filtros";
+function lerFiltros() {
+  try {
+    const raw = sessionStorage.getItem(FILTROS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+const salvos = lerFiltros() || {};
+
 export default function Consulta() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
-  const [search, setSearch] = useState("");
-  const [tipo, setTipo] = useState("Todos");
-  const [transacao, setTransacao] = useState("Todos");
-  const [estado, setEstado] = useState("Todos");
-  const [cidade, setCidade] = useState("Todas");
-  const [status, setStatus] = useState("Todos");
-  const [ordem, setOrdem] = useState("recente");
+  const [search, setSearch] = useState(salvos.search || "");
+  const [tipo, setTipo] = useState(salvos.tipo || "Todos");
+  const [transacao, setTransacao] = useState(salvos.transacao || "Todos");
+  const [estado, setEstado] = useState(salvos.estado || "Todos");
+  const [cidade, setCidade] = useState(salvos.cidade || "Todas");
+  const [status, setStatus] = useState(salvos.status || "Todos");
+  const [ordem, setOrdem] = useState(salvos.ordem || "recente");
   const [showPDF, setShowPDF] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
+
+  // Salva os filtros sempre que mudam (sessionStorage = vale só enquanto a aba está aberta).
+  useEffect(() => {
+    sessionStorage.setItem(FILTROS_KEY, JSON.stringify({ search, tipo, transacao, estado, cidade, status, ordem }));
+  }, [search, tipo, transacao, estado, cidade, status, ordem]);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
