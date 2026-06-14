@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape
 } from "../shared/utils";
 import { sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
@@ -56,7 +56,7 @@ export default function ImovelPublico() {
     return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
   }
 
-  if (!im || statusDoImovel(im) !== "Disponível") {
+  if (!im || statusDoImovel(im) !== "Disponível" || !apareceNoSite(im)) {
     return (
       <div>
         <Header />
