@@ -7,7 +7,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  cdata, normalizeImageUrl, toFloat, toInt, isDisponivel, temFlagAnuncio,
+  cdata, normalizeImageUrl, toFloat, toInt, toMetros, isDisponivel, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
@@ -167,8 +167,8 @@ function buildImovel(imovel, tiposCentral) {
   // Regra de qualidade: Casa (pura) sem garagem informada -> considera 2 vagas.
   if (garagens === 0 && (imovel.tipo || "").trim() === "Casa") garagens = 2;
   const banheiros = toInt(imovel.banheiros) || (quartos > 0 ? quartos : 0);
-  const areaConstruida = toFloat(imovel.metragem);
-  const areaTotal = toFloat(imovel.metragemTotal);
+  const areaConstruida = toMetros(imovel.metragem);
+  const areaTotal = toMetros(imovel.metragemTotal);
   const iptu = toFloat(imovel.valorIPTU);
   const condominio = toFloat(imovel.valorCondominio);
 
@@ -200,8 +200,8 @@ function buildImovel(imovel, tiposCentral) {
             <valor_locacao>${valorLocacao > 0 ? valorLocacao.toFixed(2) : ""}</valor_locacao>
             <valor_iptu>${iptu > 0 ? iptu.toFixed(2) : ""}</valor_iptu>
             <valor_condominio>${condominio > 0 ? condominio.toFixed(2) : ""}</valor_condominio>
-            <area_total>${areaTotal > 0 ? areaTotal.toFixed(2) : ""}</area_total>
-            <area_util>${areaUtil > 0 ? areaUtil.toFixed(2) : ""}</area_util>
+            <area_total>${areaTotal > 0 ? areaTotal : ""}</area_total>
+            <area_util>${areaUtil > 0 ? areaUtil : ""}</area_util>
             <quartos>${quartos || ""}</quartos>
             <suites>${suites || ""}</suites>
             <garagem>${garagens || ""}</garagem>
