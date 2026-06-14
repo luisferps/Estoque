@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA } from "../constants";
@@ -29,6 +29,24 @@ export default function ImovelPublico() {
     || imoveis.find(i => normCod(i.codigo) && normCod(i.codigo) === alvoNorm);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
+
+  // SEO: atualiza o título da aba e a meta description com os dados do imóvel.
+  // Ajuda buscadores e melhora o preview ao compartilhar o link. Restaura o
+  // título padrão ao sair da página.
+  useEffect(() => {
+    const tituloPadrao = "Inerente Gestão Imobiliária — Imóveis para venda e locação";
+    if (im && im.titulo) {
+      const partes = [im.titulo];
+      if (im.bairro) partes.push(im.bairro);
+      if (im.cidade) partes.push(im.cidade);
+      document.title = partes.join(" - ") + " | Inerente Gestão Imobiliária";
+      const desc = (im.descricao || im.titulo || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      let meta = document.querySelector('meta[name="description"]');
+      if (!meta) { meta = document.createElement("meta"); meta.setAttribute("name", "description"); document.head.appendChild(meta); }
+      meta.setAttribute("content", desc);
+    }
+    return () => { document.title = tituloPadrao; };
+  }, [im]);
 
   if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
 
