@@ -7,7 +7,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  cdata, normalizeImageUrl, toInt, isDisponivel, temFlagAnuncio,
+  cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
@@ -161,8 +161,8 @@ function buildListing(imovel, tiposCentral) {
 
   // Área obrigatória
   const isLote = (central && central.comportamento === "terreno") || TIPOS_TERRENO.includes(tipo);
-  const metragem = toInt(imovel.metragem);
-  const metragemTotal = toInt(imovel.metragemTotal);
+  const metragem = toMetros(imovel.metragem);
+  const metragemTotal = toMetros(imovel.metragemTotal);
   const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
   if (area === 0) {
     console.log(`[CanalPro] Pulado ${id}: sem metragem`);
