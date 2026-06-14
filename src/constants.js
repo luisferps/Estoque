@@ -4,6 +4,10 @@ export const TIPOS = ["Lote", "Casa", "Apartamento", "Área", "Galpão"];
 export const TRANSACOES = ["Venda", "Locação"];
 export const ESTADOS_IMOVEL = ["Imóvel Usado", "Imóvel Novo"];
 export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado"];
+// Visibilidade pública: controla onde o imóvel aparece, independente do status.
+// "Site e portais" é o padrão (comportamento atual). As demais ocultam o imóvel
+// do site público e/ou dos feeds XML (Canal Pro, Chaves na Mão, Meta).
+export const VISIBILIDADE_IMOVEL = ["Site e portais", "Ocultar do site", "Ocultar dos portais", "Ocultar de tudo"];
 
 // ─── Canais de anúncio ───
 // Os canais marcados com ⚙ são integrados automaticamente via XML feed.
@@ -81,8 +85,8 @@ export const PDF_CAMPOS = [
 
 // ─── Formulário vazio ───
 export const emptyForm = {
-  id: null, titulo: "", tipo: "Casa", transacao: "Venda", estadoImovel: "Imóvel Usado",
-  status: "Disponível",
+  id: null, titulo: "", tipo: "Casa", transacao: "Venda", estadoImovel: "Imóvel Novo",
+  status: "Disponível", visibilidade: "Site e portais",
   preco: "", descricao: "", extras: "", mapsLink: "",
   cep: "", cidade: "", bairro: "", endereco: "", estado: "", asfalto: false, agua: false, esgoto: false,
   latitude: "", longitude: "",
