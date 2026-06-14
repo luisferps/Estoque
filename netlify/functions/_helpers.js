@@ -43,6 +43,9 @@ function normalizeImageUrl(url) {
 }
 
 // Converte valor para inteiro, removendo "R$", pontos e vírgulas brasileiras.
+// IMPORTANTE: assume formato BR para VALORES MONETÁRIOS (ponto = milhar,
+// vírgula = decimal). Ex: "350.000,50" -> 350001. NÃO use para metragem
+// (que vem do input HTML com ponto decimal) — use toMetros para isso.
 function toInt(val) {
   if (val === null || val === undefined || val === "") return 0;
   const num = parseFloat(
@@ -51,13 +54,27 @@ function toInt(val) {
   return isNaN(num) ? 0 : Math.round(num);
 }
 
-// Converte valor para float (mantém casas decimais).
+// Converte valor para float (mantém casas decimais). Mesmo formato BR do toInt.
 function toFloat(val) {
   if (val === null || val === undefined || val === "") return 0;
   const num = parseFloat(
     String(val).replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".")
   );
   return isNaN(num) ? 0 : num;
+}
+
+// Converte METRAGEM para inteiro arredondado.
+// Os campos de metragem vêm do input HTML type="number", que usa PONTO como
+// separador decimal (ex: "538.34") e nunca tem separador de milhar (a regra do
+// cadastro é digitar só números). Por isso aqui o ponto é tratado como DECIMAL
+// (ao contrário de toInt, que o trata como milhar para valores em R$).
+// Também aceita vírgula como decimal, por segurança. Arredonda para o inteiro
+// mais próximo, que é o que os portais esperam na área.
+function toMetros(val) {
+  if (val === null || val === undefined || val === "") return 0;
+  const limpo = String(val).replace(/[^\d.,-]/g, "").replace(",", ".");
+  const num = parseFloat(limpo);
+  return isNaN(num) ? 0 : Math.round(num);
 }
 
 // Imóvel só é divulgado se status for "Disponível" (ou vazio, como fallback).
@@ -114,6 +131,7 @@ module.exports = {
   normalizeImageUrl,
   toInt,
   toFloat,
+  toMetros,
   isDisponivel,
   temFlagAnuncio,
   urlPublica,
