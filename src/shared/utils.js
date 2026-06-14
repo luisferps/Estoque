@@ -41,6 +41,14 @@ export function statusDoImovel(im) {
   return im?.status || "Disponível";
 }
 
+// Visibilidade no site público. O campo "visibilidade" pode ocultar o imóvel
+// do site mesmo estando Disponível. "Ocultar do site" e "Ocultar de tudo"
+// removem da vitrine pública; os demais valores (ou vazio) mantêm visível.
+export function apareceNoSite(im) {
+  const v = (im?.visibilidade || "").trim();
+  return v !== "Ocultar do site" && v !== "Ocultar de tudo";
+}
+
 export function totalLocacao(im) {
   return (parseFloat(im?.valorAluguel) || 0) + (parseFloat(im?.valorCondominio) || 0) + (parseFloat(im?.valorIPTU) || 0);
 }
