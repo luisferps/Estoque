@@ -84,6 +84,22 @@ function isDisponivel(imovel) {
   return status === "disponível" || status === "disponivel" || status === "";
 }
 
+// Visibilidade pública (campo "visibilidade" do cadastro). Controla onde o
+// imóvel aparece, independente do status. Valores possíveis:
+//   "Site e portais" (ou vazio) → aparece em tudo
+//   "Ocultar do site"     → some do site, continua nos portais
+//   "Ocultar dos portais" → continua no site, some dos feeds
+//   "Ocultar de tudo"     → some do site e dos portais
+function apareceNosPortais(imovel) {
+  const v = (imovel.visibilidade || "").trim();
+  return v !== "Ocultar dos portais" && v !== "Ocultar de tudo";
+}
+
+function apareceNoSite(imovel) {
+  const v = (imovel.visibilidade || "").trim();
+  return v !== "Ocultar do site" && v !== "Ocultar de tudo";
+}
+
 // Verifica se o imóvel tem a flag de anúncio ativa para o canal informado.
 function temFlagAnuncio(imovel, canal) {
   const info = imovel.anuncios && imovel.anuncios[canal];
@@ -133,6 +149,8 @@ module.exports = {
   toFloat,
   toMetros,
   isDisponivel,
+  apareceNosPortais,
+  apareceNoSite,
   temFlagAnuncio,
   urlPublica,
   carregarTiposCentral,
