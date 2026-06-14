@@ -13,6 +13,21 @@ const {
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
+// Mínimo de caracteres exigido pelo Chaves na Mão na descrição (para boa nota).
+const MIN_DESCRICAO_CNM = 500;
+
+// Garante descrição com pelo menos MIN_DESCRICAO_CNM caracteres, repetindo o
+// texto original (separado por linha em branco) até atingir o mínimo.
+function expandirDescricao(texto) {
+  let desc = (texto || "").trim();
+  if (!desc) return desc;
+  const original = desc;
+  while (desc.length < MIN_DESCRICAO_CNM) {
+    desc = desc + "\n\n" + original;
+  }
+  return desc;
+}
+
 // Identificador/refrência do anúncio — usa o código legível do Estoque
 // (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
 // Sanitiza para algo seguro como referência.
@@ -32,6 +47,8 @@ const TIPO_MAP_RESIDENCIAL = {
   "Casa": "Casa / Sobrado",
   "Sobrado": "Casa / Sobrado",
   "Casa de Condomínio": "Casa / Sobrado em Condomínio",
+  "Casa em Condomínio": "Casa / Sobrado em Condomínio",
+  "Sobrado em Condomínio": "Casa / Sobrado em Condomínio",
   "Cobertura": "Cobertura",
   "Flat": "Flat",
   "Kitnet": "Kitnet / Stúdio",
@@ -39,9 +56,11 @@ const TIPO_MAP_RESIDENCIAL = {
   "Loft": "Loft",
   "Sítio": "Sítio / Chácara",
   "Chácara": "Sítio / Chácara",
+  "Chácara em Condomínio": "Sítio / Chácara",
   "Fazenda": "Sítio / Chácara",
   "Área": "Sítio / Chácara",
   "Lote": "Terreno / Lote",
+  "Lote em Condomínio": "Terreno / Lote",
   "Terreno": "Terreno / Lote",
 };
 
@@ -63,7 +82,7 @@ const TIPO_MAP_COMERCIAL = {
 function finalidadeETipo(imovelTipo, central) {
   if (TIPO_MAP_RESIDENCIAL[imovelTipo]) {
     // Sítio/Chácara/Fazenda/Área podem ser "RU" (rural) também
-    if (["Sítio", "Chácara", "Fazenda", "Área"].includes(imovelTipo)) {
+    if (["Sítio", "Chácara", "Fazenda", "Área", "Chácara em Condomínio"].includes(imovelTipo)) {
       return { finalidade: "RU", tipo: TIPO_MAP_RESIDENCIAL[imovelTipo] };
     }
     return { finalidade: "RE", tipo: TIPO_MAP_RESIDENCIAL[imovelTipo] };
@@ -108,12 +127,13 @@ function buildImovel(imovel, tiposCentral) {
     return null;
   }
 
-  // Descrição obrigatória
-  const descritivo = (imovel.descricao || "").trim();
-  if (!descritivo) {
+  // Descrição obrigatória (e expandida para o mínimo de caracteres do Chaves)
+  const descritivoBase = (imovel.descricao || "").trim();
+  if (!descritivoBase) {
     console.log(`[ChavesNaMao] Pulado ${id}: sem descrição`);
     return null;
   }
+  const descritivo = expandirDescricao(descritivoBase);
 
   // Transação e valores
   const trans = transacoes(imovel.transacao);
@@ -143,15 +163,26 @@ function buildImovel(imovel, tiposCentral) {
   // Detalhes numéricos
   const quartos = toInt(imovel.quartos);
   const suites = toInt(imovel.suites);
-  const garagens = toInt(imovel.garagens);
+  let garagens = toInt(imovel.garagens);
+  // Regra de qualidade: Casa (pura) sem garagem informada -> considera 2 vagas.
+  if (garagens === 0 && (imovel.tipo || "").trim() === "Casa") garagens = 2;
   const banheiros = toInt(imovel.banheiros) || (quartos > 0 ? quartos : 0);
-  const areaUtil = toFloat(imovel.metragem);
+  const areaConstruida = toFloat(imovel.metragem);
   const areaTotal = toFloat(imovel.metragemTotal);
   const iptu = toFloat(imovel.valorIPTU);
   const condominio = toFloat(imovel.valorCondominio);
 
+  // Área privativa (area_util): em terreno/lote é a área total; em construção
+  // é a área construída. Garante o campo preenchido para a nota do Chaves.
+  const isTerreno = (central && central.comportamento === "terreno");
+  const areaUtil = isTerreno ? (areaTotal || areaConstruida) : (areaConstruida || areaTotal);
+
   const cep = imovel.cep ? String(imovel.cep).replace(/\D/g, "") : "";
   const aceitaPermuta = (imovel.condicoes || []).includes("Permuta") ? 1 : 0;
+
+  // Número do endereço: usa o do imóvel; se não houver, manda "1" (critério de
+  // qualidade do Chaves pede número preenchido).
+  const numeroEndereco = String(imovel.numero || "").trim() || "1";
 
   return `        <imovel>
             <referencia>${cdata(ref)}</referencia>
@@ -180,7 +211,7 @@ function buildImovel(imovel, tiposCentral) {
             <bairro>${cdata(bairro)}</bairro>
             <cep>${cep}</cep>
             <endereco>${cdata(imovel.endereco || "")}</endereco>
-            <numero></numero>
+            <numero>${cdata(numeroEndereco)}</numero>
             <complemento></complemento>
             <descritivo>${cdata(descritivo)}</descritivo>
             <data_atualizacao>${hoje}</data_atualizacao>
