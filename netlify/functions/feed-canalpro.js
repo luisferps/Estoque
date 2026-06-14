@@ -7,7 +7,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, temFlagAnuncio,
+  cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
@@ -291,6 +291,7 @@ exports.handler = async () => {
       totalCount++;
       const imovel = { id: doc.id, ...doc.data() };
       if (!isDisponivel(imovel)) return;
+      if (!apareceNosPortais(imovel)) return;
       if (!temFlagAnuncio(imovel, "Canal Pro")) return;
       flagCount++;
       const listing = buildListing(imovel, tiposCentral);
