@@ -1,179 +1,478 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, apareceNoSite, waContatoImovel, descricaoPronta } from "../shared/utils";
-import { pageWrap } from "../shared/styles";
-import { EMPRESA, TRANSACOES, ORDENACOES } from "../constants";
-import Header from "./Header";
-import ImovelCard from "../shared/ImovelCard";
+import { CLOUDINARY_CLOUD, CLOUDINARY_PRESET, RODAPE, PDF_CAMPOS } from "../constants";
+import { runTransaction, doc } from "firebase/firestore";
 
-// Remove acentos e baixa caixa — pra busca não diferenciar "São" de "sao".
-const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
-// Emoji por tipo de imóvel (casa o nome, sem acento). Cai no padrão 🏘️ se não achar.
-function emojiTipo(nome) {
-  const n = semAcento(nome);
-  if (n.includes("apart")) return "🏢";
-  if (n.includes("sobrado")) return "🏡";
-  if (n.includes("cobertura")) return "🏙️";
-  if (n.includes("studio") || n.includes("kitnet") || n.includes("flat") || n.includes("loft")) return "🛏️";
-  if (n.includes("lote comercial") || n.includes("area comercial") || n.includes("sala") || n.includes("loja") || n.includes("andar corporativo") || n.includes("ponto")) return "🏬";
-  if (n.includes("lote") || n.includes("terreno") || n.includes("area")) return "🟩";
-  if (n.includes("fazenda") || n.includes("chacara") || n.includes("sitio") || n.includes("rural")) return "🌾";
-  if (n.includes("galpao") || n.includes("deposito") || n.includes("armazem")) return "🏭";
-  if (n.includes("hotel") || n.includes("pousada") || n.includes("motel")) return "🏨";
-  if (n.includes("predio") || n.includes("edificio")) return "🏗️";
-  if (n.includes("consultorio")) return "🩺";
-  if (n.includes("garagem")) return "🚗";
-  if (n.includes("casa")) return "🏠";
-  return "🏘️";
+// ─── Formatadores ───
+export function formatBRL(v) {
+  const n = parseFloat(v);
+  if (!n) return "";
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
-export default function Home() {
-  const navigate = useNavigate();
-  const { imoveis, loading } = useImoveis();
-  const { tipos } = useTipos();
-  const [search, setSearch] = useState("");
-  const [tipo, setTipo] = useState("Todos");
-  const [transacao, setTransacao] = useState("Todos");
-  const [ordem, setOrdem] = useState("recente");
-  const [copiadoId, setCopiadoId] = useState(null);
+export function formatTel(v) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
 
-  const publicos = useMemo(() => imoveis.filter(im => statusDoImovel(im) === "Disponível" && apareceNoSite(im)), [imoveis]);
+export function telParaWhatsapp(tel) {
+  if (!tel) return "";
+  const d = tel.replace(/\D/g, "");
+  return d.length >= 10 ? `55${d}` : "";
+}
 
-  const filtered = useMemo(() => {
-    const q = semAcento(search);
-    const base = publicos.filter(im =>
-      (!q || semAcento(im.titulo).includes(q) || semAcento(im.descricao).includes(q) || semAcento(im.cidade).includes(q) || semAcento(im.bairro).includes(q))
-      && (tipo === "Todos" || im.tipo === tipo)
-      && matchTransacao(im, transacao)
-    );
-    return ordenarImoveis(base, ordem);
-  }, [publicos, search, tipo, transacao, ordem]);
+// ─── Helpers de imóvel ───
+export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
 
-  const contagemPorTipo = useMemo(() => {
-    const c = {};
-    publicos.forEach(im => { if (im.tipo) c[im.tipo] = (c[im.tipo] || 0) + 1; });
-    return c;
-  }, [publicos]);
+export function comportamentoTipo(nomeTipo, tipos) {
+  const t = (tipos || []).find(x => x.nome === nomeTipo);
+  if (t?.comportamento) return t.comportamento;
+  if (nomeTipo === "Lote" || nomeTipo === "Área") return "terreno";
+  if (nomeTipo === "Casa" || nomeTipo === "Apartamento") return "construcao";
+  return "simples";
+}
+export const ehTerreno = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "terreno";
+export const ehConstrucao = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "construcao";
+export const isLocacao = (im) => im?.transacao === "Locação";
+export const isVenda = (im) => im?.transacao === "Venda" || im?.transacao === "Venda e Locação";
 
-  // Só os tipos com pelo menos 1 imóvel, em ordem alfabética.
-  const tiposVisiveis = useMemo(() => {
-    return tipos
-      .filter(t => (contagemPorTipo[t.nome] || 0) > 0)
-      .slice()
-      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }, [tipos, contagemPorTipo]);
+export function statusDoImovel(im) {
+  return im?.status || "Disponível";
+}
 
-  const copiarImovel = async (im) => {
-    const texto = descricaoPronta(im);
-    try {
-      await navigator.clipboard.writeText(texto);
-      setCopiadoId(im.id);
-      setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 2500);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = texto; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiadoId(im.id); setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 2500); } catch {}
-      document.body.removeChild(ta);
-    }
+// Visibilidade no site público. O campo "visibilidade" pode ocultar o imóvel
+// do site mesmo estando Disponível. "Ocultar do site" e "Ocultar de tudo"
+// removem da vitrine pública; os demais valores (ou vazio) mantêm visível.
+export function apareceNoSite(im) {
+  const v = (im?.visibilidade || "").trim();
+  return v !== "Ocultar do site" && v !== "Ocultar de tudo";
+}
+
+export function totalLocacao(im) {
+  return (parseFloat(im?.valorAluguel) || 0) + (parseFloat(im?.valorCondominio) || 0) + (parseFloat(im?.valorIPTU) || 0);
+}
+
+// ─── Código do imóvel (baseado no bairro/setor, com numeração) ───
+// Regra: o código padrão é o nome do bairro. Se já houver imóvel(is) com código
+// daquele bairro, numera os próximos (primeiro sem número, depois " 2", " 3"...).
+// Ex: "Rosa dos Ventos", "Rosa dos Ventos 2", "Rosa dos Ventos 3".
+// - bairro: nome do bairro do imóvel atual
+// - imoveis: lista completa de imóveis (para contar quantos já têm código do bairro)
+// - idAtual: id do imóvel sendo editado (ignora ele mesmo na contagem)
+export function gerarCodigoImovel(bairro, imoveis, idAtual) {
+  const base = (bairro || "").trim();
+  if (!base) return "";
+  // Regex que casa "Bairro" ou "Bairro N" (com espaço e número no fim)
+  const escapar = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("^" + escapar + "(?:\\s+(\\d+))?$", "i");
+  let maior = 0;          // maior número já usado naquele bairro
+  let temBase = false;    // se já existe o código sem número (o "1" implícito)
+  for (const im of (imoveis || [])) {
+    if (idAtual && im.id === idAtual) continue; // ignora o próprio
+    const cod = (im.codigo || "").trim();
+    if (!cod) continue;
+    const m = cod.match(re);
+    if (!m) continue;
+    if (m[1]) { const n = parseInt(m[1], 10); if (n > maior) maior = n; }
+    else { temBase = true; }
+  }
+  if (!temBase && maior === 0) return base;        // primeiro do bairro
+  const proximo = Math.max(maior, temBase ? 1 : 0) + 1;
+  return `${base} ${proximo}`;
+}
+
+// Normaliza o nome do bairro para usar como ID do documento de contador.
+// (minúsculas, sem acento, espaços colapsados). Ex: "Rosa dos Ventos" -> "rosa dos ventos"
+export function chaveBairro(bairro) {
+  return (bairro || "").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+// Reserva (de forma ATÔMICA) o próximo código para um bairro, usando um contador
+// persistente no Firestore (coleção "contadores"). O contador só CRESCE — nunca
+// reutiliza número, mesmo que imóveis sejam excluídos. Garante unicidade global.
+// Primeiro do bairro = só "{Bairro}"; demais = "{Bairro} N".
+// - db: instância do Firestore
+// - bairro: nome do bairro (mantém capitalização original no código final)
+// Retorna o código string (ex: "Rosa dos Ventos" ou "Rosa dos Ventos 4").
+export async function reservarCodigoImovel(db, bairro) {
+  const base = (bairro || "").trim();
+  if (!base) return "";
+  const chave = chaveBairro(base);
+  const ref = doc(db, "contadores", chave);
+  const seq = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
+    const novo = atual + 1;
+    tx.set(ref, { seq: novo, bairro: base }, { merge: true });
+    return novo;
+  });
+  return seq <= 1 ? base : `${base} ${seq}`;
+}
+
+// Inicializa o contador de um bairro com um valor mínimo (usado na migração,
+// para que os contadores reflitam os códigos já existentes). Só aumenta, nunca diminui.
+export async function ajustarContadorMinimo(db, bairro, minimo) {
+  const base = (bairro || "").trim();
+  if (!base || !minimo) return;
+  const ref = doc(db, "contadores", chaveBairro(base));
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
+    if (minimo > atual) tx.set(ref, { seq: minimo, bairro: base }, { merge: true });
+  });
+}
+
+// ─── Geração de descrição automática ───
+export function gerarDescricao(form) {
+  const isLoteForm = form.tipo === "Lote" || form.tipo === "Área";
+  const linhas = [];
+  if (form.titulo) linhas.push(form.titulo);
+  linhas.push("");
+  if (form.bairro) linhas.push(form.bairro.toUpperCase());
+  linhas.push("");
+  if (form.metragem) linhas.push(`- ${form.metragem} m² de construção`);
+  if (form.metragemTotal) linhas.push(`- ${form.metragemTotal} m² de terreno`);
+  const q = parseInt(form.quartos) || 0;
+  const s = parseInt(form.suites) || 0;
+  const g = parseInt(form.garagens) || 0;
+  if (q > 0) linhas.push(`- ${q} quarto${q > 1 ? "s" : ""}${s > 0 ? `, sendo ${s} suíte${s > 1 ? "s" : ""}` : ""}`);
+  else if (s > 0) linhas.push(`- ${s} suíte${s > 1 ? "s" : ""}`);
+  if (g > 0) linhas.push(`- ${g} garagem${g > 1 ? "s" : ""}`);
+  if (isLoteForm) {
+    if (form.asfalto) linhas.push("- Asfalto");
+    if (form.agua) linhas.push("- Água");
+    if (form.esgoto) linhas.push("- Esgoto");
+    if (form.declive === "Plano") linhas.push("- Plano");
+    else if (form.declive) linhas.push(`- Declive: ${form.declive}`);
+    if (form.muro) linhas.push("- Murado");
+    if (form.esquina) linhas.push("- Esquina");
+    if (form.retangular && form.frente && form.laterais) linhas.push(`- ${form.frente}x${form.laterais} m`);
+    else if (form.medidas) linhas.push(`- ${form.medidas}`);
+  }
+  if (form.condominio && form.nomeCondominio) linhas.push(`- Condomínio: ${form.nomeCondominio}`);
+  if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
+  if (form.extras) linhas.push(...form.extras.split("\n").filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
+  linhas.push("");
+  const loc = form.transacao === "Locação";
+  const ven = form.transacao === "Venda" || form.transacao === "Venda e Locação";
+  if (ven && parseFloat(form.preco)) {
+    linhas.push(`Venda: ${formatBRL(form.preco)}`);
+    if (parseFloat(form.valorAvaliacao)) linhas.push(`Avaliado em ${formatBRL(form.valorAvaliacao)}`);
+    if (parseFloat(form.valorEntrada)) linhas.push(`Entrada: ${formatBRL(form.valorEntrada)}`);
+  }
+  if (loc) {
+    const a = parseFloat(form.valorAluguel) || 0;
+    const c = parseFloat(form.valorCondominio) || 0;
+    const ip = parseFloat(form.valorIPTU) || 0;
+    if (a) linhas.push(`Aluguel: ${formatBRL(a)}`);
+    if (c) linhas.push(`Condomínio: ${formatBRL(c)}/mês`);
+    if (ip) linhas.push(`IPTU: ${formatBRL(ip)}/mês`);
+    const total = a + c + ip;
+    if (total) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
+  }
+  if (form.condicoes?.length) {
+    const conds = form.condicoes.map(c => c === "Permuta" && form.permuta ? `Permuta (${form.permuta})` : c);
+    linhas.push(conds.join(", "));
+  }
+  if (form.condominio && parseFloat(form.valorCondominioMensal)) linhas.push(`Condomínio: ${formatBRL(form.valorCondominioMensal)}/mês`);
+  linhas.push("");
+  linhas.push(RODAPE);
+  return linhas.join("\n");
+}
+
+export function temRodape(desc) {
+  if (!desc) return false;
+  return /valores e condi[çc][õo]es/i.test(desc);
+}
+
+export function descricaoCompleta(im) {
+  const desc = im.descricao || "";
+  if (temRodape(desc)) return desc;
+  return desc + (desc ? "\n\n" : "") + RODAPE;
+}
+
+export function descricaoPronta(im) {
+  let txt = descricaoCompleta(im);
+  if (im.fotos?.length) {
+    const galeria = `${window.location.origin}/fotos/${im.id}`;
+    txt += `\n\nFotos:\n${galeria}\n(esse link é único para as fotos desse imóvel, mas caso precise delas por mensagem me avise)`;
+  }
+
+  if (im.mapsLink) txt += `\n\nLocalização:\n${im.mapsLink}`;
+  return txt;
+}
+
+// ─── Geração de PDF ───
+export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
+  const COR_P = "#C0392B";
+  const has = k => camposSel.includes(k);
+  const lote = im => im.tipo === "Lote" || im.tipo === "Área";
+  const rows = imoveis.map(im => {
+    const total = (parseFloat(im.valorAluguel) || 0) + (parseFloat(im.valorCondominio) || 0) + (parseFloat(im.valorIPTU) || 0);
+    return `<tr>
+      ${has("tipo") ? `<td>${im.tipo || ""} / ${im.transacao || ""}</td>` : ""}
+      ${has("status") ? `<td>${im.status || "Disponível"}</td>` : ""}
+      ${has("cidade") ? `<td>${im.cidade || ""}</td>` : ""}
+      ${has("bairro") ? `<td>${im.bairro || ""}</td>` : ""}
+      ${has("maps") ? `<td>${im.mapsLink ? `<a href="${im.mapsLink}">Ver mapa</a>` : ""}</td>` : ""}
+      ${has("metragem") ? `<td>${im.metragem ? im.metragem + " m²" : ""}</td>` : ""}
+      ${has("terreno") ? `<td>${im.metragemTotal ? im.metragemTotal + " m²" : ""}</td>` : ""}
+      ${has("quartos") ? `<td>${im.quartos || ""}</td>` : ""}
+      ${has("suites") ? `<td>${im.suites || ""}</td>` : ""}
+      ${has("garagens") ? `<td>${im.garagens || ""}</td>` : ""}
+      ${has("asfalto") ? `<td>${lote(im) ? (im.asfalto ? "Sim" : "Não") : ""}</td>` : ""}
+      ${has("agua") ? `<td>${lote(im) ? (im.agua ? "Sim" : "Não") : ""}</td>` : ""}
+      ${has("esgoto") ? `<td>${lote(im) ? (im.esgoto ? "Sim" : "Não") : ""}</td>` : ""}
+      ${has("muro") ? `<td>${lote(im) ? (im.muro ? "Sim" : "Não") : ""}</td>` : ""}
+      ${has("medidas") ? `<td>${lote(im) ? (im.retangular && im.frente && im.laterais ? `${im.frente}x${im.laterais}m` : (im.medidas || "")) : ""}</td>` : ""}
+      ${has("preco") ? `<td>${im.transacao === "Locação" ? (formatBRL(im.valorAluguel) || "") : (formatBRL(im.preco) || "")}</td>` : ""}
+      ${has("condominio") ? `<td>${formatBRL(im.valorCondominio) || ""}</td>` : ""}
+      ${has("iptu") ? `<td>${formatBRL(im.valorIPTU) || ""}</td>` : ""}
+      ${has("total") ? `<td>${total > 0 ? formatBRL(total) : ""}</td>` : ""}
+    </tr>`;
+  }).join("");
+  const headers = PDF_CAMPOS.filter(c => has(c.key)).map(c => `<th>${c.label}</th>`).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:${COR_P}}table{width:100%;border-collapse:collapse}th{background:${COR_P};color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#fdf5f5}a{color:${COR_P}}@media print{body{padding:0}@page{size:A4 landscape;margin:10mm}}</style>
+  </head><body>
+  <h2>${titulo}</h2><p style="color:#666;font-size:11px">Gerado em ${new Date().toLocaleDateString("pt-BR")} — ${imoveis.length} imóvel(is)</p>
+  <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html); w.document.close();
+  setTimeout(() => w.print(), 500);
+}
+
+// ─── Upload Cloudinary ───
+export async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: fd });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error("Falha no upload");
+  return data.secure_url;
+}
+
+// ─── ViaCEP ───
+// Retorna: logradouro, complemento, bairro, localidade, uf
+export function buscarCEP(raw, callback) {
+  const c = raw.replace(/\D/g, "");
+  if (c.length !== 8) return;
+  const cbName = `cep_cb_${Date.now()}`;
+  window[cbName] = (data) => {
+    delete window[cbName];
+    document.getElementById(cbName)?.remove();
+    if (data && !data.erro) callback(data);
   };
-
-  const cardActions = (im) => (
-    <div style={{ display: "flex", gap: 6, width: "100%", flexWrap: "wrap" }}>
-      <a href={waContatoImovel(im, EMPRESA.whatsapp)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={waBtnStyle}>💬 WhatsApp</a>
-      <button onClick={e => { e.stopPropagation(); navigate(`/imovel/${im.id}`); }} style={verBtnStyle}>Ver detalhes</button>
-      <button onClick={e => { e.stopPropagation(); copiarImovel(im); }} style={copiarBtnStyle}>
-        {copiadoId === im.id ? "✓ Copiado!" : "📋 Copiar"}
-      </button>
-    </div>
-  );
-
-  return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <Header />
-
-      <div style={{ background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)", color: "#fff", padding: "3.5rem 1.5rem 3rem", textAlign: "center" }}>
-        <h1 style={{ margin: "0 0 6px", fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 700, letterSpacing: -1 }}>Seu imóvel está aqui</h1>
-        <p style={{ margin: "0 0 2rem", fontSize: 15, opacity: 0.92 }}>
-          {publicos.length} {publicos.length === 1 ? "imóvel disponível" : "imóveis disponíveis"} para venda e locação
-        </p>
-
-        <div style={{ maxWidth: 880, margin: "0 auto", background: "var(--bg-card)", borderRadius: 14, padding: 8, display: "flex", gap: 8, flexWrap: "wrap", boxShadow: "0 12px 40px rgba(0,0,0,0.18)" }}>
-          <div style={{ flex: "2 1 220px", display: "flex", alignItems: "center", gap: 8, padding: "0 12px" }}>
-            <span style={{ fontSize: 16, opacity: 0.5 }}>🔍</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Bairro, cidade ou palavra-chave" style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 15, color: "var(--text)", padding: "12px 0" }} />
-          </div>
-          <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch", margin: "6px 0" }} />
-          <select value={tipo} onChange={e => setTipo(e.target.value)} style={heroSelectStyle}>
-            <option value="Todos">Tipo de imóvel</option>
-            {tipos.map(t => <option key={t.nome} value={t.nome}>{t.nome}</option>)}
-          </select>
-          <select value={transacao} onChange={e => setTransacao(e.target.value)} style={heroSelectStyle}>
-            <option value="Todos">Venda ou Locação</option>
-            {TRANSACOES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <button onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })} style={{ flex: "0 0 auto", padding: "0 22px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 10, fontSize: 18, cursor: "pointer", fontWeight: 600 }}>🔍</button>
-        </div>
-
-        {tiposVisiveis.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", gap: 10, maxWidth: 880, margin: "1.5rem auto 0" }}>
-            {tiposVisiveis.map(t => {
-              const ativo = tipo === t.nome;
-              const qtd = contagemPorTipo[t.nome] || 0;
-              return (
-                <button key={t.nome} onClick={() => setTipo(ativo ? "Todos" : t.nome)} style={{ background: ativo ? "#fff" : "rgba(255,255,255,0.12)", color: ativo ? "var(--primary-dark)" : "#fff", border: ativo ? "2px solid #fff" : "2px solid rgba(255,255,255,0.25)", borderRadius: 12, padding: "12px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, fontWeight: 600 }}>
-                  <span style={{ fontSize: 26 }}>{emojiTipo(t.nome)}</span>
-                  <span style={{ fontSize: 13, textAlign: "center", lineHeight: 1.15 }}>{t.nome}</span>
-                  <span style={{ fontSize: 11, opacity: 0.75 }}>{qtd} {qtd === 1 ? "imóvel" : "imóveis"}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div style={pageWrap(1100)} id="lista-imoveis">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: "1rem" }}>
-          <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
-            {filtered.length} {filtered.length === 1 ? "imóvel encontrado" : "imóveis encontrados"}
-            {tipo !== "Todos" ? ` · ${tipo}` : ""}
-            {transacao !== "Todos" ? ` · ${transacao}` : ""}
-          </p>
-          <select value={ordem} onChange={e => setOrdem(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)" }}>
-            {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </select>
-        </div>
-
-        {(tipo !== "Todos" || transacao !== "Todos" || search) && (
-          <button onClick={() => { setTipo("Todos"); setTransacao("Todos"); setSearch(""); }} style={{ marginBottom: "1rem", padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13 }}>✕ Limpar filtros</button>
-        )}
-
-        {loading && <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Carregando...</div>}
-        {!loading && filtered.length === 0 && (
-          <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Nenhum imóvel encontrado com esses filtros.</div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
-          {filtered.map(im => (
-            <ImovelCard key={im.id} im={im} onClick={() => navigate(`/imovel/${im.id}`)} showStatus={false} actions={cardActions(im)} />
-          ))}
-        </div>
-
-        <footer style={{ textAlign: "center", padding: "3rem 1rem 1.5rem", color: "var(--text-muted)", fontSize: 12, borderTop: "1px solid var(--border)", marginTop: "2rem" }}>
-          <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--text-soft)", fontSize: 13 }}>{EMPRESA.nome}</p>
-          {EMPRESA.creci && <p style={{ margin: "0 0 4px" }}>{EMPRESA.creci}</p>}
-          {EMPRESA.endereco && <p style={{ margin: "0 0 4px" }}>📍 {EMPRESA.endereco}</p>}
-          {EMPRESA.telefone && <p style={{ margin: "0 0 4px" }}>📞 {EMPRESA.telefone}</p>}
-          <p style={{ margin: "0 0 4px" }}>{EMPRESA.email}{EMPRESA.instagram ? ` • ${EMPRESA.instagram}` : ""}</p>
-          <p style={{ margin: "8px 0 0", opacity: 0.7 }}>© {new Date().getFullYear()} {EMPRESA.nome}</p>
-        </footer>
-      </div>
-    </div>
-  );
+  const s = document.createElement("script");
+  s.id = cbName;
+  s.src = `https://viacep.com.br/ws/${c}/json/?callback=${cbName}`;
+  s.onerror = () => { delete window[cbName]; s.remove(); };
+  document.head.appendChild(s);
 }
 
-const heroSelectStyle = { flex: "1 1 150px", padding: "12px 10px", borderRadius: 10, border: "none", outline: "none", background: "var(--bg-muted)", fontSize: 14, color: "var(--text)", cursor: "pointer" };
-const waBtnStyle = { flex: "1 1 100%", padding: "8px 0", fontSize: 13, borderRadius: 7, border: "none", background: "#25D366", color: "#fff", cursor: "pointer", fontWeight: 600, textAlign: "center", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 4 };
-const verBtnStyle = { flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7, border: "1px solid var(--primary)", background: "var(--bg-card)", color: "var(--primary)", cursor: "pointer", fontWeight: 500 };
-const copiarBtnStyle = { flex: 1, padding: "8px 0", fontSize: 13, borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer", fontWeight: 500 };
+// ─── Geocoding via OpenStreetMap Nominatim ───
+// Busca latitude/longitude a partir do endereço do imóvel.
+// Gratuito, sem API key. Suficiente para uso manual (1 req por save).
+// Retorna { latitude, longitude } como strings ou null se não encontrar.
+export async function geocodificarEndereco({ endereco, bairro, cidade, estado, cep }) {
+  try {
+    const partes = [endereco, bairro, cidade, estado, "Brasil"].filter(Boolean);
+    const q = encodeURIComponent(partes.join(", "));
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`,
+      { headers: { "Accept-Language": "pt-BR" } }
+    );
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat).toFixed(7),
+        longitude: parseFloat(data[0].lon).toFixed(7),
+      };
+    }
+    // Fallback: tenta só cidade + estado
+    if (cidade) {
+      const q2 = encodeURIComponent(`${cidade}, ${estado || ""}, Brasil`);
+      const res2 = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1&countrycodes=br`,
+        { headers: { "Accept-Language": "pt-BR" } }
+      );
+      const data2 = await res2.json();
+      if (data2 && data2.length > 0) {
+        return {
+          latitude: parseFloat(data2[0].lat).toFixed(7),
+          longitude: parseFloat(data2[0].lon).toFixed(7),
+        };
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Match de transação ───
+export function matchTransacao(im, filtro) {
+  if (filtro === "Todos") return true;
+  if (im.transacao === "Venda e Locação") return filtro === "Venda";
+  return im.transacao === filtro;
+}
+
+// ─── Ordenação ───
+export function ordenarImoveis(imoveis, ordem) {
+  const arr = [...imoveis];
+  switch (ordem) {
+    case "antigo": return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    case "preco_menor": return arr.sort((a, b) => precoBase(a) - precoBase(b));
+    case "preco_maior": return arr.sort((a, b) => precoBase(b) - precoBase(a));
+    case "metragem_menor": return arr.sort((a, b) => metragemBase(a) - metragemBase(b));
+    case "metragem_maior": return arr.sort((a, b) => metragemBase(b) - metragemBase(a));
+    case "bairro_az": return arr.sort((a, b) => bairroBase(a).localeCompare(bairroBase(b), "pt-BR"));
+    case "bairro_za": return arr.sort((a, b) => bairroBase(b).localeCompare(bairroBase(a), "pt-BR"));
+    case "recente":
+    default: return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
+}
+
+function precoBase(im) {
+  if (im.transacao === "Locação") return parseFloat(im.valorAluguel) || 0;
+  return parseFloat(im.preco) || 0;
+}
+
+function metragemBase(im) {
+  return parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+}
+
+// Bairro normalizado para ordenação. Vazios vão pro fim (caractere alto)
+// para não aparecerem antes dos preenchidos na ordem A-Z.
+function bairroBase(im) {
+  const b = (im.bairro || "").trim();
+  return b ? b.toLocaleLowerCase("pt-BR") : "\uffff";
+}
+
+// ─── Download de fotos ───
+export async function downloadFotos(im) {
+  if (!im.fotos?.length) return alert("Sem fotos.");
+  for (let i = 0; i < im.fotos.length; i++) {
+    try {
+      const res = await fetch(im.fotos[i]);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`;
+      a.click();
+      URL.revokeObjectURL(url);
+      await new Promise(r => setTimeout(r, 300));
+    } catch {}
+  }
+}
+
+// ─── WhatsApp ───
+export function whatsappTudo(im) {
+  const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+  const txt = descricaoCompleta(im) +
+    (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
+    (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "");
+  window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
+}
+
+export function whatsappDescricao(im) {
+  window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank");
+}
+
+export function whatsappMaps(im) {
+  if (!im.mapsLink) return alert("Sem link do Maps.");
+  window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank");
+}
+
+export function whatsappFotos(im) {
+  if (!im.fotos?.length) return alert("Sem fotos.");
+  const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+  window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
+}
+
+export function waContatoImovel(im, empresaWhatsapp) {
+  const titulo = im.titulo || "imóvel";
+  const link = `${window.location.origin}/imovel/${im.id}`;
+  const msg = `Olá! Tenho interesse no imóvel: ${titulo}\n${link}`;
+  return `https://wa.me/${empresaWhatsapp}?text=${encodeURIComponent(msg)}`;
+}
+
+// ─── Validação para feeds automáticos ───
+// Tipos suportados pelo Canal Pro
+const TIPOS_CANALPRO = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Loft","Studio","Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
+const TIPOS_TERRENO_VALIDACAO = ["Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito"];
+const TIPOS_CHAVES_RESIDENCIAL = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno"];
+const TIPOS_CHAVES_COMERCIAL = ["Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
+const TIPOS_META = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial"];
+
+// Canais com integração automática via feed XML
+export const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
+
+// Valida se um imóvel atende aos requisitos do canal automático.
+// Retorna array de strings com os problemas (vazio = OK).
+// Para canais manuais, sempre retorna [].
+export function validarParaCanal(im, canal) {
+  if (!CANAIS_AUTO.includes(canal)) return [];
+
+  const problemas = [];
+  const status = (im.status || "").toLowerCase();
+  if (status && status !== "disponível" && status !== "disponivel") {
+    problemas.push("Status não está como Disponível");
+  }
+
+  const fotos = (im.fotos || []).filter(Boolean);
+  const desc = (im.descricao || "").trim();
+  const cidade = (im.cidade || "").trim();
+  const bairro = (im.bairro || "").trim();
+  const estado = (im.estado || "").trim();
+  const trans = im.transacao || "";
+  const isLocacao = trans === "Locação";
+  const isVenda = trans === "Venda" || trans === "Venda e Locação";
+  const isLote = TIPOS_TERRENO_VALIDACAO.includes(im.tipo);
+  const metragem = parseFloat(im.metragem) || 0;
+  const metragemTotal = parseFloat(im.metragemTotal) || 0;
+  const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
+
+  if (canal === "Canal Pro") {
+    if (!TIPOS_CANALPRO.includes(im.tipo)) problemas.push("Tipo não suportado pelo Canal Pro");
+    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
+    if (desc.length < 50) problemas.push("Descrição precisa ter no mínimo 50 caracteres");
+    if (area === 0) problemas.push("Preencha a metragem");
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!bairro) problemas.push("Preencha o bairro");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  if (canal === "Chaves na Mão") {
+    if (!TIPOS_CHAVES_RESIDENCIAL.includes(im.tipo) && !TIPOS_CHAVES_COMERCIAL.includes(im.tipo)) {
+      problemas.push("Tipo não suportado pelo Chaves na Mão");
+    }
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!bairro) problemas.push("Preencha o bairro");
+    if (!estado) problemas.push("Preencha o estado (UF)");
+    if (!desc) problemas.push("Preencha a descrição");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  if (canal === "Catálogo Meta") {
+    if (!TIPOS_META.includes(im.tipo)) problemas.push("Tipo não suportado pelo Catálogo Meta");
+    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
+    if (!cidade) problemas.push("Preencha a cidade");
+    if (!estado) problemas.push("Preencha o estado (UF)");
+    if (!im.latitude || !im.longitude) problemas.push("Coordenadas não foram encontradas — verifique cidade/bairro");
+    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
+    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
+    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
+  }
+
+  return problemas;
+}
