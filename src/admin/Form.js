@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
-  TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, CONDICOES, CANAIS, emptyForm
+  TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
 import {
@@ -44,6 +44,10 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Toggle "Internacional" por campo de telefone (proprietário e captador).
+  // Inicializa ligado se o valor já salvo começar com "+".
+  const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
+  const [telCaptadorIntl, setTelCaptadorIntl] = useState(false);
   const fileRef = useRef();
 
   function migrarAnuncios(anuncios) {
@@ -64,6 +68,8 @@ export default function Form() {
     const existing = imoveis.find(i => i.id === id);
     if (existing) {
       setForm({ ...emptyForm, ...existing, anuncios: migrarAnuncios(existing.anuncios) });
+      setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
+      setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
       setHydrated(true);
     } else if (imoveis.length > 0) {
       alert("Im\u00f3vel n\u00e3o encontrado.");
@@ -87,8 +93,11 @@ export default function Form() {
   };
 
   // Validação de telefone (proprietário e captador são obrigatórios).
-  // Aceita 10 dígitos (fixo) ou 11 dígitos (celular: 3º dígito = 9). Vazio ou incompleto não passa.
-  const telefoneValido = (value) => {
+  // Modo nacional: aceita 10 dígitos (fixo) ou 11 (celular: 3º dígito = 9).
+  // Modo internacional: aceita qualquer número iniciado por "+" com 8+ caracteres
+  // (mesmo critério do cadastro de tratativas do CRM).
+  const telefoneValido = (value, intl) => {
+    if (intl) return (value || "").trim().startsWith("+") && (value || "").trim().length >= 8;
     const d = (value || "").replace(/\D/g, "");
     if (d.length === 10) return true;            // fixo (DDD + 8)
     if (d.length === 11 && d[2] === "9") return true; // celular (DDD + 9 + 8)
@@ -104,10 +113,10 @@ export default function Form() {
 
   const save = async () => {
     if (!form.titulo) return alert("Preencha o t\u00edtulo.");
-    if (!telefoneValido(form.telefoneProprietario))
-      return alert("Informe o telefone do propriet\u00e1rio (completo): fixo com 10 d\u00edgitos ou celular com 11 (DDD + 9 + n\u00famero).");
-    if (!telefoneValido(form.telefoneCaptador))
-      return alert("Informe o telefone do captador (completo): fixo com 10 d\u00edgitos ou celular com 11 (DDD + 9 + n\u00famero).");
+    if (!telefoneValido(form.telefoneProprietario, telProprietarioIntl))
+      return alert("Informe o telefone do propriet\u00e1rio: nacional (fixo 10 d\u00edgitos ou celular 11) ou internacional (com + e c\u00f3digo do pa\u00eds).");
+    if (!telefoneValido(form.telefoneCaptador, telCaptadorIntl))
+      return alert("Informe o telefone do captador: nacional (fixo 10 d\u00edgitos ou celular 11) ou internacional (com + e c\u00f3digo do pa\u00eds).");
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
@@ -156,15 +165,24 @@ export default function Form() {
       <input type={opts.type || "text"} value={form[key] || ""} onChange={e => sf(key, e.target.value)} placeholder={opts.ph || ""} style={inputBase} />
     </div>
   );
-  const inpTel = (label, key) => {
+  const inpTel = (label, key, intl, setIntl) => {
     const val = form[key] || "";
-    const invalido = val.trim() !== "" && !telefoneValido(val);
+    const invalido = val.trim() !== "" && !telefoneValido(val, intl);
     return (
       <div style={{ marginBottom: "1rem" }}>
-        <label style={labelStyle}>{label}</label>
-        <input type="tel" value={val} onChange={e => sf(key, formatTel(e.target.value))} placeholder="(62) 9 9999-9999"
+        <label style={labelStyle}>
+          {label}
+          <label style={{ marginLeft: 12, fontSize: 11, fontWeight: 400, color: "var(--text-muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={intl} onChange={() => { setIntl(n => !n); sf(key, ""); }} style={{ width: "auto", margin: 0 }} />
+            Internacional
+          </label>
+        </label>
+        <input type="tel" value={val}
+          onChange={e => sf(key, intl ? e.target.value.replace(/[^\d+\s()-]/g, "") : formatTel(e.target.value))}
+          placeholder={intl ? "+1 555 000 0000" : "(62) 9 9999-9999"}
+          inputMode={intl ? "text" : "numeric"}
           style={{ ...inputBase, ...(invalido ? { borderColor: "#c0392b" } : {}) }} />
-        {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>N\u00famero incompleto. Use fixo (10 d\u00edgitos) ou celular (11 d\u00edgitos com 9).</p>}
+        {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>{intl ? "N\u00famero internacional inv\u00e1lido. Use o formato +c\u00f3digo n\u00famero." : "N\u00famero incompleto. Use fixo (10 d\u00edgitos) ou celular (11 d\u00edgitos com 9)."}</p>}
       </div>
     );
   };
@@ -228,6 +246,28 @@ export default function Form() {
           {sel("Tipo de transa\u00e7\u00e3o", "transacao", TRANSACOES)}
           {sel("Estado do im\u00f3vel", "estadoImovel", ESTADOS_IMOVEL)}
           {sel("Status", "status", STATUS_IMOVEL)}
+          {sel("Visibilidade", "visibilidade", VISIBILIDADE_IMOVEL)}
+        </div>
+
+        {/* Atalhos rápidos de status (marcam o campo Status acima) */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 1rem" }}>
+          {[
+            ["✅ Disponível", "Disponível", "#059669"],
+            ["🏷️ Vendido", "Vendido", "#dc2626"],
+            ["🔑 Alugado", "Alugado", "#7c3aed"],
+            ["⏸️ Reservado", "Reservado", "#d97706"],
+          ].map(([rotulo, valor, cor]) => {
+            const ativo = form.status === valor;
+            return (
+              <button key={valor} type="button" onClick={() => sf("status", valor)}
+                style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  border: `1.5px solid ${ativo ? cor : "#d1d5db"}`,
+                  background: ativo ? cor : "transparent",
+                  color: ativo ? "#fff" : "var(--text-muted)" }}>
+                {rotulo}
+              </button>
+            );
+          })}
         </div>
 
         {inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
@@ -353,11 +393,11 @@ export default function Form() {
       </>)}
 
       {section("Propriet\u00e1rio (vis\u00edvel s\u00f3 para admin) *", <>
-        <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone *", "telefoneProprietario")}</div>
+        <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone *", "telefoneProprietario", telProprietarioIntl, setTelProprietarioIntl)}</div>
       </>)}
 
       {section("Captador *", <>
-        <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone *", "telefoneCaptador")}</div>
+        <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone *", "telefoneCaptador", telCaptadorIntl, setTelCaptadorIntl)}</div>
       </>)}
 
       {section("Onde foi anunciado (vis\u00edvel s\u00f3 para admin)", <>
