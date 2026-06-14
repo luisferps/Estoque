@@ -10,7 +10,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  xmlEscape, cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, temFlagAnuncio,
+  xmlEscape, cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
@@ -178,6 +178,7 @@ exports.handler = async () => {
       totalCount++;
       const imovel = { id: doc.id, ...doc.data() };
       if (!isDisponivel(imovel)) return;
+      if (!apareceNosPortais(imovel)) return;
       if (!temFlagAnuncio(imovel, "Catálogo Meta")) return;
       flagCount++;
       const item = buildItem(imovel, tiposCentral);
