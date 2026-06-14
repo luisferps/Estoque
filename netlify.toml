@@ -1,14 +1,31 @@
 [build]
   command = "npm run build"
   publish = "build"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
+
 [[edge_functions]]
   function = "og"
   path = "/imovel/*"
+
 [[edge_functions]]
   function = "og"
   path = "/fotos/*"
+
+# Sitemap dinâmico: /sitemap.xml é servido pela função sitemap.
+# Precisa vir ANTES do catch-all /* abaixo, senão o /* engole tudo.
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "/.netlify/functions/sitemap"
+  status = 200
+
+# SPA: qualquer outra rota cai no index.html (React Router resolve).
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
