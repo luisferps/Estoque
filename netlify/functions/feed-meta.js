@@ -10,7 +10,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  xmlEscape, cdata, normalizeImageUrl, toInt, isDisponivel, temFlagAnuncio,
+  xmlEscape, cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
@@ -127,7 +127,7 @@ function buildItem(imovel, tiposCentral) {
   const descricao = (imovel.descricao || "").trim();
   const quartos = toInt(imovel.quartos);
   const banheiros = toInt(imovel.banheiros) || (quartos > 0 ? quartos : 0);
-  const area = toInt(imovel.metragem) || toInt(imovel.metragemTotal);
+  const area = toMetros(imovel.metragem) || toMetros(imovel.metragemTotal);
   const enderecoCompleto = [imovel.endereco, bairro, cidade, uf].filter(Boolean).join(", ");
 
   // Imagens adicionais (até 19 extras = 20 total)
