@@ -6,7 +6,7 @@
 // Exposto como /sitemap.xml via regra no public/_redirects.
 
 const { getDb } = require("./_firebase");
-const { isDisponivel } = require("./_helpers");
+const { isDisponivel, apareceNoSite } = require("./_helpers");
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
@@ -43,6 +43,7 @@ exports.handler = async () => {
     snap.forEach((doc) => {
       const imovel = { id: doc.id, ...doc.data() };
       if (!isDisponivel(imovel)) return;
+      if (!apareceNoSite(imovel)) return;
       total++;
       const loc = `${BASE_URL}/imovel/${urlId(imovel)}`;
       urls.push(`  <url>
