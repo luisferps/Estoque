@@ -256,6 +256,7 @@ export default function Form() {
             ["🏷️ Vendido", "Vendido", "#dc2626"],
             ["🔑 Alugado", "Alugado", "#7c3aed"],
             ["⏸️ Reservado", "Reservado", "#d97706"],
+            ["⏳ Aguardando", "Aguardando finalização", "#0891b2"],
           ].map(([rotulo, valor, cor]) => {
             const ativo = form.status === valor;
             return (
