@@ -4,6 +4,7 @@ const STATUS_COLOR = {
   "Reservado":  { bg: "#fff3cd", color: "#856404", border: "#ffeaa7" },
   "Vendido":    { bg: "#f8d7da", color: "#721c24", border: "#f5c6cb" },
   "Alugado":    { bg: "#d1ecf1", color: "#0c5460", border: "#bee5eb" },
+  "Aguardando finalização": { bg: "#cffafe", color: "#155e75", border: "#a5f3fc" },
 };
 // Metragem para exibição: usa construção; se não houver (ex: lote), usa a do terreno.
 function metragemImovel(im) {
