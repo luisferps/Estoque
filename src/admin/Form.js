@@ -223,16 +223,16 @@ export default function Form() {
       {section("Informa\u00e7\u00f5es gerais", <>
         {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
-        {/* Código do imóvel: automático pelo bairro (somente leitura). */}
+        {/* Código do imóvel: editável. Em branco = gerado automaticamente pelo bairro ao salvar. */}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Código do imóvel</label>
           <input
-            value={form.codigo || (form.bairro ? `(ao salvar: ${gerarCodigoImovel(form.bairro, imoveis, id)})` : "")}
-            readOnly disabled
-            placeholder="Definido automaticamente pelo bairro ao salvar"
-            style={{ ...inputBase, background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "not-allowed" }} />
+            value={form.codigo || ""}
+            onChange={e => sf("codigo", e.target.value)}
+            placeholder={form.bairro ? `Em branco gera: ${gerarCodigoImovel(form.bairro, imoveis, id)}` : "Em branco gera automaticamente pelo bairro"}
+            style={inputBase} />
           <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-            Gerado automaticamente pelo bairro. O número definitivo é atribuído ao salvar e nunca se repete (mesmo se você excluir imóveis).
+            Deixe <b>em branco</b> para gerar automaticamente pelo bairro ao salvar (nunca repete). Ou digite um código manual.
           </p>
         </div>
 
@@ -276,7 +276,7 @@ export default function Form() {
         {emCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
       </>)}
 
-      {section("Condi\u00e7\u00f5es comerciais", <>
+      {!isLocacao && section("Condi\u00e7\u00f5es comerciais", <>
         {CONDICOES.map(c => (
           <div key={c}>
             <label style={togStyle}>
