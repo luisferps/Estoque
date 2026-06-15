@@ -271,7 +271,7 @@ export default function Form() {
           })}
         </div>
 
-        {inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
+        {!isLote && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
         {emCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
       </>)}
