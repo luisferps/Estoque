@@ -3,7 +3,7 @@ export const ADMIN_PASS = "123livre";
 export const TIPOS = ["Lote", "Casa", "Apartamento", "Área", "Galpão"];
 export const TRANSACOES = ["Venda", "Locação"];
 export const ESTADOS_IMOVEL = ["Imóvel Usado", "Imóvel Novo"];
-export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado"];
+export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado", "Aguardando finalização"];
 // Visibilidade pública: controla onde o imóvel aparece, independente do status.
 // "Site e portais" é o padrão (comportamento atual). As demais ocultam o imóvel
 // do site público e/ou dos feeds XML (Canal Pro, Chaves na Mão, Meta).
