@@ -28,8 +28,10 @@ export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
 export function comportamentoTipo(nomeTipo, tipos) {
   const t = (tipos || []).find(x => x.nome === nomeTipo);
   if (t?.comportamento) return t.comportamento;
-  if (nomeTipo === "Lote" || nomeTipo === "Área") return "terreno";
-  if (nomeTipo === "Casa" || nomeTipo === "Apartamento") return "construcao";
+  // Fallback por palavra-chave no nome (pega "Lote Comercial", "Lote em Condomínio", "Terreno Comercial" etc.)
+  const n = String(nomeTipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (n.includes("lote") || n.includes("terreno") || n.includes("gleba") || n.includes("loteamento") || /\barea\b/.test(n)) return "terreno";
+  if (n.includes("casa") || n.includes("apartamento") || n.includes("sobrado") || n.includes("cobertura") || n.includes("kitnet") || n.includes("studio") || n.includes("flat") || n.includes("loft")) return "construcao";
   return "simples";
 }
 export const ehTerreno = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "terreno";
