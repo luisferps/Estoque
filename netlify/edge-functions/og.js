@@ -83,6 +83,66 @@ export default async (request, context) => {
     const imagem = fotos[0] || "";
     const urlAtual = request.url;
 
+    // ── JSON-LD schema.org (RealEstateListing): dá pro Google preço, quartos, área e local ──
+    const quartos = getNum("quartos");
+    const suites = getNum("suites");
+    const garagens = getNum("garagens");
+    const metragem = getNum("metragem");
+    const metragemTotal = getNum("metragemTotal");
+    const valorAluguel = getNum("valorAluguel");
+    const estado = getStr("estado");
+    const descricaoFull = getStr("descricao");
+    const createdAt = getNum("createdAt");
+
+    const t = (tipo || "").toLowerCase();
+    const ven = /venda/i.test(transacao);
+    const loc = /loca/i.test(transacao);
+    const lote = /(lote|terreno|área|area)/.test(t);
+    const tipoSchema = /apart/.test(t) ? "Apartment"
+      : /(casa|sobrad)/.test(t) ? "House"
+      : lote ? "Place" : "Residence";
+
+    const ld = {
+      "@context": "https://schema.org",
+      "@type": "RealEstateListing",
+      name: titulo,
+      url: urlAtual,
+    };
+    const descLd = (descricaoFull || descricao).replace(/\s+/g, " ").trim().slice(0, 5000);
+    if (descLd) ld.description = descLd;
+    if (fotos.length) ld.image = fotos.slice(0, 12);
+    if (createdAt > 0) { try { ld.datePosted = new Date(createdAt).toISOString().slice(0, 10); } catch (e) {} }
+
+    const about = { "@type": tipoSchema };
+    if (!lote) {
+      if (quartos > 0) about.numberOfBedrooms = quartos;
+      if (suites > 0) about.numberOfBathroomsTotal = suites;
+    }
+    const area = metragem > 0 ? metragem : metragemTotal;
+    if (area > 0) about.floorSize = { "@type": "QuantitativeValue", value: area, unitCode: "MTK" };
+    const addr = { "@type": "PostalAddress", addressCountry: "BR" };
+    if (bairro) addr.streetAddress = bairro;
+    if (cidade) addr.addressLocality = cidade;
+    if (estado) addr.addressRegion = estado;
+    if (bairro || cidade || estado) about.address = addr;
+    ld.about = about;
+
+    const precoOferta = ven ? preco : (valorAluguel || valorFinal);
+    if (precoOferta > 0) {
+      const offer = {
+        "@type": "Offer",
+        price: precoOferta,
+        priceCurrency: "BRL",
+        availability: "https://schema.org/InStock",
+        businessFunction: ven ? "http://purl.org/goodrelations/v1#Sell" : "http://purl.org/goodrelations/v1#LeaseOut",
+      };
+      if (loc) offer.priceSpecification = { "@type": "UnitPriceSpecification", price: precoOferta, priceCurrency: "BRL", unitCode: "MON" };
+      ld.offers = offer;
+    }
+
+    // escapa < > & pra nunca quebrar o <script> nem o HTML
+    const jsonLd = `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026")}</script>`;
+
     // Pega o HTML original
     const response = await context.next();
     const html = await response.text();
@@ -110,7 +170,7 @@ export default async (request, context) => {
       .replace(/<meta\s+name="description"[^>]*>/gi, "")
       .replace(/<meta\s+property="og:[^"]*"[^>]*>/gi, "")
       .replace(/<meta\s+name="twitter:[^"]*"[^>]*>/gi, "")
-      .replace(/<\/head>/i, `${metaTags}\n</head>`);
+      .replace(/<\/head>/i, `${metaTags}\n${jsonLd}\n</head>`);
 
     return new Response(novoHtml, {
       status: response.status,
