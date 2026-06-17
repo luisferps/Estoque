@@ -134,7 +134,7 @@ function resolvePropType(imovel, tipo, central) {
   // Rede de segurança por NOME: evita terreno/comercial cair no genérico "Residential / Home".
   if (cod === "Residential / Home") {
     const n = String(tipo || "").toLowerCase();
-    if (/lote|terreno|gleba|loteamento|\bárea\b|\barea\b/.test(n)) cod = "Residential / Land Lot";
+    if (/lote|terreno|gleba|loteamento|[aá]rea/.test(n)) cod = "Residential / Land Lot";
     else if (/sítio|sitio|chácara|chacara|fazenda/.test(n)) cod = "Residential / Agricultural";
     else if (/galpão|galpao|depósito|deposito|armazém|armazem/.test(n)) cod = "Commercial / Industrial";
     else if (/sala|loja|ponto|comercial|escritório|escritorio/.test(n)) cod = "Commercial / Business";
