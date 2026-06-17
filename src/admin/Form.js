@@ -89,7 +89,13 @@ export default function Form() {
     setForm(p => ({ ...p, condicoes: p.condicoes?.includes(c) ? p.condicoes.filter(x => x !== c) : [...(p.condicoes || []), c] }));
   const toggleAnuncio = (canal) => {
     const atual = form.anuncios?.[canal];
-    setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } } }));
+    const isAuto = CANAIS_AUTO.includes(canal);
+    // estado atual "ligado": canal automático publica por padrão (a menos que ativo:false)
+    const ligado = isAuto ? (atual ? atual.ativo !== false : true) : !!(atual && atual.ativo);
+    const data = new Date().toLocaleDateString("pt-BR");
+    // desligar canal automático grava opt-out explícito (ativo:false), não null
+    const novo = ligado ? (isAuto ? { ativo: false, data } : null) : { ativo: true, data };
+    setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: novo } }));
   };
 
   // Validação de telefone (proprietário e captador são obrigatórios).
@@ -408,16 +414,17 @@ export default function Form() {
         {CANAIS.map(canal => {
           const info = form.anuncios?.[canal];
           const isAuto = CANAIS_AUTO.includes(canal);
+          const ligado = isAuto ? (info ? info.ativo !== false : true) : !!(info && info.ativo);
           return (
             <div key={canal} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
-                <input type="checkbox" checked={!!info?.ativo} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
+                <input type="checkbox" checked={ligado} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
                 <span style={{ fontSize: 14 }}>
                   {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>{"\u2699"}</span>}
                   {canal}
                 </span>
               </label>
-              {info?.ativo && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{info.data}</span>}
+              {ligado && info?.data && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{info.data}</span>}
             </div>
           );
         })}
