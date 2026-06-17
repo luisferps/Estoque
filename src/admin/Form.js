@@ -77,8 +77,12 @@ export default function Form() {
     }
   }, [id, imoveis, loading, navigate]);
 
-  const isLote = ehTerreno(form.tipo, tipos);
-  const isConstrucao = ehConstrucao(form.tipo, tipos);
+  // isLote por comportamento OU por nome (pega "Lote em Condomínio", "Lote Comercial",
+  // "Área Comercial" etc. mesmo se o comportamento no cadastro estiver errado/vazio).
+  const nomeTipoLower = (form.tipo || "").toLowerCase();
+  const pareceLote = /lote|terreno|gleba|loteamento|\bárea\b|\barea\b/.test(nomeTipoLower);
+  const isLote = ehTerreno(form.tipo, tipos) || pareceLote;
+  const isConstrucao = ehConstrucao(form.tipo, tipos) && !isLote;
   const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
   const emCondominio = ehEmCondominio(form.tipo);
