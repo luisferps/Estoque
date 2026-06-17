@@ -1,4 +1,15 @@
 import { formatBRL, isLocacao, isVenda, statusDoImovel } from "./utils";
+
+// Miniatura otimizada para o card (a foto tem só ~160px de altura).
+// Para imagens do Cloudinary, pede uma versão pequena e leve (f_auto = webp/avif,
+// q_auto = qualidade automática). URLs de outras origens (importadas) passam intactas.
+function thumbUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+    return url.replace("/upload/", "/upload/w_500,h_360,c_fill,f_auto,q_auto/");
+  }
+  return url;
+}
 const STATUS_COLOR = {
   "Disponível": { bg: "#d4edda", color: "#155724", border: "#c3e6cb" },
   "Reservado":  { bg: "#fff3cd", color: "#856404", border: "#ffeaa7" },
@@ -31,7 +42,7 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
           overflow: "hidden", cursor: "pointer", position: "relative"
         }}>
         {im.fotos?.[0]
-          ? <img src={im.fotos[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ? <img src={thumbUrl(im.fotos[0])} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <span style={{ fontSize: 52 }}>🏠</span>}
         {showStatus && status !== "Disponível" && (
           <span style={{
