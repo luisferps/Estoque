@@ -198,6 +198,25 @@ export default function Destaques({ onLogout }) {
     }
   };
 
+  const fixar = async (id, nivel) => {
+    try {
+      const r = await fetch(`${WA_AGENT_URL}/destaques/fixar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, nivel }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        showToast(nivel ? "Imóvel fixado ✓" : "Fixação removida ✓");
+        carregarRelatorio();
+      } else {
+        showToast(d.error || "Erro ao fixar");
+      }
+    } catch (e) {
+      showToast("Erro ao fixar");
+    }
+  };
+
   const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple || cota.intervaloDias !== cotaSalva.intervaloDias;
 
   // Calcula a próxima rotação prevista (última + intervalo de dias)
@@ -353,7 +372,7 @@ export default function Destaques({ onLogout }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filtrados.map((im) => (
-              <LinhaImovel key={im.id} im={im} info={filaPorId.get(im.id)} />
+              <LinhaImovel key={im.id} im={im} info={filaPorId.get(im.id)} onFixar={fixar} />
             ))}
           </div>
         </>
@@ -383,8 +402,10 @@ function CampoCota({ rotulo, valor, onChange, usado }) {
   );
 }
 
-function LinhaImovel({ im, info }) {
+function LinhaImovel({ im, info, onFixar }) {
+  const [salvando, setSalvando] = useState(false);
   const nivelAtual = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
+  const fixo = String(im.destaqueFixo || (info && info.fixo) || "").toUpperCase();
   const destacado = nivelAtual !== "STANDARD";
   const cor = COR_NIVEL[nivelAtual] || COR_NIVEL.STANDARD;
   const posicao = info?.posicao;
@@ -433,6 +454,20 @@ function LinhaImovel({ im, info }) {
         ) : (
           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
         )}
+        {fixo && (
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--primary-dark)" }}>📌 fixado: {ROTULO_NIVEL[fixo] || fixo}</span>
+        )}
+        <select
+          value={fixo}
+          disabled={salvando}
+          title="Fixar este imóvel num nível (sai do rodízio e reserva a vaga)"
+          onChange={async (e) => { setSalvando(true); await onFixar(im.id, e.target.value); setSalvando(false); }}
+          style={{ fontSize: 11, padding: "3px 6px", borderRadius: 6, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: salvando ? "default" : "pointer" }}>
+          <option value="">Não fixado (entra no rodízio)</option>
+          <option value="PREMIUM">📌 Fixar como Destaque</option>
+          <option value="SUPER_PREMIUM">📌 Fixar como Super Destaque</option>
+          <option value="TRIPLE">📌 Fixar como Destaque Triplo</option>
+        </select>
       </div>
     </div>
   );
