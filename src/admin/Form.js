@@ -12,6 +12,7 @@ import {
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
+import PreviaQualidade from "./PreviaQualidade";
 
 const CANAIS_AUTO = ["Canal Pro", "Chaves na M\u00e3o", "Cat\u00e1logo Meta"];
 
@@ -431,6 +432,8 @@ export default function Form() {
           );
         })}
       </>)}
+
+      <PreviaQualidade form={form} isLote={isLote} />
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         <button onClick={() => navigate(-1)} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
