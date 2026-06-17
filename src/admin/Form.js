@@ -85,6 +85,7 @@ export default function Form() {
   const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
   const emCondominio = ehEmCondominio(form.tipo);
+  const temCondominio = emCondominio || form.tipo === "Apartamento"; // apartamento ja e condominio
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
   const valorFinalLoc = () => (parseFloat(form.valorAluguel) || 0) + (parseFloat(form.valorCondominio) || 0) + (parseFloat(form.valorIPTU) || 0) || "";
@@ -131,7 +132,7 @@ export default function Form() {
       const { id: _id, ...data } = form;
       // Tipos "em condominio" sao tipos proprios; a flag antiga nao e mais usada.
       // Garante coerencia: tipo de condominio -> condominio=true; senao limpa a flag.
-      data.condominio = ehEmCondominio(data.tipo);
+      data.condominio = ehEmCondominio(data.tipo) || data.tipo === "Apartamento";
       if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
@@ -216,7 +217,8 @@ export default function Form() {
   );
 
   return (
-    <div style={pageWrap(680)}>
+    <div style={pageWrap(1040)}>
+      <style>{`@media (max-width:1024px){.previa-col{position:static !important;flex-basis:100% !important;}}`}</style>
       <div style={{ marginBottom: "1.5rem" }}>
         <button onClick={() => navigate(-1)} style={backBtn}>{"\u2190"} Cancelar</button>
       </div>
@@ -227,7 +229,8 @@ export default function Form() {
       {id && !hydrated && (
         <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem 0" }}>Carregando dados do im\u00f3vel...</p>
       )}
-      {(!id || hydrated) && <>
+      {(!id || hydrated) && (<div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 600px", minWidth: 0 }}>
 
       {section("Informa\u00e7\u00f5es gerais", <>
         {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
@@ -282,7 +285,7 @@ export default function Form() {
 
         {!isLote && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
-        {emCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
+        {temCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
       </>)}
 
       {!isLocacao && section("Condi\u00e7\u00f5es comerciais", <>
@@ -370,11 +373,16 @@ export default function Form() {
           {inp("Banheiros", "banheiros", { type: "number" })}
           {inp("Valor de avalia\u00e7\u00e3o (R$)", "valorAvaliacao", { type: "number" })}
           {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
-          {(form.tipo === "Apartamento" || form.tipo === "Casa em Condom\u00ednio" || form.tipo === "Sobrado em Condom\u00ednio") && inp("Valor do condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
         </div>
       </>)}
 
-      {isVenda && section("Valor de venda", inp("Pre\u00e7o de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" }))}
+      {isVenda && section("Valor de venda", <>
+        <div style={grid2}>
+          {inp("Pre\u00e7o de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
+          {inp("IPTU (R$)", "valorIPTU", { type: "number" })}
+          {temCondominio && inp("Valor do condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
+        </div>
+      </>)}
 
       {isLocacao && section("Valores de loca\u00e7\u00e3o", <>
         <div style={grid2}>
@@ -433,8 +441,6 @@ export default function Form() {
         })}
       </>)}
 
-      <PreviaQualidade form={form} isLote={isLote} />
-
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         <button onClick={() => navigate(-1)} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
         <button onClick={save} disabled={saving || uploading}
@@ -442,7 +448,11 @@ export default function Form() {
           {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar im\u00f3vel"}
         </button>
       </div>
-      </>}
+      </div>{/* fim da coluna do formulário */}
+      <div className="previa-col" style={{ flex: "0 0 320px", position: "sticky", top: 16, alignSelf: "flex-start", maxWidth: "100%" }}>
+        <PreviaQualidade form={form} isLote={isLote} />
+      </div>
+      </div>)}
     </div>
   );
 }
