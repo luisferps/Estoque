@@ -8,7 +8,7 @@
 const { getDb } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toFloat, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
-  carregarTiposCentral, acharTipoCentral,
+  carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
 } = require("./_helpers");
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
@@ -18,12 +18,28 @@ const MIN_DESCRICAO_CNM = 500;
 
 // Garante descrição com pelo menos MIN_DESCRICAO_CNM caracteres, repetindo o
 // texto original (separado por linha em branco) até atingir o mínimo.
-function expandirDescricao(texto) {
+function expandirDescricao(texto, imovel, carac) {
   let desc = (texto || "").trim();
   if (!desc) return desc;
-  const original = desc;
+  // Acrescenta conteúdo ÚTIL e variado até o mínimo (em vez de só repetir o texto,
+  // que o portal pode não creditar).
+  const blocos = [];
+  const local = [imovel.bairro, imovel.cidade].filter(Boolean).join(", ");
+  if (local) blocos.push(`Localização: ${local}.`);
+  const itens = [...((carac && carac.chavesPrivativa) || []), ...((carac && carac.chavesComum) || [])];
+  if (itens.length) blocos.push(`Diferenciais: ${itens.join(", ")}.`);
+  const cond = imovel && imovel.condicoes ? imovel.condicoes : [];
+  if (cond.length) blocos.push(`Condições: ${cond.join(", ")}.`);
+  blocos.push("Agende sua visita e conheça pessoalmente. Atendimento com agilidade e transparência em todas as etapas da negociação.");
+  let i = 0;
+  while (desc.length < MIN_DESCRICAO_CNM && i < blocos.length) {
+    desc = desc + "\n\n" + blocos[i];
+    i++;
+  }
+  // Último recurso: se ainda faltar, repete a base.
+  const base = (texto || "").trim();
   while (desc.length < MIN_DESCRICAO_CNM) {
-    desc = desc + "\n\n" + original;
+    desc = desc + "\n\n" + base;
   }
   return desc;
 }
@@ -139,7 +155,8 @@ function buildImovel(imovel, tiposCentral) {
     console.log(`[ChavesNaMao] Pulado ${id}: sem descrição`);
     return null;
   }
-  const descritivo = expandirDescricao(descritivoBase);
+  const carac = caracteristicasImovel(imovel);
+  const descritivo = expandirDescricao(descritivoBase, imovel, carac);
 
   // Transação e valores
   const trans = transacoes(imovel.transacao);
@@ -223,7 +240,13 @@ function buildImovel(imovel, tiposCentral) {
             <data_atualizacao>${hoje}</data_atualizacao>
             <latitude>${imovel.latitude || ""}</latitude>
             <longitude>${imovel.longitude || ""}</longitude>
-            <aceita_troca>${aceitaPermuta}</aceita_troca>
+            <aceita_troca>${aceitaPermuta}</aceita_troca>${carac.chavesComum.length ? `
+            <area_comum>
+${carac.chavesComum.map((it) => `                <item>${cdata(it)}</item>`).join("\n")}
+            </area_comum>` : ""}${carac.chavesPrivativa.length ? `
+            <area_privativa>
+${carac.chavesPrivativa.map((it) => `                <item>${cdata(it)}</item>`).join("\n")}
+            </area_privativa>` : ""}
             <fotos_imovel>
 ${fotosXml}
             </fotos_imovel>
