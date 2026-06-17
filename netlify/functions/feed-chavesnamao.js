@@ -94,7 +94,13 @@ function finalidadeETipo(imovelTipo, central) {
   const comp = central && central.comportamento;
   if (comp === "simples") return { finalidade: "CO", tipo: "Sala Comercial" };
   if (comp === "terreno") return { finalidade: "RE", tipo: "Terreno / Lote" };
-  return { finalidade: "RE", tipo: "Casa / Sobrado" }; // construcao ou desconhecido
+  // Rede de segurança por NOME (tipo novo sem comportamento no cadastro):
+  // evita terreno/rural/comercial cair como "Casa / Sobrado".
+  const n = String(imovelTipo || "").toLowerCase();
+  if (/lote|terreno|gleba|loteamento|\bárea\b|\barea\b/.test(n)) return { finalidade: "RE", tipo: "Terreno / Lote" };
+  if (/sítio|sitio|chácara|chacara|fazenda/.test(n)) return { finalidade: "RU", tipo: "Sítio / Chácara" };
+  if (/galpão|galpao|depósito|deposito|armazém|armazem|sala|loja|ponto|comercial|hotel|pousada|motel/.test(n)) return { finalidade: "CO", tipo: "Sala Comercial" };
+  return { finalidade: "RE", tipo: "Casa / Sobrado" }; // só aqui se realmente parecer construção residencial
 }
 
 // Decide transação principal e secundária.
