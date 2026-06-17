@@ -8,7 +8,7 @@ import {
 import { useImoveis, useTipos } from "../shared/hooks";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
-  ehTerreno, ehConstrucao, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
+  ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
@@ -79,9 +79,7 @@ export default function Form() {
 
   // isLote por comportamento OU por nome (pega "Lote em Condomínio", "Lote Comercial",
   // "Área Comercial" etc. mesmo se o comportamento no cadastro estiver errado/vazio).
-  const nomeTipoLower = (form.tipo || "").toLowerCase();
-  const pareceLote = /lote|terreno|gleba|loteamento|\bárea\b|\barea\b/.test(nomeTipoLower);
-  const isLote = ehTerreno(form.tipo, tipos) || pareceLote;
+  const isLote = ehTerreno(form.tipo, tipos) || tipoEhLotePorNome(form.tipo);
   const isConstrucao = ehConstrucao(form.tipo, tipos) && !isLote;
   const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
