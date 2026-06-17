@@ -131,6 +131,15 @@ function resolvePropType(imovel, tipo, central) {
   }
   if (!cod || !PROPERTY_TYPES_VALIDOS.has(cod)) cod = PROPERTY_TYPE_MAP[tipo];
   if (!cod || !PROPERTY_TYPES_VALIDOS.has(cod)) cod = propTypePorComportamento(central && central.comportamento);
+  // Rede de segurança por NOME: evita terreno/comercial cair no genérico "Residential / Home".
+  if (cod === "Residential / Home") {
+    const n = String(tipo || "").toLowerCase();
+    if (/lote|terreno|gleba|loteamento|\bárea\b|\barea\b/.test(n)) cod = "Residential / Land Lot";
+    else if (/sítio|sitio|chácara|chacara|fazenda/.test(n)) cod = "Residential / Agricultural";
+    else if (/galpão|galpao|depósito|deposito|armazém|armazem/.test(n)) cod = "Commercial / Industrial";
+    else if (/sala|loja|ponto|comercial|escritório|escritorio/.test(n)) cod = "Commercial / Business";
+    else if (/hotel|pousada|motel/.test(n)) cod = "Commercial / Hotel";
+  }
   if (!PROPERTY_TYPES_VALIDOS.has(cod)) cod = "Residential / Home"; // última garantia
   return cod;
 }
