@@ -23,7 +23,7 @@ export function telParaWhatsapp(tel) {
 }
 
 // ─── Helpers de imóvel ───
-export const isLote = (im) => im?.tipo === "Lote" || im?.tipo === "Área";
+export const isLote = (im) => tipoEhLotePorNome(im?.tipo);
 
 export function comportamentoTipo(nomeTipo, tipos) {
   const t = (tipos || []).find(x => x.nome === nomeTipo);
@@ -128,8 +128,14 @@ export async function ajustarContadorMinimo(db, bairro, minimo) {
 }
 
 // ─── Geração de descrição automática ───
+// Reconhece tipos de lote/terreno pelo NOME — pega "Lote em Condomínio",
+// "Lote Comercial", "Área Comercial", "Terreno" etc., não só "Lote"/"Área".
+export function tipoEhLotePorNome(tipo) {
+  return /lote|terreno|gleba|loteamento|[aá]rea/.test((tipo || "").toLowerCase());
+}
+
 export function gerarDescricao(form) {
-  const isLoteForm = form.tipo === "Lote" || form.tipo === "Área";
+  const isLoteForm = tipoEhLotePorNome(form.tipo);
   const linhas = [];
   if (form.titulo) linhas.push(form.titulo);
   linhas.push("");
@@ -211,7 +217,7 @@ export function descricaoPronta(im) {
 export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
   const COR_P = "#C0392B";
   const has = k => camposSel.includes(k);
-  const lote = im => im.tipo === "Lote" || im.tipo === "Área";
+  const lote = im => tipoEhLotePorNome(im.tipo);
   const rows = imoveis.map(im => {
     const total = (parseFloat(im.valorAluguel) || 0) + (parseFloat(im.valorCondominio) || 0) + (parseFloat(im.valorIPTU) || 0);
     return `<tr>
