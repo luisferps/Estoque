@@ -405,12 +405,9 @@ export function waContatoImovel(im, empresaWhatsapp) {
 }
 
 // ─── Validação para feeds automáticos ───
-// Tipos suportados pelo Canal Pro
-const TIPOS_CANALPRO = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Loft","Studio","Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
+// Os feeds mapeiam QUALQUER tipo (via comportamento do cadastro central), então
+// não existe mais "tipo não suportado": o que importa é o tipo estar preenchido.
 const TIPOS_TERRENO_VALIDACAO = ["Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito"];
-const TIPOS_CHAVES_RESIDENCIAL = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno"];
-const TIPOS_CHAVES_COMERCIAL = ["Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial","Hotel","Pousada"];
-const TIPOS_META = ["Apartamento","Casa","Sobrado","Casa de Condomínio","Cobertura","Flat","Kitnet","Studio","Loft","Sítio","Chácara","Fazenda","Área","Lote","Terreno","Galpão","Depósito","Sala Comercial","Sala","Loja","Ponto Comercial"];
 
 // Canais com integração automática via feed XML
 export const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
@@ -440,8 +437,11 @@ export function validarParaCanal(im, canal) {
   const metragemTotal = parseFloat(im.metragemTotal) || 0;
   const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
 
+  // Tipo: qualquer tipo do cadastro publica (o feed mapeia por comportamento).
+  // Só é problema se estiver vazio.
+  if (!im.tipo) problemas.push("Defina o tipo do imóvel");
+
   if (canal === "Canal Pro") {
-    if (!TIPOS_CANALPRO.includes(im.tipo)) problemas.push("Tipo não suportado pelo Canal Pro");
     if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
     if (desc.length < 50) problemas.push("Descrição precisa ter no mínimo 50 caracteres");
     if (area === 0) problemas.push("Preencha a metragem");
@@ -453,9 +453,6 @@ export function validarParaCanal(im, canal) {
   }
 
   if (canal === "Chaves na Mão") {
-    if (!TIPOS_CHAVES_RESIDENCIAL.includes(im.tipo) && !TIPOS_CHAVES_COMERCIAL.includes(im.tipo)) {
-      problemas.push("Tipo não suportado pelo Chaves na Mão");
-    }
     if (!cidade) problemas.push("Preencha a cidade");
     if (!bairro) problemas.push("Preencha o bairro");
     if (!estado) problemas.push("Preencha o estado (UF)");
@@ -466,7 +463,6 @@ export function validarParaCanal(im, canal) {
   }
 
   if (canal === "Catálogo Meta") {
-    if (!TIPOS_META.includes(im.tipo)) problemas.push("Tipo não suportado pelo Catálogo Meta");
     if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
     if (!cidade) problemas.push("Preencha a cidade");
     if (!estado) problemas.push("Preencha o estado (UF)");
