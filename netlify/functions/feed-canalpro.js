@@ -8,7 +8,7 @@
 const { getDb } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
-  carregarTiposCentral, acharTipoCentral,
+  carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
 } = require("./_helpers");
 
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
@@ -235,7 +235,7 @@ function buildListing(imovel, tiposCentral) {
     enderecoPartes.push(`        <Latitude>${imovel.latitude}</Latitude>`);
     enderecoPartes.push(`        <Longitude>${imovel.longitude}</Longitude>`);
   }
-  const displayAddress = imovel.endereco ? "Street" : "Neighborhood";
+  const displayAddress = imovel.endereco ? "All" : "Neighborhood";
 
   // Fotos (máximo 30, primeira é a destaque)
   const mediaItems = fotos.slice(0, 30).map((url, i) => {
@@ -258,6 +258,12 @@ function buildListing(imovel, tiposCentral) {
   const condominio = toInt(imovel.valorCondominio);
   const iptuMensal = toInt(imovel.valorIPTU);
 
+  // Características/comodidades (sobe a nota do anúncio).
+  const carac = caracteristicasImovel(imovel);
+  const featuresTag = carac.features.length
+    ? `        <Features>\n${carac.features.map(f => `          <Feature>${cdata(f)}</Feature>`).join("\n")}\n        </Features>`
+    : "";
+
   const details = [
     `        <PropertyType>${propType}</PropertyType>`,
     `        <UsageType>${propType.split(" / ")[0] || usageType(tipo)}</UsageType>`,
@@ -271,6 +277,7 @@ function buildListing(imovel, tiposCentral) {
     suites > 0 && `        <Suites>${suites}</Suites>`,
     banheiros > 0 && `        <Bathrooms>${banheiros}</Bathrooms>`,
     garagens > 0 && `        <Garage>${garagens}</Garage>`,
+    featuresTag,
   ].filter(Boolean).join("\n");
 
   return `    <Listing>
