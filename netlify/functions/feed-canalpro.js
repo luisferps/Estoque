@@ -98,6 +98,19 @@ function transactionType(t) {
   return "For Sale";
 }
 
+// Lista OFICIAL de PropertyTypes aceitos pelo VRSync/Canal Pro (developers.grupozap.com).
+// Qualquer valor fora dela é recusado pelo Canal Pro ("tipo não suportado").
+const PROPERTY_TYPES_VALIDOS = new Set([
+  "Residential / Apartment", "Residential / Home", "Residential / Condo",
+  "Residential / Village House", "Residential / Farm Ranch", "Residential / Penthouse",
+  "Residential / Flat", "Residential / Kitnet", "Residential / Loft", "Residential / Studio",
+  "Residential / Land Lot", "Residential / Sobrado", "Residential / Agricultural",
+  "Commercial / Consultorio", "Commercial / Edificio Residencial", "Commercial / Industrial",
+  "Commercial / Garage", "Commercial / Hotel", "Commercial / Building", "Commercial / Corporate Floor",
+  "Commercial / Land Lot", "Commercial / Business", "Commercial / Edificio Comercial",
+  "Commercial / Office", "Commercial / Loja", "Commercial / Studio",
+]);
+
 // Default de PropertyType por comportamento (quando o tipo não tem código próprio).
 function propTypePorComportamento(comportamento) {
   if (comportamento === "terreno") return "Residential / Land Lot";
@@ -108,16 +121,18 @@ function propTypePorComportamento(comportamento) {
 // Resolve o PropertyType VRSync do imóvel.
 // Ordem: código VRSync do cadastro central (variante condomínio se houver) →
 // mapa local → genérico por comportamento → "Residential / Home".
-// NUNCA retorna vazio: tipo desconhecido publica em vez de sumir.
+// Garante que o valor final esteja SEMPRE na lista oficial (senão o Canal Pro recusa).
 function resolvePropType(imovel, tipo, central) {
+  let cod = null;
   if (central) {
-    const cod = (imovel.condominio && central.vrsync_condominio)
+    cod = (imovel.condominio && central.vrsync_condominio)
       ? central.vrsync_condominio
       : central.vrsync;
-    if (cod) return cod;
   }
-  if (PROPERTY_TYPE_MAP[tipo]) return PROPERTY_TYPE_MAP[tipo];
-  return propTypePorComportamento(central && central.comportamento);
+  if (!cod || !PROPERTY_TYPES_VALIDOS.has(cod)) cod = PROPERTY_TYPE_MAP[tipo];
+  if (!cod || !PROPERTY_TYPES_VALIDOS.has(cod)) cod = propTypePorComportamento(central && central.comportamento);
+  if (!PROPERTY_TYPES_VALIDOS.has(cod)) cod = "Residential / Home"; // última garantia
+  return cod;
 }
 
 // Constrói um único <Listing> a partir do documento Firestore.
