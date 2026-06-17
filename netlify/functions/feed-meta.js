@@ -85,7 +85,7 @@ function buildItem(imovel, tiposCentral) {
   // Rede de segurança por NOME: evita terreno/comercial cair como "House".
   if (propertyType === "House") {
     const n = (imovel.tipo || "").toLowerCase();
-    if (/lote|terreno|gleba|loteamento|sítio|sitio|chácara|chacara|fazenda|\bárea\b|\barea\b/.test(n)) propertyType = "Land";
+    if (/lote|terreno|gleba|loteamento|sítio|sitio|chácara|chacara|fazenda|[aá]rea/.test(n)) propertyType = "Land";
     else if (/galpão|galpao|depósito|deposito|armazém|armazem|sala|loja|ponto|comercial|hotel|pousada|motel/.test(n)) propertyType = "Commercial";
   }
 
