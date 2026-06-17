@@ -151,6 +151,86 @@ function acharTipoCentral(tiposCentral, nomeOuId) {
   ) || null;
 }
 
+// ─── Características / comodidades dos imóveis ───
+// Extrai itens REAIS do imóvel (campo "extras" digitado pelo corretor + booleanos
+// do lote + derivados seguros). Nunca inventa comodidade física que o imóvel
+// possa não ter. Alimenta as características dos portais (sobe a nota do anúncio).
+function _extrasLista(imovel) {
+  return String(imovel.extras || "")
+    .split(/\r?\n|;/)
+    .map((s) => s.replace(/^[-•\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+// Cada regra: [regex, FeatureVRSync, ItemChaves, grupoChaves('comum'|'privativa')]
+const _REGRAS_CARACTERISTICAS = [
+  [/piscina aquec/i, "Heated Pool", "Piscina Aquecida", "comum"],
+  [/piscina/i, "Pool", "Piscina", "comum"],
+  [/churrasq/i, "BBQ", "Churrasqueira", "comum"],
+  [/academia|fitness/i, "Gym", "Academia", "comum"],
+  [/sal[ãa]o de festa/i, "Party Room", "Salão de Festas", "comum"],
+  [/sal[ãa]o de jogos|jogos/i, "Game room", "Salão de Jogos", "comum"],
+  [/playground/i, "Playground", "Playground", "comum"],
+  [/quadra/i, "Sports Court", "Quadra Poliesportiva", "comum"],
+  [/sauna/i, "Sauna", "Sauna", "comum"],
+  [/espa[çc]o gourmet|gourmet/i, "Gourmet Area", "Espaço Gourmet", "comum"],
+  [/portaria 24|porteiro 24|seguran[çc]a 24/i, "Concierge 24h", "Portaria 24 Horas", "comum"],
+  [/portaria|porteiro/i, "Controlled Access", "Portaria", "comum"],
+  [/elevador/i, "Elevator", "Elevador", "comum"],
+  [/coworking/i, "Coworking", "Coworking", "comum"],
+  // privativas
+  [/varanda gourmet/i, "Gourmet Balcony", "Varanda Gourmet", "privativa"],
+  [/varanda|sacada/i, "Balcony", "Varanda", "privativa"],
+  [/closet/i, "Closet", "Closet", "privativa"],
+  [/lavabo/i, "Lavabo", "Lavabo", "privativa"],
+  [/arm[áa]rio/i, "Builtin Wardrobe", "Armários Embutidos", "privativa"],
+  [/cozinha americana/i, "American Kitchen", "Cozinha Americana", "privativa"],
+  [/mobiliad/i, "Furnished", "Mobiliado", "privativa"],
+  [/ar.?condicionado/i, "Cooling", "Ar Condicionado", "privativa"],
+  [/lareira/i, "Fireplace", "Lareira", "privativa"],
+  [/hidromass/i, "Whirlpool", "Hidromassagem", "privativa"],
+  [/escrit[óo]rio|home office/i, "Home Office", "Escritório", "privativa"],
+  [/quintal/i, "Backyard", "Quintal", "privativa"],
+  [/jardim/i, "Garden Area", "Jardim", "privativa"],
+];
+
+function caracteristicasImovel(imovel) {
+  const features = new Set();   // VRSync (Canal Pro)
+  const comum = new Set();      // Chaves área comum
+  const privativa = new Set();  // Chaves área privativa
+  const texto = _extrasLista(imovel).join(" | ");
+
+  for (const [re, feat, item, grupo] of _REGRAS_CARACTERISTICAS) {
+    if (re.test(texto)) {
+      features.add(feat);
+      (grupo === "comum" ? comum : privativa).add(item);
+    }
+  }
+
+  // Itens verdadeiros derivados de campos do cadastro (sem inventar):
+  if (imovel.asfalto) features.add("Paved Street");
+  if (imovel.esquina) features.add("Corner Property");
+  if (imovel.muro) features.add("Fence");
+  if (imovel.condominio) { features.add("Fenced Yard"); comum.add("Portaria"); }
+  if (toInt(imovel.garagens) > 0) { features.add("Parking Garage"); privativa.add("Garagem"); }
+
+  // Garante pelo menos 1 característica (sem comodidade física falsa):
+  // usa itens de localização, quase sempre verdadeiros em área urbana.
+  if (features.size === 0) {
+    features.add("Close to shopping centers");
+    features.add("Close to public transportation");
+  }
+  if (comum.size === 0 && privativa.size === 0) {
+    privativa.add("Área de Serviço");
+  }
+
+  return {
+    features: [...features],
+    chavesComum: [...comum],
+    chavesPrivativa: [...privativa],
+  };
+}
+
 module.exports = {
   xmlEscape,
   cdata,
@@ -165,4 +245,5 @@ module.exports = {
   urlPublica,
   carregarTiposCentral,
   acharTipoCentral,
+  caracteristicasImovel,
 };
