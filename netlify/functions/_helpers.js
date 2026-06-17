@@ -100,9 +100,19 @@ function apareceNoSite(imovel) {
   return v !== "Ocultar do site" && v !== "Ocultar de tudo";
 }
 
-// Verifica se o imóvel tem a flag de anúncio ativa para o canal informado.
+// Canais automáticos: publicam por padrão (com base na visibilidade do imóvel).
+// A caixinha do canal é só indicador/opt-out — só NÃO publica se foi desmarcada de propósito.
+const CANAIS_AUTO_FEED = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
+
+// Verifica se o imóvel deve ser anunciado no canal informado.
 function temFlagAnuncio(imovel, canal) {
   const info = imovel.anuncios && imovel.anuncios[canal];
+  if (CANAIS_AUTO_FEED.includes(canal)) {
+    // ausente ou ativo:true -> publica;  ativo:false -> opt-out explícito
+    if (info && info.ativo === false) return false;
+    return true;
+  }
+  // demais canais (manuais): só publica se marcado
   return !!(info && info.ativo);
 }
 
