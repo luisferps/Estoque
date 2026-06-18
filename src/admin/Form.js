@@ -39,6 +39,15 @@ function ehEmCondominio(tipo) {
 // Backend Railway (mesmo motor de visão que organiza as fotos na captação).
 const BACKEND_URL = "https://agentes-de-whatsapp-production.up.railway.app";
 
+// Imóveis vindos da captação podem ter "extras" como array (a IA às vezes devolve
+// uma lista). O formulário e a prévia esperam TEXTO (uma característica por linha) e
+// chamam .trim()/.split() — então normalizamos pra string ao carregar, senão a tela quebra.
+function extrasParaTexto(v) {
+  if (Array.isArray(v)) return v.filter(Boolean).join("\n");
+  if (v == null) return "";
+  return String(v);
+}
+
 export default function Form() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -72,7 +81,7 @@ export default function Form() {
     if (loading) return;
     const existing = imoveis.find(i => i.id === id);
     if (existing) {
-      setForm({ ...emptyForm, ...existing, anuncios: migrarAnuncios(existing.anuncios) });
+      setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
       setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
       setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
       setHydrated(true);
