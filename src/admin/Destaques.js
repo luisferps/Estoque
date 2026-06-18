@@ -133,6 +133,18 @@ export default function Destaques({ onLogout }) {
     return { premium, superPremium, triple };
   }, [noCanalPro]);
 
+  // Quantos estão FIXADOS em cada nível (fora do rodízio)
+  const fixos = useMemo(() => {
+    let premium = 0, superPremium = 0, triple = 0;
+    noCanalPro.forEach((im) => {
+      const v = String(im.destaqueFixo || "").toUpperCase();
+      if (v === "PREMIUM") premium++;
+      else if (v === "SUPER_PREMIUM") superPremium++;
+      else if (v === "TRIPLE") triple++;
+    });
+    return { premium, superPremium, triple };
+  }, [noCanalPro]);
+
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
     const base = noCanalPro;
@@ -144,7 +156,10 @@ export default function Destaques({ onLogout }) {
             .some((c) => String(c).toLowerCase().includes(t))
         );
     // Ordena pela posição na fila (quem entra antes primeiro); destacados agora vão pro topo
+    const ehFixo = (im) => (["PREMIUM", "SUPER_PREMIUM", "TRIPLE"].includes(String(im.destaqueFixo || "").toUpperCase()) ? 0 : 1);
     return arr.slice().sort((a, b) => {
+      const xa = ehFixo(a), xb = ehFixo(b);
+      if (xa !== xb) return xa - xb; // fixados primeiro
       const fa = filaPorId.get(a.id);
       const fb = filaPorId.get(b.id);
       const na = String(a.destaqueCanalPro || "STANDARD").toUpperCase() !== "STANDARD" ? 0 : 1;
@@ -348,6 +363,28 @@ export default function Destaques({ onLogout }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Resumo de vagas por nível */}
+      {!loading && noCanalPro.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+          {[
+            ["Super Destaque", cota.superPremium, fixos.superPremium, usados.superPremium, COR_NIVEL.SUPER_PREMIUM],
+            ["Destaque Triplo", cota.triple, fixos.triple, usados.triple, COR_NIVEL.TRIPLE],
+            ["Destaque", cota.premium, fixos.premium, usados.premium, COR_NIVEL.PREMIUM],
+          ].map(([nome, ct, fx, us, cor]) => {
+            const livres = Math.max(0, (Number(ct) || 0) - (Number(us) || 0));
+            const girando = Math.max(0, (Number(us) || 0) - (Number(fx) || 0));
+            return (
+              <div key={nome} style={{ flex: "1 1 180px", border: "1px solid var(--border-soft)", borderLeft: "4px solid " + ((cor && cor.fg) || "#999"), borderRadius: 10, padding: "8px 12px", background: "var(--bg-card)" }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{nome}</div>
+                <div style={{ fontSize: 12, color: "var(--text-soft)", marginTop: 2 }}>
+                  cota <b>{Number(ct) || 0}</b> · 📌 fixos <b>{fx}</b> · girando <b>{girando}</b> · livres <b style={{ color: livres > 0 ? "var(--primary)" : "var(--text-soft)" }}>{livres}</b>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
