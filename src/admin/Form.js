@@ -36,6 +36,9 @@ function ehEmCondominio(tipo) {
   return TIPOS_EM_CONDOMINIO.includes(String(tipo || "").trim());
 }
 
+// Backend Railway (mesmo motor de visão que organiza as fotos na captação).
+const BACKEND_URL = "https://agentes-de-whatsapp-production.up.railway.app";
+
 export default function Form() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -45,6 +48,7 @@ export default function Form() {
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [organizando, setOrganizando] = useState(false);
   // Toggle "Internacional" por campo de telefone (proprietário e captador).
   // Inicializa ligado se o valor já salvo começar com "+".
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
@@ -169,6 +173,31 @@ export default function Form() {
     e.target.value = "";
   };
 
+  // Organiza as fotos com IA: melhor foto como capa + da segunda em diante um
+  // passeio lógico pelo imóvel. Usa o mesmo motor de visão do backend (Railway),
+  // que já faz isso na captação. Nenhuma foto é perdida — só reordenadas.
+  const organizarFotosIA = async () => {
+    const fotos = (form.fotos || []).filter(Boolean);
+    if (fotos.length < 2) return;
+    setOrganizando(true);
+    try {
+      const r = await fetch(BACKEND_URL + "/estoque/ordenar-fotos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fotos }),
+      });
+      const d = await r.json();
+      if (d && d.ok && Array.isArray(d.fotos) && d.fotos.length === fotos.length) {
+        sf("fotos", d.fotos);
+      } else {
+        alert("N\u00e3o consegui organizar as fotos agora. Tente novamente em instantes.");
+      }
+    } catch (e) {
+      alert("Erro ao organizar fotos: " + e.message);
+    }
+    setOrganizando(false);
+  };
+
   const inp = (label, key, opts = {}) => (
     <div style={{ marginBottom: "1rem" }}>
       <label style={labelStyle}>{label}</label>
@@ -283,6 +312,18 @@ export default function Form() {
           })}
         </div>
 
+        {/* Rodízio automático: tira o imóvel dos disparos automáticos (grupos de corretores + Instagram).
+            Continua disponível e visível normalmente; só não entra na divulgação automática. */}
+        <div style={{ margin: "0 0 1rem", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", color: "var(--text)" }}>
+            <input type="checkbox" checked={!!form.foraRodizio} onChange={e => sf("foraRodizio", e.target.checked)} style={cbStyle} />
+            {"\uD83D\uDEAB"} N\u00e3o incluir no rod\u00edzio autom\u00e1tico
+          </label>
+          <p style={{ margin: "6px 0 0 24px", fontSize: 11, color: "var(--text-muted)" }}>
+            O im\u00f3vel continua dispon\u00edvel e vis\u00edvel normalmente, mas fica de fora dos disparos autom\u00e1ticos para os grupos de corretores e das publica\u00e7\u00f5es autom\u00e1ticas no Instagram.
+          </p>
+        </div>
+
         {!isLote && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
         {temCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
@@ -308,6 +349,13 @@ export default function Form() {
           style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed var(--border-soft)", background: uploading ? "var(--bg-muted)" : "var(--bg-input)", color: "var(--text)", cursor: uploading ? "default" : "pointer", fontSize: 13, marginBottom: 12 }}>
           {uploading ? "Enviando fotos..." : "+ Adicionar fotos"}
         </button>
+        {(form.fotos || []).length >= 2 && (
+          <button onClick={organizarFotosIA} disabled={organizando || uploading}
+            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid var(--primary)", background: (organizando || uploading) ? "var(--bg-muted)" : "var(--primary-light)", color: "var(--primary)", cursor: (organizando || uploading) ? "default" : "pointer", fontSize: 13, marginBottom: 12, marginLeft: 8 }}>
+            {organizando ? "Organizando com IA..." : "\u2728 Organizar fotos com IA"}
+          </button>
+        )}
+        {organizando && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>A IA est\u00e1 olhando as fotos e definindo a melhor ordem (capa + passeio l\u00f3gico)...</p>}
         <FotosGrid fotos={form.fotos || []} onChange={fs => sf("fotos", fs)} onRemove={i => sf("fotos", form.fotos.filter((_, idx) => idx !== i))} />
       </>)}
 
