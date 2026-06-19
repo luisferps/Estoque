@@ -95,6 +95,8 @@ export default function Form() {
   // "Área Comercial" etc. mesmo se o comportamento no cadastro estiver errado/vazio).
   const isLote = ehTerreno(form.tipo, tipos) || tipoEhLotePorNome(form.tipo);
   const isConstrucao = ehConstrucao(form.tipo, tipos) && !isLote;
+  // Tipos rurais têm casa E terreno -> mostram os dois grupos de campos.
+  const isRural = /ch[áa]cara|s[íi]tio|fazenda|rancho|haras/i.test(form.tipo || "");
   const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
   const emCondominio = ehEmCondominio(form.tipo);
@@ -333,7 +335,7 @@ export default function Form() {
           </p>
         </div>
 
-        {!isLote && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
+        {(!isLote || isRural) && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
         {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
         {temCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
       </>)}
@@ -411,10 +413,10 @@ export default function Form() {
           <input value={form.mapsLink || ""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps" style={inputBase} />
           {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none" }}>Verificar link {"\u2192"}</a>}
         </div>
-        {isLote && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("\u00c1gua", "agua")}{tog("Esgoto", "esgoto")}</div>}
+        {(isLote || isRural) && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("\u00c1gua", "agua")}{tog("Esgoto", "esgoto")}</div>}
       </>)}
 
-      {isLote && section("Detalhes do " + form.tipo, <>
+      {(isLote || isRural) && section("Detalhes do terreno", <>
         {sel("Declive", "declive", ["Plano", "Lateral", "Fundo", "Frente"])}
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>{tog("Muro", "muro")}{tog("Esquina", "esquina")}{tog("Retangular", "retangular")}</div>
         {form.retangular
@@ -422,7 +424,7 @@ export default function Form() {
           : inp("Medidas", "medidas", { ph: "Ex: 15x30 irregular" })}
       </>)}
 
-      {isConstrucao && section("Detalhes da " + form.tipo, <>
+      {(isConstrucao || isRural) && section("Detalhes da constru\u00e7\u00e3o", <>
         <div style={grid2}>
           {inp("Quartos", "quartos", { type: "number" })}
           {inp("Su\u00edtes", "suites", { type: "number" })}
