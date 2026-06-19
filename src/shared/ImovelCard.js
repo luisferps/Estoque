@@ -80,15 +80,24 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
       </div>
 
       <div style={{ padding: "14px 16px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Código + bairro + tipo */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-          {codigo && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.3 }}>CÓD: {codigo}</span>}
-          {codigo && local && <span style={{ color: "var(--text-muted)", fontSize: 11 }}>·</span>}
-          {local && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-soft)", letterSpacing: 0.3 }}>{local}</span>}
-          {im.tipo && (
-            <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "var(--primary-dark)", background: "var(--primary-light)", padding: "3px 9px", borderRadius: 999 }}>{im.tipo}</span>
-          )}
-        </div>
+        {/* Tipo flutuando no canto direito */}
+        {im.tipo && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary-dark)", background: "var(--primary-light)", padding: "3px 9px", borderRadius: 999 }}>{im.tipo}</span>
+          </div>
+        )}
+        {/* Código (linha de cima) */}
+        {codigo && (
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.3, marginBottom: 2 }}>
+            CÓD: {codigo}
+          </div>
+        )}
+        {/* Local (linha de baixo) */}
+        {local && (
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-soft)", letterSpacing: 0.3, marginBottom: 6 }}>
+            {local}
+          </div>
+        )}
 
         {/* Título grande */}
         <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 17, color: "var(--text)", lineHeight: 1.25 }}>{tituloCard}</p>
@@ -111,13 +120,13 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
         </div>
 
         {/* Linha de atributos (sempre presente — vazia se não tiver dado — pra alinhar cards) */}
-        <div style={{ display: "flex", gap: 16, paddingTop: 10, marginTop: "auto", borderTop: "1px solid var(--border)", fontSize: 13, color: "var(--text-soft)", minHeight: 36, alignItems: "center", flexWrap: "wrap" }}>
-          {(q > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{q} <span title="quartos">🛏️</span></span>}
-          {(su > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{su} <span title="suítes">🚿</span></span>}
-          {(va > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{va} <span title="vagas">🚗</span></span>}
-          {!(q || su || va) && im.asfalto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>≡</span>Asfalto</span>}
-          {!(q || su || va) && im.agua && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>💧</span>Água</span>}
-          {!(q || su || va) && im.esgoto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>◎</span>Esgoto</span>}
+        <div style={{ display: "flex", gap: 18, paddingTop: 10, marginTop: "auto", borderTop: "1px solid var(--border)", fontSize: 14, color: "var(--text-soft)", minHeight: 40, alignItems: "center", flexWrap: "wrap" }}>
+          {(q > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{q} <span title="quartos" style={{ fontSize: 18 }}>🛏️</span></span>}
+          {(su > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{su} <span title="suítes" style={{ fontSize: 18 }}>🚿</span></span>}
+          {(va > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{va} <span title="vagas" style={{ fontSize: 18 }}>🚗</span></span>}
+          {!(q || su || va) && im.asfalto && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}><span style={dotIcon}>≡</span>Asfalto</span>}
+          {!(q || su || va) && im.agua && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}><span style={dotIcon}>💧</span>Água</span>}
+          {!(q || su || va) && im.esgoto && <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13.5 }}><span style={dotIcon}>◎</span>Esgoto</span>}
           {!(q || su || va) && !(im.asfalto || im.agua || im.esgoto) && <span style={{ opacity: 0 }}>—</span>}
         </div>
 
@@ -131,4 +140,4 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
   );
 }
 
-const dotIcon = { fontSize: 13, display: "inline-block", width: 16, textAlign: "center" };
+const dotIcon = { fontSize: 18, display: "inline-block", width: 20, textAlign: "center" };
