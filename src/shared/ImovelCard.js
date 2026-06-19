@@ -93,32 +93,30 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
         {/* Metragem */}
         {m2 && <p style={{ margin: "0 0 8px", fontSize: 13.5, color: "var(--text-soft)" }}>{m2}</p>}
 
-        {/* Preço */}
-        {isVenda(im) && im.preco && (
-          <p style={{ margin: "2px 0 8px", fontWeight: 800, fontSize: 18, color: "var(--primary)" }}>
-            {formatBRL(im.preco)}
-          </p>
-        )}
-        {isLocacao(im) && im.valorFinal && (
-          <p style={{ margin: "2px 0 8px", fontWeight: 800, fontSize: 17, color: "#c0762b" }}>
-            {formatBRL(im.valorFinal)}<span style={{ fontSize: 11.5, fontWeight: 500 }}>/mês</span>
-          </p>
-        )}
+        {/* Preço (altura mínima fixa pra alinhar cards sem preço) */}
+        <div style={{ minHeight: 28, marginBottom: 8, display: "flex", alignItems: "flex-end" }}>
+          {isVenda(im) && im.preco && (
+            <span style={{ fontWeight: 800, fontSize: 18, color: "var(--primary)" }}>
+              {formatBRL(im.preco)}
+            </span>
+          )}
+          {isLocacao(im) && im.valorFinal && (
+            <span style={{ fontWeight: 800, fontSize: 17, color: "#c0762b" }}>
+              {formatBRL(im.valorFinal)}<span style={{ fontSize: 11.5, fontWeight: 500 }}>/mês</span>
+            </span>
+          )}
+        </div>
 
-        {/* Linha de atributos: quartos/suites/garagens OU asfalto/água/luz pra lote */}
-        {(q || su || va) ? (
-          <div style={{ display: "flex", gap: 18, paddingTop: 10, marginTop: "auto", borderTop: "1px solid var(--border)", fontSize: 13, color: "var(--text-soft)" }}>
-            {q > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{q} <span title="quartos">🛏️</span></span>}
-            {su > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{su} <span title="suítes">🚿</span></span>}
-            {va > 0 && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{va} <span title="vagas">🚗</span></span>}
-          </div>
-        ) : (im.asfalto || im.agua || im.esgoto) ? (
-          <div style={{ display: "flex", gap: 14, paddingTop: 10, marginTop: "auto", borderTop: "1px solid var(--border)", fontSize: 12.5, color: "var(--text-soft)" }}>
-            {im.asfalto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={dotIcon}>≡</span>Asfalto</span>}
-            {im.agua && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={dotIcon}>💧</span>Água</span>}
-            {im.esgoto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={dotIcon}>◎</span>Esgoto</span>}
-          </div>
-        ) : null}
+        {/* Linha de atributos (sempre presente — vazia se não tiver dado — pra alinhar cards) */}
+        <div style={{ display: "flex", gap: 16, paddingTop: 10, marginTop: "auto", borderTop: "1px solid var(--border)", fontSize: 13, color: "var(--text-soft)", minHeight: 36, alignItems: "center", flexWrap: "wrap" }}>
+          {(q > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{q} <span title="quartos">🛏️</span></span>}
+          {(su > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{su} <span title="suítes">🚿</span></span>}
+          {(va > 0) && <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{va} <span title="vagas">🚗</span></span>}
+          {!(q || su || va) && im.asfalto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>≡</span>Asfalto</span>}
+          {!(q || su || va) && im.agua && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>💧</span>Água</span>}
+          {!(q || su || va) && im.esgoto && <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12.5 }}><span style={dotIcon}>◎</span>Esgoto</span>}
+          {!(q || su || va) && !(im.asfalto || im.agua || im.esgoto) && <span style={{ opacity: 0 }}>—</span>}
+        </div>
 
         {actions && (
           <div onClick={e => e.stopPropagation()} style={{ marginTop: 12, display: "flex", gap: 8 }}>
