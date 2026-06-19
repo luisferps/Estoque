@@ -179,7 +179,7 @@ export default function Home() {
         .num-input { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
         .num-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
       `}</style>
-      <Header />
+      <Header corretorNovaAba />
 
       {/* HERO */}
       <div style={{
