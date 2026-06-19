@@ -136,6 +136,7 @@ export function tipoEhLotePorNome(tipo) {
 
 export function gerarDescricao(form) {
   const isLoteForm = tipoEhLotePorNome(form.tipo);
+  const isRuralForm = /ch[áa]cara|s[íi]tio|fazenda|rancho|haras/i.test(form.tipo || "");
   const linhas = [];
   if (form.titulo) linhas.push(form.titulo);
   linhas.push("");
@@ -143,13 +144,16 @@ export function gerarDescricao(form) {
   linhas.push("");
   if (form.metragem) linhas.push(`- ${form.metragem} m² de construção`);
   if (form.metragemTotal) linhas.push(`- ${form.metragemTotal} m² de terreno`);
+  // medidas/dimensões do lote logo abaixo da metragem
+  if (form.retangular && form.frente && form.laterais) linhas.push(`- ${form.frente}x${form.laterais} m`);
+  else if (form.medidas) linhas.push(`- ${form.medidas}`);
   const q = parseInt(form.quartos) || 0;
   const s = parseInt(form.suites) || 0;
   const g = parseInt(form.garagens) || 0;
   if (q > 0) linhas.push(`- ${q} quarto${q > 1 ? "s" : ""}${s > 0 ? `, sendo ${s} suíte${s > 1 ? "s" : ""}` : ""}`);
   else if (s > 0) linhas.push(`- ${s} suíte${s > 1 ? "s" : ""}`);
-  if (g > 0) linhas.push(`- ${g} garagem${g > 1 ? "s" : ""}`);
-  if (isLoteForm) {
+  if (g > 0) linhas.push(`- ${g} ${g > 1 ? "garagens" : "garagem"}`);
+  if (isLoteForm || isRuralForm) {
     if (form.asfalto) linhas.push("- Asfalto");
     if (form.agua) linhas.push("- Água");
     if (form.esgoto) linhas.push("- Esgoto");
@@ -157,12 +161,14 @@ export function gerarDescricao(form) {
     else if (form.declive) linhas.push(`- Declive: ${form.declive}`);
     if (form.muro) linhas.push("- Murado");
     if (form.esquina) linhas.push("- Esquina");
-    if (form.retangular && form.frente && form.laterais) linhas.push(`- ${form.frente}x${form.laterais} m`);
-    else if (form.medidas) linhas.push(`- ${form.medidas}`);
   }
   if (form.condominio && form.nomeCondominio) linhas.push(`- Condomínio: ${form.nomeCondominio}`);
   if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
-  if (form.extras) linhas.push(...form.extras.split("\n").filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
+  if (form.extras) {
+    // não repetir o valor de venda: extras às vezes traz "Venda: R$..." ou "R$ ..." (já sai abaixo)
+    const ehLinhaPreco = (l) => /^-?\s*(venda|valor de venda|pre[çc]o)\b/i.test(l) || /^-?\s*r\$\s*\d/i.test(l);
+    linhas.push(...form.extras.split("\n").map(x => x.trim()).filter(Boolean).filter(l => !ehLinhaPreco(l)).map(l => l.startsWith("-") ? l : `- ${l}`));
+  }
   linhas.push("");
   const loc = form.transacao === "Locação";
   const ven = form.transacao === "Venda" || form.transacao === "Venda e Locação";
@@ -182,8 +188,11 @@ export function gerarDescricao(form) {
     if (total) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
   }
   if (form.condicoes?.length) {
-    const conds = form.condicoes.map(c => c === "Permuta" && form.permuta ? `Permuta (${form.permuta})` : c);
-    linhas.push(conds.join(", "));
+    // "À vista" é óbvio, não entra. Prefixo "Aceita ..." e em minúsculo.
+    const conds = form.condicoes
+      .filter(c => c !== "À vista")
+      .map(c => c === "Permuta" && String(form.permuta || "").trim() ? `permuta em ${String(form.permuta).trim()}` : String(c).toLowerCase());
+    if (conds.length) linhas.push(`Aceita ${conds.join(", ")}`);
   }
   if (form.condominio && parseFloat(form.valorCondominioMensal)) linhas.push(`Condomínio: ${formatBRL(form.valorCondominioMensal)}/mês`);
   linhas.push("");
