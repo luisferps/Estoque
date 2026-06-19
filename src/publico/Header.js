@@ -19,8 +19,12 @@ h1, h2, h3, .display { font-family: 'Manrope', system-ui, sans-serif; letter-spa
 .imovel-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(0,0,0,0.14); }
 `;
 
-export default function Header() {
+export default function Header({ corretorNovaAba = false }) {
   const navigate = useNavigate();
+  const abrirCorretor = () => {
+    if (corretorNovaAba) window.open("/corretores", "_blank", "noopener,noreferrer");
+    else navigate("/corretores");
+  };
   return (
     <>
       <style>{ESTILO_GLOBAL}</style>
@@ -40,7 +44,7 @@ export default function Header() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <DarkModeToggle />
-          <button onClick={() => navigate("/corretores")} style={{
+          <button onClick={abrirCorretor} style={{
             padding: "8px 16px", fontSize: 13, borderRadius: 12,
             border: "1px solid var(--border-soft)", background: "var(--bg-muted)",
             color: "var(--text-soft)", cursor: "pointer", fontWeight: 600
