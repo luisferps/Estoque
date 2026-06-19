@@ -158,6 +158,11 @@ export default function Home() {
         .modo-btn:not(.on):hover { background: rgba(255,255,255,0.10); }
         .tipo-card { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease; }
         .tipo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.10); }
+        .tipos-grid { display: grid; gap: 8px; grid-template-columns: repeat(7, 1fr); }
+        @media (max-width: 900px) { .tipos-grid { grid-template-columns: repeat(6, 1fr); } }
+        @media (max-width: 700px) { .tipos-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (max-width: 540px) { .tipos-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 400px) { .tipos-grid { grid-template-columns: repeat(3, 1fr); } }
         .grad-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #fff; border: none; cursor: pointer; }
         .grad-btn:hover { filter: brightness(1.06); }
         .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; font-size: 12.5px; font-weight: 600; }
@@ -248,9 +253,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tipos (quadradinhos menores, embaixo da busca) */}
+        {/* Tipos (quadradinhos pequenos, embaixo da busca) */}
         {tiposVisiveis.length > 0 && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", gap: 8, marginTop: 14 }}>
+          <div className="tipos-grid" style={{ marginTop: 14 }}>
             {tiposVisiveis.map(t => {
               const ativo = tipo === t.nome;
               const qtd = contagemPorTipo[t.nome] || 0;
