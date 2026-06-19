@@ -29,9 +29,11 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
   const status = statusDoImovel(im);
   const corSt = STATUS_COLOR[status] || STATUS_COLOR["Disponível"];
   const ehLancamento = im.estadoImovel === "Imóvel Novo";
-  const codigo = im.codigo ? String(im.codigo).toUpperCase() : "";
+  const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
   const local = [im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase();
-  const tituloCard = (im.nomeCondominio && String(im.nomeCondominio).trim()) || im.titulo || im.tipo || "Imóvel";
+  const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
+  const condRaw = String(im.nomeCondominio == null ? "" : im.nomeCondominio).trim();
+  const tituloCard = tituloRaw || condRaw || im.tipo || "Imóvel";
   const m2 = metragem(im);
   const q = parseInt(im.quartos) || 0;
   const su = parseInt(im.suites) || 0;
@@ -79,7 +81,7 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
       <div style={{ padding: "14px 16px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
         {/* Código + bairro + tipo */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-          {codigo && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.3 }}>{codigo}</span>}
+          {codigo && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.3 }}>CÓD: {codigo}</span>}
           {codigo && local && <span style={{ color: "var(--text-muted)", fontSize: 11 }}>·</span>}
           {local && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-soft)", letterSpacing: 0.3 }}>{local}</span>}
           {im.tipo && (
