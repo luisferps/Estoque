@@ -150,9 +150,8 @@ export default function ImovelPublico() {
           </div>
 
           <h1 className="display" style={{ margin: "10px 0 4px", fontSize: "clamp(26px, 4.2vw, 38px)", fontWeight: 800, lineHeight: 1.1 }}>{im.titulo}</h1>
-          {(im.codigo || im.bairro || im.cidade) && (
+          {(im.bairro || im.cidade) && (
             <p style={{ margin: 0, fontSize: 14, opacity: 0.92, fontWeight: 600, letterSpacing: 0.2 }}>
-              {im.codigo ? <>CÓD: {String(im.codigo).toUpperCase()}{(im.bairro || im.cidade) ? " · " : ""}</> : null}
               {[im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase()}
             </p>
           )}
@@ -191,6 +190,11 @@ export default function ImovelPublico() {
             <p style={{ margin: isVen ? "10px 0 0" : 0, fontSize: 24, fontWeight: 800, color: "var(--primary-dark)" }}>
               {formatBRL(im.valorFinal)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
               <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>(aluguel + condomínio + IPTU)</span>
+            </p>
+          )}
+          {im.codigo && (
+            <p style={{ margin: "10px 0 0", fontSize: 12.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.4 }}>
+              CÓD: {String(im.codigo).toUpperCase()}
             </p>
           )}
         </div>
