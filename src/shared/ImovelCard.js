@@ -21,7 +21,7 @@ function metragem(im) {
   const c = parseFloat(im.metragem);
   if (c) return `${c.toLocaleString("pt-BR")} m²`;
   const t = parseFloat(im.metragemTotal);
-  if (t) return `${t.toLocaleString("pt-BR")} m² (terreno)`;
+  if (t) return `${t.toLocaleString("pt-BR")} m²`;
   return "";
 }
 
@@ -77,11 +77,14 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
       </div>
 
       <div style={{ padding: "14px 16px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Código + bairro */}
+        {/* Código + bairro + tipo */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
           {codigo && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.3 }}>{codigo}</span>}
           {codigo && local && <span style={{ color: "var(--text-muted)", fontSize: 11 }}>·</span>}
           {local && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-soft)", letterSpacing: 0.3 }}>{local}</span>}
+          {im.tipo && (
+            <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: "var(--primary-dark)", background: "var(--primary-light)", padding: "3px 9px", borderRadius: 999 }}>{im.tipo}</span>
+          )}
         </div>
 
         {/* Título grande */}
