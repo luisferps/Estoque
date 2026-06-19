@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta } from "../shared/utils";
@@ -84,6 +84,21 @@ export default function Home() {
   const [copiadoId, setCopiadoId] = useState(null);
 
   const publicos = useMemo(() => imoveis.filter(im => statusDoImovel(im) === "Disponível"), [imoveis]);
+
+  // Reveal-on-scroll: observa elementos com .reveal e adiciona .on quando entram no viewport.
+  // Roda toda vez que a lista de imóveis muda (pra pegar os cards novos sem reanimar os antigos).
+  useEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+    const els = document.querySelectorAll(".reveal:not(.on)");
+    if (!els.length) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) { e.target.classList.add("on"); io.unobserve(e.target); }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+    els.forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, [imoveis, transacao, tipo, search, valorMin, valorMax, ordem, filtroAberto]);
   const noModo = useMemo(() => publicos.filter(im => matchTransacao(im, transacao)), [publicos, transacao]);
 
   const filtered = useMemo(() => {
@@ -147,6 +162,9 @@ export default function Home() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <style>{`
+        .reveal { opacity: 0; transform: translateY(50px); transition: opacity .8s cubic-bezier(.22,.61,.36,1), transform .8s cubic-bezier(.22,.61,.36,1); will-change: opacity, transform; }
+        .reveal.on { opacity: 1; transform: translateY(0); }
+        @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
         .modo-btn { transition: background .18s ease, color .18s ease, box-shadow .2s ease, transform .12s ease; }
         .modo-btn:not(.on):hover { background: rgba(255,255,255,0.10); }
         .tipo-card { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease; }
@@ -195,7 +213,7 @@ export default function Home() {
 
       {/* BUSCA + FILTROS (sai do hero) */}
       <div style={{ maxWidth: 1100, margin: "-28px auto 0", padding: "0 1.5rem", position: "relative", zIndex: 2 }}>
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 22, padding: 10, display: "flex", gap: 8, flexWrap: "wrap", boxShadow: "0 18px 44px rgba(0,0,0,0.10)" }}>
+        <div className="reveal" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 22, padding: 10, display: "flex", gap: 8, flexWrap: "wrap", boxShadow: "0 18px 44px rgba(0,0,0,0.10)" }}>
           <div style={{ flex: "2 1 240px", display: "flex", alignItems: "center", gap: 8, padding: "0 14px" }}>
             <span style={{ fontSize: 16, opacity: 0.55 }}>🔍</span>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Bairro, cidade ou palavra-chave"
@@ -246,7 +264,7 @@ export default function Home() {
 
         {/* Tipos (quadradinhos pequenos, embaixo da busca) */}
         {tiposVisiveis.length > 0 && (
-          <div className="tipos-grid" style={{ marginTop: 14 }}>
+          <div className="tipos-grid reveal" style={{ marginTop: 14 }}>
             {tiposVisiveis.map(t => {
               const ativo = tipo === t.nome;
               const qtd = contagemPorTipo[t.nome] || 0;
@@ -295,8 +313,10 @@ export default function Home() {
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
-          {filtered.map(im => (
-            <ImovelCard key={im.id} im={im} onClick={() => navigate(`/imovel/${im.id}`)} showStatus={false} actions={cardActions(im)} />
+          {filtered.map((im, i) => (
+            <div key={im.id} className="reveal" style={{ transitionDelay: `${Math.min((i % 6) * 70, 350)}ms` }}>
+              <ImovelCard im={im} onClick={() => navigate(`/imovel/${im.id}`)} showStatus={false} actions={cardActions(im)} />
+            </div>
           ))}
         </div>
 
