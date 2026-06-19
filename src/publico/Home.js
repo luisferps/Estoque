@@ -156,8 +156,8 @@ export default function Home() {
         .imovel-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(0,0,0,0.14); }
         .modo-btn { transition: background .18s ease, color .18s ease, box-shadow .2s ease, transform .12s ease; }
         .modo-btn:not(.on):hover { background: rgba(255,255,255,0.10); }
-        .tipo-pill { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease; }
-        .tipo-pill:hover { transform: translateY(-1px); }
+        .tipo-card { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease; }
+        .tipo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.10); }
         .grad-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #fff; border: none; cursor: pointer; }
         .grad-btn:hover { filter: brightness(1.06); }
         .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; font-size: 12.5px; font-weight: 600; }
@@ -248,21 +248,25 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tipos (faixa secundária, branca, fora do hero, para Comprar/Alugar ficarem em evidência) */}
+        {/* Tipos (quadradinhos menores, embaixo da busca) */}
         {tiposVisiveis.length > 0 && (
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", marginTop: 16, paddingBottom: 6 }}>
-            <button className="tipo-pill" onClick={() => setTipo("Todos")}
-              style={{ ...tipoPill, ...(tipo === "Todos" ? tipoPillOn : {}) }}>
-              Todos os tipos <span style={{ opacity: 0.65, marginLeft: 6, fontWeight: 600 }}>{noModo.length}</span>
-            </button>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(88px, 1fr))", gap: 8, marginTop: 14 }}>
             {tiposVisiveis.map(t => {
               const ativo = tipo === t.nome;
               const qtd = contagemPorTipo[t.nome] || 0;
               return (
-                <button key={t.nome} className="tipo-pill" onClick={() => setTipo(ativo ? "Todos" : t.nome)}
-                  style={{ ...tipoPill, ...(ativo ? tipoPillOn : {}) }}>
-                  <span style={{ fontSize: 16, marginRight: 6 }}>{emojiTipo(t.nome)}</span>{t.nome}
-                  <span style={{ opacity: 0.65, marginLeft: 8, fontWeight: 600 }}>{qtd}</span>
+                <button key={t.nome} className="tipo-card" onClick={() => setTipo(ativo ? "Todos" : t.nome)}
+                  style={{
+                    background: ativo ? "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)" : "var(--bg-card)",
+                    color: ativo ? "#fff" : "var(--text)",
+                    border: `1px solid ${ativo ? "var(--primary)" : "var(--border)"}`,
+                    borderRadius: 14, padding: "10px 6px", cursor: "pointer",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    fontWeight: 600, boxShadow: ativo ? "0 6px 16px rgba(192,57,43,0.25)" : "var(--shadow)"
+                  }}>
+                  <span style={{ fontSize: 22 }}>{emojiTipo(t.nome)}</span>
+                  <span style={{ fontSize: 11.5, textAlign: "center", lineHeight: 1.15, marginTop: 2 }}>{t.nome}</span>
+                  <span style={{ fontSize: 10.5, opacity: ativo ? 0.85 : 0.65, fontWeight: 600 }}>{qtd} {qtd === 1 ? "imóvel" : "imóveis"}</span>
                 </button>
               );
             })}
@@ -318,11 +322,3 @@ const waBtnStyle = { flex: 1, padding: "11px 0", fontSize: 13.5, borderRadius: 1
 const compartilharBtnStyle = { width: "100%", padding: "11px 0", fontSize: 13.5, borderRadius: 12, border: "none", background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)", color: "#fff", cursor: "pointer", fontWeight: 700 };
 const popItem = { display: "block", padding: "10px 14px", fontSize: 13.5, color: "var(--text)", textDecoration: "none", borderRadius: 10, cursor: "pointer" };
 const lbl = { fontSize: 11.5, fontWeight: 700, color: "var(--text-muted)", display: "block", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 };
-
-const tipoPill = {
-  flex: "0 0 auto", padding: "9px 14px", borderRadius: 999,
-  border: "1px solid var(--border)", background: "var(--bg-card)",
-  color: "var(--text-soft)", cursor: "pointer", fontSize: 13, fontWeight: 600,
-  whiteSpace: "nowrap"
-};
-const tipoPillOn = { background: "var(--primary)", color: "#fff", border: "1px solid var(--primary)" };
