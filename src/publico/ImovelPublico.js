@@ -135,14 +135,14 @@ export default function ImovelPublico() {
         background: "radial-gradient(120% 130% at 50% -12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 42%), linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)",
         color: "#fff", padding: "1.4rem 1.5rem 2rem", borderRadius: "0 0 30px 30px"
       }}>
-        <div style={{ maxWidth: 880, margin: "0 auto" }}>
+        <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center" }}>
           <button onClick={() => navigate("/")} style={{
             display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)",
             border: "1px solid rgba(255,255,255,0.28)", color: "#fff", fontSize: 13, fontWeight: 600,
             padding: "7px 14px", borderRadius: 999, cursor: "pointer", backdropFilter: "blur(6px)"
           }}>← Voltar</button>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap", justifyContent: "center" }}>
             {ehLancamento && <span style={chipHero}>✨ Lançamento</span>}
             {im.tipo && <span style={chipHero}>{im.tipo}</span>}
             {im.transacao && <span style={chipHero}>{im.transacao}</span>}
@@ -179,7 +179,7 @@ export default function ImovelPublico() {
         )}
 
         {/* Preço destaque */}
-        <div className="card-soft" style={{ padding: "1.3rem 1.5rem", marginBottom: "1rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)", border: "1px solid var(--primary-border)" }}>
+        <div className="card-soft" style={{ padding: "1.3rem 1.5rem", marginBottom: "0.8rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)", border: "1px solid var(--primary-border)" }}>
           {isVen && im.preco && (
             <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "var(--primary-dark)", letterSpacing: -0.5 }}>
               {formatBRL(im.preco)}
@@ -192,12 +192,14 @@ export default function ImovelPublico() {
               <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>(aluguel + condomínio + IPTU)</span>
             </p>
           )}
-          {im.codigo && (
-            <p style={{ margin: "10px 0 0", fontSize: 12.5, fontWeight: 700, color: "var(--primary)", letterSpacing: 0.4 }}>
-              CÓD: {String(im.codigo).toUpperCase()}
-            </p>
-          )}
         </div>
+
+        {/* CÓD entre o preço e os botões */}
+        {im.codigo && (
+          <p style={{ margin: "0 0 0.9rem", textAlign: "center", fontSize: 13, fontWeight: 800, color: "var(--primary)", letterSpacing: 0.5 }}>
+            CÓD: {String(im.codigo).toUpperCase()}
+          </p>
+        )}
 
         {/* CTAs: WhatsApp + Compartilhar */}
         <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexWrap: "wrap" }}>
