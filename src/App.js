@@ -63,11 +63,51 @@ export default function App() {
   );
 }
 
-// ─── Guard de rotas do admin (senha local, persistida em sessionStorage) ───
+// ─── Guard de rotas do admin (SSO via Portal OU senha de backup, persistida em localStorage) ───
 function AdminRoute({ element: Component }) {
-  const [isAdmin, setIsAdmin] = useState(() => {
-    try { return sessionStorage.getItem("admin") === "1"; } catch { return false; }
-  });
+  // Estado: null = ainda verificando SSO; true = liberado; false = mostra PassModal
+  const [isAdmin, setIsAdmin] = useState(null);
+
+  useEffect(() => {
+    // 1) Tem ?sso=token na URL? troca por sessão no backend.
+    const params = new URLSearchParams(window.location.search);
+    const tokenSSO = params.get("sso");
+    if (tokenSSO) {
+      fetch("https://agentes-de-whatsapp-production.up.railway.app/painel/sso-resgatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: tokenSSO, sistema: "estoque" })
+      })
+        .then(r => r.json())
+        .then(j => {
+          if (j && j.ok && j.sessao) {
+            try { localStorage.setItem("admin_sso", JSON.stringify({ usuario: j.usuario, nome: j.nome, perfil: j.perfil, sessao: j.sessao })); } catch {}
+            // Limpa o ?sso= da URL pra não ficar exposto
+            try { window.history.replaceState(null, "", window.location.pathname + window.location.hash); } catch {}
+            setIsAdmin(true);
+          } else {
+            // SSO falhou — cai pra verificar sessão local / pedir senha
+            verificarSessaoLocal();
+          }
+        })
+        .catch(() => verificarSessaoLocal());
+      return;
+    }
+    verificarSessaoLocal();
+
+    function verificarSessaoLocal() {
+      // 2) Tem sessão local salva (SSO anterior ou senha)? libera.
+      try {
+        const sso = localStorage.getItem("admin_sso");
+        if (sso) { setIsAdmin(true); return; }
+      } catch {}
+      try {
+        if (sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1") { setIsAdmin(true); return; }
+      } catch {}
+      // 3) Nada — mostra PassModal
+      setIsAdmin(false);
+    }
+  }, []);
 
   const onSuccess = () => {
     try { sessionStorage.setItem("admin", "1"); } catch {}
@@ -75,9 +115,12 @@ function AdminRoute({ element: Component }) {
   };
 
   const onLogout = () => {
-    try { sessionStorage.removeItem("admin"); } catch {}
+    try { sessionStorage.removeItem("admin"); localStorage.removeItem("admin"); localStorage.removeItem("admin_sso"); } catch {}
     setIsAdmin(false);
   };
+
+  // Enquanto verifica SSO, evita piscar PassModal por meio segundo
+  if (isAdmin === null) return null;
 
   if (!isAdmin) {
     return <PassModal onClose={() => { window.location.href = "/"; }} onSuccess={onSuccess} />;
