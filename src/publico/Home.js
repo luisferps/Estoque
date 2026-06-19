@@ -146,14 +146,7 @@ export default function Home() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      {/* Fontes mais bonitas: Plus Jakarta Sans para texto, Manrope para títulos */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{`
-        html, body, input, select, button, textarea { font-family: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
-        h1, h2, h3, .display { font-family: 'Manrope', system-ui, sans-serif; letter-spacing: -0.6px; }
-        .imovel-card:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(0,0,0,0.14); }
         .modo-btn { transition: background .18s ease, color .18s ease, box-shadow .2s ease, transform .12s ease; }
         .modo-btn:not(.on):hover { background: rgba(255,255,255,0.10); }
         .tipo-card { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease; }
@@ -163,8 +156,6 @@ export default function Home() {
         @media (max-width: 700px) { .tipos-grid { grid-template-columns: repeat(5, minmax(0, 110px)); } }
         @media (max-width: 540px) { .tipos-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
         @media (max-width: 400px) { .tipos-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-        .grad-btn { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: #fff; border: none; cursor: pointer; }
-        .grad-btn:hover { filter: brightness(1.06); }
         .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; font-size: 12.5px; font-weight: 600; }
         .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
         .num-input { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
@@ -218,7 +209,7 @@ export default function Home() {
           <button onClick={() => setFiltroAberto(o => !o)} style={{ ...heroSelectStyle, flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
             💰 Valor {(valorMin || valorMax) ? "•" : ""}
           </button>
-          <button className="grad-btn" onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })}
+          <button className="btn-grad" onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })}
             style={{ flex: "0 0 auto", padding: "0 26px", borderRadius: 16, fontSize: 18, fontWeight: 700 }}>🔍</button>
         </div>
 
