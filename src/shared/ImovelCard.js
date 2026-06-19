@@ -32,8 +32,9 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
   const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
   const local = [im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase();
   const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
-  const condRaw = String(im.nomeCondominio == null ? "" : im.nomeCondominio).trim();
-  const tituloCard = tituloRaw || condRaw || im.tipo || "Imóvel";
+  const bairroRaw = String(im.bairro == null ? "" : im.bairro).trim();
+  const fallbackTipoBairro = im.tipo ? (bairroRaw ? `${im.tipo} em ${bairroRaw}` : im.tipo) : "Imóvel";
+  const tituloCard = tituloRaw || fallbackTipoBairro;
   const m2 = metragem(im);
   const q = parseInt(im.quartos) || 0;
   const su = parseInt(im.suites) || 0;
