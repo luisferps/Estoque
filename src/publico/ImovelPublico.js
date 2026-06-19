@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA } from "../constants";
@@ -7,7 +7,18 @@ import {
 } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
+import ImovelCard from "../shared/ImovelCard";
 import Header from "./Header";
+
+// chave do localStorage onde guardamos os IDs salvos pelo visitante (favoritos)
+const FAV_KEY = "inerente_favoritos";
+
+function lerFavoritos() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); } catch { return []; }
+}
+function gravarFavoritos(lista) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(lista)); } catch {}
+}
 
 // Normaliza um texto para comparar código (sem acento, minúsculo, espaços colapsados).
 function normCod(s) {
@@ -55,6 +66,25 @@ export default function ImovelPublico() {
   const [lb, setLb] = useState(null);
   const [share, setShare] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [favoritos, setFavoritos] = useState(lerFavoritos);
+  const ehFavorito = im ? favoritos.includes(im.id) : false;
+  const toggleFavorito = () => {
+    if (!im) return;
+    const nova = ehFavorito ? favoritos.filter(x => x !== im.id) : [...favoritos, im.id];
+    setFavoritos(nova); gravarFavoritos(nova);
+  };
+
+  // Imóveis relacionados: mesmo tipo + mesma transação (Venda/Locação), exclui o atual.
+  // Cai pra mesma cidade se não houver. Limita a 6.
+  const relacionados = useMemo(() => {
+    if (!im) return [];
+    const base = imoveis.filter(x => x.id !== im.id && statusDoImovel(x) === "Disponível" && apareceNoSite(x));
+    const mesmoTipoTrans = base.filter(x => x.tipo === im.tipo && (x.transacao || "") === (im.transacao || ""));
+    if (mesmoTipoTrans.length >= 3) return mesmoTipoTrans.slice(0, 6);
+    const mesmoTipo = base.filter(x => x.tipo === im.tipo);
+    if (mesmoTipo.length >= 3) return mesmoTipo.slice(0, 6);
+    return base.filter(x => x.cidade && x.cidade === im.cidade).slice(0, 6);
+  }, [imoveis, im]);
 
   // SEO: atualiza o título da aba e a meta description.
   useEffect(() => {
@@ -155,6 +185,31 @@ export default function ImovelPublico() {
               {[im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase()}
             </p>
           )}
+
+          {/* atalhos rápidos: salvar + atributos principais */}
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+            <button onClick={toggleFavorito}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                background: ehFavorito ? "#fff" : "rgba(255,255,255,0.16)",
+                color: ehFavorito ? "var(--primary-dark)" : "#fff",
+                border: "1px solid " + (ehFavorito ? "#fff" : "rgba(255,255,255,0.32)"),
+                padding: "8px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                backdropFilter: "blur(6px)"
+              }}>
+              {ehFavorito ? "♥ Salvo" : "♡ Salvar"}
+            </button>
+            {parseInt(im.quartos) > 0 && <span style={chipAttr}>🛏️ {im.quartos} qto{parseInt(im.quartos) > 1 ? "s" : ""}</span>}
+            {parseInt(im.suites) > 0 && <span style={chipAttr}>🚿 {im.suites} suíte{parseInt(im.suites) > 1 ? "s" : ""}</span>}
+            {parseInt(im.banheiros) > 0 && <span style={chipAttr}>🛁 {im.banheiros} banh.</span>}
+            {parseInt(im.garagens) > 0 && <span style={chipAttr}>🚗 {im.garagens} vaga{parseInt(im.garagens) > 1 ? "s" : ""}</span>}
+            {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)) > 0 && (
+              <span style={chipAttr}>📐 {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)).toLocaleString("pt-BR")} m²</span>
+            )}
+            {im.asfalto && <span style={chipAttr}>≡ Asfalto</span>}
+            {im.agua && <span style={chipAttr}>💧 Água</span>}
+            {im.esgoto && <span style={chipAttr}>◎ Esgoto</span>}
+          </div>
         </div>
       </div>
 
@@ -218,6 +273,35 @@ export default function ImovelPublico() {
           </div>
         </div>
 
+        {(() => {
+          // Bloco financeiro: só mostra se houver ao menos um item relevante (além do preço já em cima).
+          const m2 = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+          const preco = parseFloat(im.preco) || 0;
+          const precoM2 = (isVen && preco > 0 && m2 > 0) ? preco / m2 : 0;
+          const agio = parseFloat(im.valorAgio) || 0;
+          const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
+          const iptu = parseFloat(im.valorIPTU) || 0;
+          const linhas = [];
+          if (agio > 0) linhas.push(["Ágio", formatBRL(agio)]);
+          if (cond > 0) linhas.push(["Condomínio", formatBRL(cond) + "/mês"]);
+          if (iptu > 0) linhas.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
+          if (precoM2 > 0) linhas.push(["Preço por m²", formatBRL(precoM2)]);
+          if (!linhas.length) return null;
+          return section("Valor do imóvel", (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+              {linhas.map(([k, v]) => (
+                <div key={k} style={{
+                  background: "var(--bg-muted)", borderRadius: 12, padding: "12px 14px",
+                  border: "1px solid var(--border)"
+                }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: "var(--text)" }}>{v}</p>
+                </div>
+              ))}
+            </div>
+          ));
+        })()}
+
         {section("Características", <>
           {im.estadoImovel && row("Estado", im.estadoImovel)}
           {im.metragem && row("Metragem construída", im.metragem + " m²")}
@@ -268,16 +352,39 @@ export default function ImovelPublico() {
           </p>
         ))}
 
-        {im.mapsLink && (
-          <a href={im.mapsLink} target="_blank" rel="noreferrer" className="card-soft" style={{
-            display: "inline-flex", alignItems: "center", gap: 8, marginBottom: "1rem",
-            padding: "11px 20px", color: "var(--primary)",
-            border: "1px solid var(--primary)", borderRadius: 14,
-            fontSize: 14, textDecoration: "none", fontWeight: 700
-          }}>
-            📍 Ver localização no Google Maps
-          </a>
-        )}
+        {(im.mapsLink || (im.latitude && im.longitude)) && (() => {
+          // Gera a URL embed do Google Maps. Se tiver lat/lng usa coordenadas (mais preciso),
+          // senão usa o endereço/bairro/cidade. Sem chave do Google = usa o mode embed simples.
+          const consulta = (im.latitude && im.longitude)
+            ? `${im.latitude},${im.longitude}`
+            : [im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ");
+          const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=15&output=embed`;
+          return section("Localização", (
+            <div>
+              {(im.endereco || im.bairro || im.cidade) && (
+                <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>
+                  📍 {[im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ")}
+                </p>
+              )}
+              <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
+                <iframe
+                  src={embedSrc}
+                  title="Mapa"
+                  loading="lazy"
+                  style={{ width: "100%", height: 320, border: 0, display: "block" }}
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+              {im.mapsLink && (
+                <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
+                  padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)",
+                  borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 700
+                }}>↗ Abrir no Google Maps</a>
+              )}
+            </div>
+          ));
+        })()}
 
         <div className="card-soft" style={{
           background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)",
@@ -292,6 +399,19 @@ export default function ImovelPublico() {
         </div>
 
         {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem", textAlign: "center" }}>{RODAPE}</p>}
+
+        {/* Imóveis relacionados */}
+        {relacionados.length > 0 && (
+          <div style={{ margin: "2rem 0 1rem" }}>
+            <h2 className="display" style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 800, color: "var(--text)" }}>Imóveis relacionados</h2>
+            <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "var(--text-muted)" }}>Outras opções que podem te interessar</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+              {relacionados.map(r => (
+                <ImovelCard key={r.id} im={r} onClick={() => navigate(`/imovel/${r.id}`)} showStatus={false} />
+              ))}
+            </div>
+          </div>
+        )}
 
         <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -309,5 +429,10 @@ const chipHero = {
   background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.28)",
   color: "#fff", fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999,
   backdropFilter: "blur(4px)"
+};
+const chipAttr = {
+  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.24)",
+  color: "#fff", fontSize: 13, fontWeight: 700, padding: "6px 14px", borderRadius: 999,
+  display: "inline-flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)"
 };
 const popItem = { display: "block", padding: "10px 14px", fontSize: 13.5, color: "var(--text)", textDecoration: "none", borderRadius: 10, cursor: "pointer" };
