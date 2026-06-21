@@ -4,7 +4,7 @@ import { deleteDoc, doc, addDoc, collection, updateDoc } from "firebase/firestor
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
-import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
 import ImovelCard from "../shared/ImovelCard";
@@ -54,6 +54,27 @@ export default function Lista({ onLogout }) {
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
     await deleteDoc(doc(db, "imoveis", id));
+  };
+
+  // Abre a página pública do imóvel em nova aba.
+  const verNoSite = (im) => {
+    window.open(`${window.location.origin}/imovel/${im.id}`, "_blank");
+  };
+
+  // Copia a descrição pronta (mesma função da ficha) pro WhatsApp.
+  const [copiadoId, setCopiadoId] = useState(null);
+  const copiarDescricao = async (im) => {
+    const txt = descricaoPronta(im);
+    try {
+      await navigator.clipboard.writeText(txt);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
+    }
+    setCopiadoId(im.id);
+    setTimeout(() => setCopiadoId(null), 2000);
   };
 
   const duplicar = async (im) => {
@@ -191,6 +212,8 @@ export default function Lista({ onLogout }) {
             actions={
               <>
                 <button onClick={() => navigate(`/admin/imovel/${im.id}`)} style={miniBtn}>Ficha</button>
+                <button onClick={() => verNoSite(im)} style={miniBtn} title="Ver no site">🌐 Site</button>
+                <button onClick={() => copiarDescricao(im)} style={{ ...miniBtn, background: copiadoId === im.id ? "#25884f" : undefined, color: copiadoId === im.id ? "#fff" : undefined }} title="Copiar descrição pronta">{copiadoId === im.id ? "✓ Copiado" : "📋 Descrição"}</button>
                 {(ehDiretor || souDonoDe(im)) && <>
                   <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={miniBtn} title="Editar">✏️</button>
                   <button onClick={() => duplicar(im)} style={miniBtn} title="Duplicar">📋</button>
