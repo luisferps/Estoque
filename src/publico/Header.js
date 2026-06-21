@@ -22,8 +22,8 @@ h1, h2, h3, .display { font-family: 'Manrope', system-ui, sans-serif; letter-spa
 export default function Header({ corretorNovaAba = false }) {
   const navigate = useNavigate();
   const abrirCorretor = () => {
-    if (corretorNovaAba) window.open("/corretores", "_blank", "noopener,noreferrer");
-    else navigate("/corretores");
+    // "Área do Corretor" leva ao Portal Inerente (porta de entrada de todos os sistemas).
+    window.open("https://portalinerente.netlify.app", "_blank", "noopener,noreferrer");
   };
   return (
     <>
