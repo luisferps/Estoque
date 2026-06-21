@@ -29,18 +29,28 @@ export default function Consulta() {
   const [cidade, setCidade] = useState(salvos.cidade || "Todas");
   const [status, setStatus] = useState(salvos.status || "Todos");
   const [ordem, setOrdem] = useState(salvos.ordem || "recente");
+  const [precoMin, setPrecoMin] = useState(salvos.precoMin || "");
+  const [precoMax, setPrecoMax] = useState(salvos.precoMax || "");
   const [showPDF, setShowPDF] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
 
   // Salva os filtros sempre que mudam (sessionStorage = vale só enquanto a aba está aberta).
   useEffect(() => {
-    sessionStorage.setItem(FILTROS_KEY, JSON.stringify({ search, tipo, transacao, estado, cidade, status, ordem }));
-  }, [search, tipo, transacao, estado, cidade, status, ordem]);
+    sessionStorage.setItem(FILTROS_KEY, JSON.stringify({ search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax }));
+  }, [search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax]);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    const min = parseFloat(String(precoMin).replace(/[^\d]/g, "")) || 0;
+    const max = parseFloat(String(precoMax).replace(/[^\d]/g, "")) || Infinity;
+    // Preço de referência do imóvel: venda usa "preco"; senão usa o aluguel.
+    const precoDe = (im) => {
+      const v = parseFloat(String(im.preco || "").replace(/[^\d]/g, "")) || 0;
+      if (v > 0) return v;
+      return parseFloat(String(im.valorAluguel || "").replace(/[^\d]/g, "")) || 0;
+    };
     const base = imoveis.filter(im =>
       (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
@@ -48,9 +58,10 @@ export default function Consulta() {
       && (estado === "Todos" || im.estadoImovel === estado)
       && (cidade === "Todas" || im.cidade === cidade)
       && (status === "Todos" || statusDoImovel(im) === status)
+      && (() => { const p = precoDe(im); return p >= min && p <= max; })()
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem]);
+  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax]);
 
   return (
     <div style={pageWrap(960)}>
@@ -73,6 +84,27 @@ export default function Consulta() {
         cidades={cidades}
         showStatus={true}
       />
+
+      {/* Faixa de preço (venda ou aluguel) */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "0 0 1rem" }}>
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>💰 Preço de</span>
+        <input
+          type="text" inputMode="numeric" placeholder="mínimo"
+          value={precoMin}
+          onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))}
+          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }}
+        />
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>até</span>
+        <input
+          type="text" inputMode="numeric" placeholder="máximo"
+          value={precoMax}
+          onChange={e => setPrecoMax(e.target.value.replace(/[^\d]/g, ""))}
+          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }}
+        />
+        {(precoMin || precoMax) && (
+          <button onClick={() => { setPrecoMin(""); setPrecoMax(""); }} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>limpar preço</button>
+        )}
+      </div>
 
       <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 1rem" }}>{filtered.length} imóvel(is) encontrado(s)</p>
 
