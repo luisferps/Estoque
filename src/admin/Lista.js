@@ -44,7 +44,9 @@ export default function Lista({ onLogout }) {
       && (cidade === "Todas" || im.cidade === cidade)
       && (status === "Todos" || statusDoImovel(im) === status)
       // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
-      && (im.status !== "Aguardando finaliza\u00e7\u00e3o" || ehDiretor || souDonoDe(im))
+      && (im.status !== "Aguardando finaliza\u00e7\u00e3o" || ehDiretor
+          || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
+          || (user && im.captadorUid && im.captadorUid === user.uid))
     );
     return ordenarImoveis(base, ordem);
   }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, ehDiretor, meuEmail, user]);
