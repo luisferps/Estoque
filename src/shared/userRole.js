@@ -48,3 +48,30 @@ export function useUserRole() {
 
   return { user, perfil, isAdmin, isCorretor, loading };
 }
+
+// Lê o perfil de quem entrou pelo Portal (admin_sso no localStorage).
+// Retorna o papel: 'diretor' | 'gerente' | 'escritorio' | 'corretor' | null.
+// Quem entra pelo Portal no Estoque é a equipe; o backend manda o papel real no SSO.
+export function perfilSSO() {
+  try {
+    const raw = localStorage.getItem("admin_sso");
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return (d && d.perfil) ? String(d.perfil).toLowerCase() : null;
+  } catch { return null; }
+}
+
+// Identidade de quem entrou pelo Portal (email), pra marcar "dono" do imóvel.
+export function usuarioSSO() {
+  try {
+    const raw = localStorage.getItem("admin_sso");
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    return (d && d.usuario) ? String(d.usuario).toLowerCase() : null;
+  } catch { return null; }
+}
+
+// É diretor? (via Portal com perfil diretor). O diretor vê e edita tudo.
+export function ehDiretorSSO() {
+  return perfilSSO() === "diretor";
+}
