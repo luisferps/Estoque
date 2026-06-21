@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deleteDoc, doc, addDoc, collection, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole } from "../shared/userRole";
+import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
@@ -15,6 +15,12 @@ export default function Lista({ onLogout }) {
   const { imoveis, loading } = useImoveis();
   const { tipos } = useTipos();
   const { user, isAdmin } = useUserRole();
+  const ehDiretor = ehDiretorSSO() || isAdmin;
+  const meuEmail = usuarioSSO();
+  const souDonoDe = (im) => !!(
+    (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
+    (user && im.captadorUid && im.captadorUid === user.uid)
+  );
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -38,10 +44,10 @@ export default function Lista({ onLogout }) {
       && (cidade === "Todas" || im.cidade === cidade)
       && (status === "Todos" || statusDoImovel(im) === status)
       // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
-      && (im.status !== "Aguardando finaliza\u00e7\u00e3o" || isAdmin || (user && im.captadorUid && im.captadorUid === user.uid))
+      && (im.status !== "Aguardando finaliza\u00e7\u00e3o" || ehDiretor || souDonoDe(im))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, isAdmin, user]);
+  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, ehDiretor, meuEmail, user]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
@@ -53,15 +59,16 @@ export default function Lista({ onLogout }) {
   // Rodar UMA vez. Depois este botão pode ser removido.
   const [migrandoDonos, setMigrandoDonos] = useState(false);
   const migrarDonos = async () => {
-    if (!user) return alert("Você precisa estar logado.");
-    const semDono = imoveis.filter(im => !(im.captadorUid || "").trim());
+    const email = usuarioSSO();
+    if (!email) return alert("Não consegui identificar seu email. Entre pelo Portal.");
+    const semDono = imoveis.filter(im => !(im.captadorEmail || "").trim());
     if (semDono.length === 0) return alert("Nenhum imóvel sem dono. Migração já feita. ✓");
-    if (!window.confirm(`Vincular ${semDono.length} imóvel(is) sem dono a VOCÊ (${user.email})?\n\nIsso define você como captador deles.`)) return;
+    if (!window.confirm(`Vincular ${semDono.length} imóvel(is) sem dono a VOCÊ (${email})?\n\nIsso define você como captador deles.`)) return;
     setMigrandoDonos(true);
     let ok = 0;
     try {
       for (const im of semDono) {
-        await updateDoc(doc(db, "imoveis", im.id), { captadorUid: user.uid });
+        await updateDoc(doc(db, "imoveis", im.id), { captadorEmail: email });
         ok++;
       }
       alert(`✓ Migração concluída! ${ok} imóvel(is) vinculado(s) a você.`);
@@ -156,7 +163,7 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
           <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
           <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
-          {isAdmin && <button onClick={migrarDonos} disabled={migrandoDonos} style={{ ...menuBtn, border: "1px solid #f59e0b", color: "#b45309" }}>{migrandoDonos ? "Migrando…" : "🔧 Migrar donos"}</button>}
+          {ehDiretor && <button onClick={migrarDonos} disabled={migrandoDonos} style={{ ...menuBtn, border: "1px solid #f59e0b", color: "#b45309" }}>{migrandoDonos ? "Migrando…" : "🔧 Migrar donos"}</button>}
           <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>Admin</span>
           <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
@@ -205,7 +212,7 @@ export default function Lista({ onLogout }) {
             actions={
               <>
                 <button onClick={() => navigate(`/admin/imovel/${im.id}`)} style={miniBtn}>Ficha</button>
-                {(isAdmin || (user && im.captadorUid && im.captadorUid === user.uid)) && <>
+                {(ehDiretor || souDonoDe(im)) && <>
                   <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={miniBtn} title="Editar">✏️</button>
                   <button onClick={() => duplicar(im)} style={miniBtn} title="Duplicar">📋</button>
                   <button onClick={() => del(im.id)} style={{ ...miniBtn, border: "1px solid var(--primary-border)", background: "var(--primary-light)" }} title="Excluir">🗑️</button>

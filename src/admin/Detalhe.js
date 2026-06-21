@@ -4,7 +4,7 @@ import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
-import { useUserRole } from "../shared/userRole";
+import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
   descricaoPronta, downloadFotos, gerarPDF
@@ -30,11 +30,17 @@ export default function Detalhe() {
   const isVen = isVenda(im);
 
   const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
-  // Dono do imóvel = captadorUid igual ao usuário logado. Diretor (admin) vê tudo.
-  const souDono = !!(user && im.captadorUid && im.captadorUid === user.uid);
-  const podeEditar = isAdmin || souDono;            // botão Editar só para dono/diretor
-  const podeVerProprietario = isAdmin || souDono;   // contato do proprietário só dono/diretor
-  const podeVerAnuncios = isAdmin;                  // "onde foi anunciado" só diretor
+  // Diretor = entrou pelo Portal como diretor (SSO) OU é admin na coleção corretores.
+  const ehDiretor = ehDiretorSSO() || isAdmin;
+  // Dono do imóvel = mesmo email do captador (SSO) ou mesmo uid (Firebase).
+  const meuEmail = usuarioSSO();
+  const souDono = !!(
+    (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
+    (user && im.captadorUid && im.captadorUid === user.uid)
+  );
+  const podeEditar = ehDiretor || souDono;            // botão Editar só para dono/diretor
+  const podeVerProprietario = ehDiretor || souDono;   // contato do proprietário só dono/diretor
+  const podeVerAnuncios = ehDiretor;                  // "onde foi anunciado" só diretor
   const temCaptador = im.nomeCaptador || im.telefoneCaptador;
   const temProprietario = (im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
 

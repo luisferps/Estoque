@@ -6,7 +6,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole } from "../shared/userRole";
+import { useUserRole, usuarioSSO } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -93,21 +93,23 @@ export default function Form() {
     }
   }, [id, imoveis, loading, navigate]);
 
-  // Imóvel NOVO: pré-preenche captador (nome + telefone) com os dados do usuário logado.
-  // O captadorUid guarda QUEM é o dono (robusto, não depende do nome). Tudo continua editável.
+  // Imóvel NOVO: pré-preenche captador com os dados de quem está logado.
+  // O dono é marcado por captadorEmail (vem do Portal/SSO) — funciona pro diretor e corretores.
+  // O perfil do Firebase (useUserRole) é usado como complemento se existir (nome/telefone).
   useEffect(() => {
     if (id) return;            // só para imóvel novo
-    if (!perfil || !user) return;
+    const email = usuarioSSO();
     setForm(p => {
-      if (p.captadorUid) return p; // já preenchido (não sobrescreve)
+      if (p.captadorEmail) return p; // já preenchido (não sobrescreve)
       return {
         ...p,
-        nomeCaptador: p.nomeCaptador || perfil.nome || "",
-        telefoneCaptador: p.telefoneCaptador || perfil.telefone || "",
-        captadorUid: user.uid,
+        nomeCaptador: p.nomeCaptador || perfil?.nome || "",
+        telefoneCaptador: p.telefoneCaptador || perfil?.telefone || "",
+        captadorEmail: email || "",
+        captadorUid: user?.uid || "",
       };
     });
-    if ((perfil.telefone || "").trim().startsWith("+")) setTelCaptadorIntl(true);
+    if ((perfil?.telefone || "").trim().startsWith("+")) setTelCaptadorIntl(true);
   }, [id, perfil, user]);
 
   // isLote por comportamento OU por nome (pega "Lote em Condomínio", "Lote Comercial",
