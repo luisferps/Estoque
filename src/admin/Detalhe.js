@@ -4,6 +4,7 @@ import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
+import { useUserRole } from "../shared/userRole";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
   descricaoPronta, downloadFotos, gerarPDF
@@ -15,6 +16,7 @@ export default function Detalhe() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { imoveis } = useImoveis();
+  const { user, isAdmin } = useUserRole();
   const im = imoveis.find(i => i.id === id);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
@@ -28,8 +30,13 @@ export default function Detalhe() {
   const isVen = isVenda(im);
 
   const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
+  // Dono do imóvel = captadorUid igual ao usuário logado. Diretor (admin) vê tudo.
+  const souDono = !!(user && im.captadorUid && im.captadorUid === user.uid);
+  const podeEditar = isAdmin || souDono;            // botão Editar só para dono/diretor
+  const podeVerProprietario = isAdmin || souDono;   // contato do proprietário só dono/diretor
+  const podeVerAnuncios = isAdmin;                  // "onde foi anunciado" só diretor
   const temCaptador = im.nomeCaptador || im.telefoneCaptador;
-  const temProprietario = im.nomeProprietario || im.telefoneProprietario;
+  const temProprietario = (im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
 
   const copiarDescricao = async () => {
     const txt = descricaoPronta(im);
@@ -87,10 +94,20 @@ export default function Detalhe() {
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
         <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--text)" }}>{im.titulo || "Ficha do imóvel"}</h2>
-        <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13 }}>Editar</button>
+        {podeEditar && <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13 }}>Editar</button>}
         <button onClick={duplicar} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13 }}>📋 Duplicar</button>
         <button onClick={del} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--primary-border)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 13 }}>🗑️</button>
       </div>
+
+      {/* Aviso: imóvel não publicado por faltar dados obrigatórios */}
+      {im.status === "Aguardando finaliza\u00e7\u00e3o" && (
+        <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "12px 16px", marginBottom: "1rem", color: "var(--primary-dark)", fontSize: 13.5 }}>
+          <b>⚠️ Aguardando finalização</b> — este imóvel ainda não está publicado.
+          {Array.isArray(im.faltandoFinalizar) && im.faltandoFinalizar.length > 0 && (
+            <> Falta preencher: <b>{im.faltandoFinalizar.join(", ")}</b>.</>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap" }}>
         {im.tipo && <span style={tag("primary")}>{im.tipo}</span>}
@@ -197,7 +214,7 @@ export default function Detalhe() {
         )
       )}
 
-      {Object.values(im.anuncios || {}).some(a => a?.ativo) && section("Anúncios",
+      {podeVerAnuncios && Object.values(im.anuncios || {}).some(a => a?.ativo) && section("Anúncios",
         CANAIS.filter(c => im.anuncios?.[c]?.ativo).map(c => (
           <div key={c} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
             <span>{c}</span><span style={{ color: "var(--text-muted)" }}>{im.anuncios[c].data}</span>

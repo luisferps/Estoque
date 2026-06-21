@@ -6,6 +6,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
+import { useUserRole } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -53,6 +54,7 @@ export default function Form() {
   const { id } = useParams();
   const { imoveis, loading } = useImoveis();
   const { tipos } = useTipos();
+  const { user, perfil, isAdmin } = useUserRole();
   const [form, setForm] = useState(emptyForm);
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
@@ -90,6 +92,23 @@ export default function Form() {
       navigate("/admin");
     }
   }, [id, imoveis, loading, navigate]);
+
+  // Imóvel NOVO: pré-preenche captador (nome + telefone) com os dados do usuário logado.
+  // O captadorUid guarda QUEM é o dono (robusto, não depende do nome). Tudo continua editável.
+  useEffect(() => {
+    if (id) return;            // só para imóvel novo
+    if (!perfil || !user) return;
+    setForm(p => {
+      if (p.captadorUid) return p; // já preenchido (não sobrescreve)
+      return {
+        ...p,
+        nomeCaptador: p.nomeCaptador || perfil.nome || "",
+        telefoneCaptador: p.telefoneCaptador || perfil.telefone || "",
+        captadorUid: user.uid,
+      };
+    });
+    if ((perfil.telefone || "").trim().startsWith("+")) setTelCaptadorIntl(true);
+  }, [id, perfil, user]);
 
   // isLote por comportamento OU por nome (pega "Lote em Condomínio", "Lote Comercial",
   // "Área Comercial" etc. mesmo se o comportamento no cadastro estiver errado/vazio).
@@ -151,6 +170,32 @@ export default function Form() {
       if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
+
+      // ── Campos obrigatórios para PUBLICAR (ativar) a ficha ──
+      // Faltando qualquer um, o imóvel é salvo mas fica "Aguardando Finalização"
+      // (não entra no ar). O usuário pode completar depois.
+      const faltando = [];
+      if (!(data.nomeProprietario || "").trim()) faltando.push("dados do proprietário");
+      if (!(data.telefoneProprietario || "").trim()) faltando.push("telefone do proprietário");
+      if (!(data.descricao || "").trim()) faltando.push("descrição");
+      if (!(String(data.preco || "")).trim()) faltando.push("valor");
+      if (!(data.cidade || "").trim() || !(data.bairro || "").trim()) faltando.push("localização");
+      if (!(data.endereco || "").trim()) faltando.push("endereço");
+      if (!Array.isArray(data.fotos) || data.fotos.length === 0) faltando.push("fotos");
+      if (!(String(data.metragem || "")).trim()) faltando.push("metragem");
+      if (!(data.titulo || "").trim()) faltando.push("título");
+      if (!(data.tipo || "").trim()) faltando.push("tipo de imóvel");
+      if (!(data.transacao || "").trim()) faltando.push("tipo de transação");
+      if (!(data.estadoImovel || "").trim()) faltando.push("estado do imóvel");
+      if (!(data.visibilidade || "").trim()) faltando.push("visibilidade");
+
+      if (faltando.length > 0) {
+        data.status = "Aguardando finaliza\u00e7\u00e3o";
+        data.faltandoFinalizar = faltando; // guarda o que falta, pra mostrar na ficha
+      } else {
+        data.faltandoFinalizar = [];
+      }
+
       // Código automático: se ainda não tem código e há bairro, reserva o próximo
       // do contador persistente (atômico, nunca repete). Imóveis que já têm código mantêm.
       if (!(data.codigo || "").trim() && (data.bairro || "").trim()) {
