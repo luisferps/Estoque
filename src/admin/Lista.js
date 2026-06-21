@@ -56,30 +56,6 @@ export default function Lista({ onLogout }) {
     await deleteDoc(doc(db, "imoveis", id));
   };
 
-  // ── TEMPORÁRIO — Migração de dono dos imóveis ──
-  // Vincula todos os imóveis SEM captadorUid ao usuário logado (Luis Fernando).
-  // Rodar UMA vez. Depois este botão pode ser removido.
-  const [migrandoDonos, setMigrandoDonos] = useState(false);
-  const migrarDonos = async () => {
-    const email = usuarioSSO();
-    if (!email) return alert("Não consegui identificar seu email. Entre pelo Portal.");
-    const semDono = imoveis.filter(im => !(im.captadorEmail || "").trim());
-    if (semDono.length === 0) return alert("Nenhum imóvel sem dono. Migração já feita. ✓");
-    if (!window.confirm(`Vincular ${semDono.length} imóvel(is) sem dono a VOCÊ (${email})?\n\nIsso define você como captador deles.`)) return;
-    setMigrandoDonos(true);
-    let ok = 0;
-    try {
-      for (const im of semDono) {
-        await updateDoc(doc(db, "imoveis", im.id), { captadorEmail: email });
-        ok++;
-      }
-      alert(`✓ Migração concluída! ${ok} imóvel(is) vinculado(s) a você.`);
-    } catch (e) {
-      alert(`Migrou ${ok} de ${semDono.length}. Erro: ${e.message}. Pode clicar de novo pra continuar.`);
-    }
-    setMigrandoDonos(false);
-  };
-
   const duplicar = async (im) => {
     if (!window.confirm(`Duplicar "${im.titulo}"?`)) return;
     const { id: _id, createdAt: _ca, ...data } = im;
@@ -165,7 +141,6 @@ export default function Lista({ onLogout }) {
           <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
           <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
           <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
-          {ehDiretor && <button onClick={migrarDonos} disabled={migrandoDonos} style={{ ...menuBtn, border: "1px solid #f59e0b", color: "#b45309" }}>{migrandoDonos ? "Migrando…" : "🔧 Migrar donos"}</button>}
           <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>Admin</span>
           <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
