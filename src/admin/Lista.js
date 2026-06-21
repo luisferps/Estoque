@@ -135,13 +135,15 @@ export default function Lista({ onLogout }) {
           <DarkModeToggle />
           <button onClick={() => navigate("/")} style={btnOutline}>Ver site público</button>
           <button onClick={() => navigate("/admin/consulta")} style={btnOutline}>Consulta</button>
-          <button onClick={() => navigate("/admin/anuncios")} style={menuBtn}>Anúncios</button>
-          <button onClick={() => navigate("/admin/rotacao")} style={menuBtnDestaque}>🏠 Rotação</button>
-          <button onClick={() => navigate("/admin/destaques")} style={menuBtnDestaque}>⭐ Destaques</button>
-          <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
-          <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
-          <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
-          <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>Admin</span>
+          {ehDiretor && <>
+            <button onClick={() => navigate("/admin/anuncios")} style={menuBtn}>Anúncios</button>
+            <button onClick={() => navigate("/admin/rotacao")} style={menuBtnDestaque}>🏠 Rotação</button>
+            <button onClick={() => navigate("/admin/destaques")} style={menuBtnDestaque}>⭐ Destaques</button>
+            <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
+            <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
+            <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
+          </>}
+          <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
           <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
         </div>
