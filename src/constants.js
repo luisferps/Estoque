@@ -91,7 +91,7 @@ export const emptyForm = {
   cep: "", cidade: "", bairro: "", endereco: "", estado: "", asfalto: false, agua: false, esgoto: false,
   latitude: "", longitude: "",
   metragem: "", metragemTotal: "", nomeProprietario: "", telefoneProprietario: "",
-  nomeCaptador: "", telefoneCaptador: "", captadorUid: "", condominio: false, nomeCondominio: "", valorCondominioMensal: "",
+  nomeCaptador: "", telefoneCaptador: "", captadorUid: "", captadorEmail: "", condominio: false, nomeCondominio: "", valorCondominioMensal: "",
   declive: "Plano", muro: false, esquina: false, retangular: false, frente: "", laterais: "", medidas: "",
   quartos: "", suites: "", garagens: "", banheiros: "", valorAvaliacao: "", valorEntrada: "", valorCondominio: "",
   valorAluguel: "", valorIPTU: "", condicoes: [], permuta: "", anuncios: {}, fotos: [],
