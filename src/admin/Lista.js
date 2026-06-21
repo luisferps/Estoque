@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteDoc, doc, addDoc, collection, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
@@ -75,17 +75,6 @@ export default function Lista({ onLogout }) {
     }
     setCopiadoId(im.id);
     setTimeout(() => setCopiadoId(null), 2000);
-  };
-
-  const duplicar = async (im) => {
-    if (!window.confirm(`Duplicar "${im.titulo}"?`)) return;
-    const { id: _id, createdAt: _ca, ...data } = im;
-    await addDoc(collection(db, "imoveis"), {
-      ...data,
-      titulo: `${data.titulo} (cópia)`,
-      anuncios: {},
-      createdAt: Date.now()
-    });
   };
 
   // Gera código para todos os imóveis que ainda não têm, usando o contador persistente.
@@ -212,11 +201,10 @@ export default function Lista({ onLogout }) {
             actions={
               <>
                 <button onClick={() => navigate(`/admin/imovel/${im.id}`)} style={miniBtn}>Ficha</button>
-                <button onClick={() => verNoSite(im)} style={miniBtn} title="Ver no site">🌐 Site</button>
-                <button onClick={() => copiarDescricao(im)} style={{ ...miniBtn, background: copiadoId === im.id ? "#25884f" : undefined, color: copiadoId === im.id ? "#fff" : undefined }} title="Copiar descrição pronta">{copiadoId === im.id ? "✓ Copiado" : "📋 Descrição"}</button>
+                <button onClick={() => verNoSite(im)} style={miniBtn} title="Ver no site">🌐</button>
+                <button onClick={() => copiarDescricao(im)} style={{ ...miniBtn, background: copiadoId === im.id ? "#25884f" : undefined, color: copiadoId === im.id ? "#fff" : undefined }} title="Copiar descrição pronta">{copiadoId === im.id ? "✓" : "📝"}</button>
                 {(ehDiretor || souDonoDe(im)) && <>
                   <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={miniBtn} title="Editar">✏️</button>
-                  <button onClick={() => duplicar(im)} style={miniBtn} title="Duplicar">📋</button>
                   <button onClick={() => del(im.id)} style={{ ...miniBtn, border: "1px solid var(--primary-border)", background: "var(--primary-light)" }} title="Excluir">🗑️</button>
                 </>}
               </>
