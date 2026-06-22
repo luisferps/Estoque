@@ -176,6 +176,14 @@ export function gerarDescricao(form) {
     // Ágio: troca o rótulo "Venda" por "Ágio" (imóvel financiado/em consórcio).
     const rotuloVenda = form._agio ? "Ágio" : "Venda";
     linhas.push(`${rotuloVenda}: ${formatBRL(form.preco)}`);
+    // Dados do ágio: parcela, prazo, saldo devedor e valor total (ágio + saldo).
+    if (form._agio) {
+      if (parseFloat(form.agioParcela)) linhas.push(`Parcelas de ${formatBRL(form.agioParcela)}`);
+      if (parseFloat(form.agioPrazo)) linhas.push(`Faltam ${parseInt(form.agioPrazo)} meses para quitação`);
+      if (parseFloat(form.agioSaldoDevedor)) linhas.push(`Saldo devedor: ${formatBRL(form.agioSaldoDevedor)}`);
+      const totalAgio = (parseFloat(form.preco) || 0) + (parseFloat(form.agioSaldoDevedor) || 0);
+      if (totalAgio) linhas.push(`Valor total: ${formatBRL(totalAgio)}`);
+    }
     if (parseFloat(form.valorAvaliacao)) linhas.push(`Avaliado em ${formatBRL(form.valorAvaliacao)}`);
     if (parseFloat(form.valorEntrada)) linhas.push(`Entrada: ${formatBRL(form.valorEntrada)}`);
   }
