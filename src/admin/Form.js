@@ -6,7 +6,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, usuarioSSO, ehDiretorSSO } from "../shared/userRole";
+import { useUserRole, usuarioSSO, ehDiretorEfetivo } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -47,17 +47,6 @@ function extrasParaTexto(v) {
   if (Array.isArray(v)) return v.filter(Boolean).join("\n");
   if (v == null) return "";
   return String(v);
-}
-
-// Quem entrou pela senha mestra de backup (sem SSO do Portal) é o diretor — pode editar tudo.
-function entrouPorSenhaBackup() {
-  try {
-    const temSenha = sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1";
-    const temSSO = !!localStorage.getItem("admin_sso");
-    return temSenha && !temSSO;
-  } catch {
-    return false;
-  }
 }
 
 export default function Form() {
@@ -102,7 +91,7 @@ export default function Form() {
     const meuEmail = (usuarioSSO() || "").toLowerCase();
     const dono = String(existing.captadorEmail || "").toLowerCase();
     const souDono = !!meuEmail && !!dono && meuEmail === dono;
-    const ehDiretor = ehDiretorSSO() || isAdmin || entrouPorSenhaBackup();
+    const ehDiretor = ehDiretorEfetivo(isAdmin);
     if (!souDono && !ehDiretor) {
       // O papel via Firebase pode ainda estar carregando — espera antes de bloquear,
       // pra nunca barrar um diretor por engano (falso negativo).
