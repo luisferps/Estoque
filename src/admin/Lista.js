@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta } from "../shared/utils";
 import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
@@ -15,7 +15,7 @@ export default function Lista({ onLogout }) {
   const { imoveis, loading } = useImoveis();
   const { tipos } = useTipos();
   const { user, isAdmin } = useUserRole();
-  const ehDiretor = ehDiretorSSO() || isAdmin;
+  const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
   const souDonoDe = (im) => !!(
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
