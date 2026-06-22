@@ -75,3 +75,26 @@ export function usuarioSSO() {
 export function ehDiretorSSO() {
   return perfilSSO() === "diretor";
 }
+
+// Quem entrou pela senha mestra de backup (sem SSO do Portal) é o diretor — vê e edita tudo.
+export function entrouPorSenhaBackup() {
+  try {
+    const temSenha = sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1";
+    const temSSO = !!localStorage.getItem("admin_sso");
+    return temSenha && !temSSO;
+  } catch { return false; }
+}
+
+// DECISÃO ÚNICA de "é diretor agora?". REGRA: o papel do PORTAL (SSO) MANDA.
+// - Entrou pelo Portal (tem admin_sso) → vale SÓ o papel do SSO; o admin do Firebase
+//   NÃO sobrepõe. (Evita a sessão Firebase de um diretor "vazar" e fazer um corretor
+//   logado pelo Portal aparecer como diretor no mesmo navegador.)
+// - Sem SSO → senha de backup OU admin do Firebase.
+// Recebe o isAdmin do hook useUserRole (Firebase) como argumento.
+export function ehDiretorEfetivo(isAdminFirebase) {
+  try {
+    if (localStorage.getItem("admin_sso")) return perfilSSO() === "diretor";
+  } catch {}
+  if (entrouPorSenhaBackup()) return true;
+  return !!isAdminFirebase;
+}
