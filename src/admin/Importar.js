@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { addDoc, collection, getDocs, deleteDoc, doc, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { criarImovelBackend, excluirImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useTipos } from "../shared/hooks";
 import { pageWrap, btnPrimary } from "../shared/styles";
@@ -27,7 +28,7 @@ export default function Importar() {
       addLog(`Encontrados ${snap.size} imóveis do tipo "${tipoLimpar}".`);
       let n = 0;
       for (const d of snap.docs) {
-        await deleteDoc(doc(db, "imoveis", d.id));
+        await excluirImovelBackend(d.id);
         n++;
         addLog(`🗑️ ${n}/${snap.size} apagado`);
       }
@@ -61,7 +62,7 @@ export default function Importar() {
     for (let i = 0; i < dados.length; i++) {
       const im = dados[i];
       try {
-        await addDoc(collection(db, "imoveis"), { ...im, createdAt: Date.now() + i });
+        await criarImovelBackend({ ...im });
         ok++;
         addLog(`✅ ${i + 1}/${dados.length} — ${im.titulo || "sem título"} (${im.cidade || ""})`);
       } catch (e) {
