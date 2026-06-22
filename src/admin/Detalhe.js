@@ -4,7 +4,7 @@ import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
-import { useUserRole, ehDiretorSSO, usuarioSSO } from "../shared/userRole";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
   descricaoPronta, downloadFotos, gerarPDF
@@ -31,7 +31,7 @@ export default function Detalhe() {
 
   const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
   // Diretor = entrou pelo Portal como diretor (SSO) OU é admin na coleção corretores.
-  const ehDiretor = ehDiretorSSO() || isAdmin;
+  const ehDiretor = ehDiretorEfetivo(isAdmin);
   // Dono do imóvel = mesmo email do captador (SSO) ou mesmo uid (Firebase).
   const meuEmail = usuarioSSO();
   const souDono = !!(
