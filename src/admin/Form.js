@@ -14,7 +14,7 @@ import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
 import PreviaQualidade from "./PreviaQualidade";
 
-const CANAIS_AUTO = ["Canal Pro", "Chaves na M\u00e3o", "Cat\u00e1logo Meta"];
+const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
 
 const MIGRAR_CANAIS = {
   "Whatsapp": "WhatsApp Status",
@@ -27,10 +27,10 @@ const MIGRAR_CANAIS = {
 // Tipos que SAO "em condominio" (viraram tipos proprios). O nome do condominio
 // e o valor do condominio passam a depender do TIPO escolhido, nao mais de uma flag.
 const TIPOS_EM_CONDOMINIO = [
-  "Casa em Condom\u00ednio",
-  "Sobrado em Condom\u00ednio",
-  "Lote em Condom\u00ednio",
-  "Ch\u00e1cara em Condom\u00ednio",
+  "Casa em Condomínio",
+  "Sobrado em Condomínio",
+  "Lote em Condomínio",
+  "Chácara em Condomínio",
 ];
 function ehEmCondominio(tipo) {
   return TIPOS_EM_CONDOMINIO.includes(String(tipo || "").trim());
@@ -126,11 +126,11 @@ export default function Form() {
     if (loading) return;
     const existing = imoveis.find(i => i.id === id);
     if (!existing) {
-      if (imoveis.length > 0) { alert("Im\u00f3vel n\u00e3o encontrado."); navigate("/admin"); }
+      if (imoveis.length > 0) { alert("Imóvel não encontrado."); navigate("/admin"); }
       return;
     }
-    // Permiss\u00e3o de edi\u00e7\u00e3o: s\u00f3 o DONO (captadorEmail) ou DIRETOR pode editar.
-    // Bloqueia corretor/gerente que tente abrir /admin/editar/:id de im\u00f3vel de outro pela URL.
+    // Permissão de edição: só o DONO (captadorEmail) ou DIRETOR pode editar.
+    // Bloqueia corretor/gerente que tente abrir /admin/editar/:id de imóvel de outro pela URL.
     const meuEmail = (usuarioSSO() || "").toLowerCase();
     const dono = String(existing.captadorEmail || "").toLowerCase();
     const souDono = !!meuEmail && !!dono && meuEmail === dono;
@@ -139,11 +139,11 @@ export default function Form() {
       // O papel via Firebase pode ainda estar carregando — espera antes de bloquear,
       // pra nunca barrar um diretor por engano (falso negativo).
       if (loadingRole) return;
-      alert("Voc\u00ea s\u00f3 pode editar im\u00f3veis captados por voc\u00ea.");
+      alert("Você só pode editar imóveis captados por você.");
       navigate("/admin");
       return;
     }
-    // Liberado (dono ou diretor) — carrega o im\u00f3vel no formul\u00e1rio.
+    // Liberado (dono ou diretor) — carrega o imóvel no formulário.
     setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
     setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
     setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
@@ -175,8 +175,8 @@ export default function Form() {
   const isConstrucao = ehConstrucao(form.tipo, tipos) && !isLote;
   // Tipos rurais têm casa E terreno -> mostram os dois grupos de campos.
   const isRural = /ch[áa]cara|s[íi]tio|fazenda|rancho|haras/i.test(form.tipo || "");
-  const isLocacao = form.transacao === "Loca\u00e7\u00e3o";
-  const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Loca\u00e7\u00e3o";
+  const isLocacao = form.transacao === "Locação";
+  const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Locação";
   const emCondominio = ehEmCondominio(form.tipo);
   const temCondominio = emCondominio || form.tipo === "Apartamento"; // apartamento ja e condominio
 
@@ -215,11 +215,11 @@ export default function Form() {
   };
 
   const save = async () => {
-    if (!form.titulo) return alert("Preencha o t\u00edtulo.");
+    if (!form.titulo) return alert("Preencha o título.");
     if (!telefoneValido(form.telefoneProprietario, telProprietarioIntl))
-      return alert("Informe o telefone do propriet\u00e1rio: nacional (fixo 10 d\u00edgitos ou celular 11) ou internacional (com + e c\u00f3digo do pa\u00eds).");
+      return alert("Informe o telefone do proprietário: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
     if (!telefoneValido(form.telefoneCaptador, telCaptadorIntl))
-      return alert("Informe o telefone do captador: nacional (fixo 10 d\u00edgitos ou celular 11) ou internacional (com + e c\u00f3digo do pa\u00eds).");
+      return alert("Informe o telefone do captador: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
@@ -228,7 +228,7 @@ export default function Form() {
       data.condominio = ehEmCondominio(data.tipo) || data.tipo === "Apartamento";
       if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
-      if (!data.status) data.status = "Dispon\u00edvel";
+      if (!data.status) data.status = "Disponível";
 
       // Ágio: se marcado, garante a linha "Ágio / assumir financiamento" nos extras
       // (mesmo texto/padrão que o backend usa na captação). Se desmarcado, remove a linha.
@@ -270,7 +270,7 @@ export default function Form() {
       if (!(data.visibilidade || "").trim()) faltando.push("visibilidade");
 
       if (faltando.length > 0) {
-        data.status = "Aguardando finaliza\u00e7\u00e3o";
+        data.status = "Aguardando finalização";
         data.faltandoFinalizar = faltando; // guarda o que falta, pra mostrar na ficha
         // Avisa o usuário o que falta e deixa ELE decidir se salva incompleto
         // (fica "Aguardando finalização") ou volta pra completar agora.
@@ -336,7 +336,7 @@ export default function Form() {
       if (d && d.ok && Array.isArray(d.fotos) && d.fotos.length === fotos.length) {
         sf("fotos", d.fotos);
       } else {
-        alert("N\u00e3o consegui organizar as fotos agora. Tente novamente em instantes.");
+        alert("Não consegui organizar as fotos agora. Tente novamente em instantes.");
       }
     } catch (e) {
       alert("Erro ao organizar fotos: " + e.message);
@@ -367,7 +367,7 @@ export default function Form() {
           placeholder={intl ? "+1 555 000 0000" : "(62) 9 9999-9999"}
           inputMode={intl ? "text" : "numeric"}
           style={{ ...inputBase, ...(invalido ? { borderColor: "#c0392b" } : {}) }} />
-        {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>{intl ? "N\u00famero internacional inv\u00e1lido. Use o formato +c\u00f3digo n\u00famero." : "N\u00famero incompleto. Use fixo (10 d\u00edgitos) ou celular (11 d\u00edgitos com 9)."}</p>}
+        {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>{intl ? "Número internacional inválido. Use o formato +código número." : "Número incompleto. Use fixo (10 dígitos) ou celular (11 dígitos com 9)."}</p>}
       </div>
     );
   };
@@ -395,20 +395,20 @@ export default function Form() {
     <div style={pageWrap(1040)}>
       <style>{`@media (max-width:1024px){.previa-col{position:static !important;flex-basis:100% !important;}}`}</style>
       <div style={{ marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate(-1)} style={backBtn}>{"\u2190"} Cancelar</button>
+        <button onClick={() => navigate(-1)} style={backBtn}>{"←"} Cancelar</button>
       </div>
       <h2 style={{ margin: "0 0 1.5rem", fontSize: 20, fontWeight: 500, color: "var(--primary-dark)" }}>
-        {id ? "Editar im\u00f3vel" : "Novo im\u00f3vel"}
+        {id ? "Editar imóvel" : "Novo imóvel"}
       </h2>
 
       {id && !hydrated && (
-        <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem 0" }}>Carregando dados do im\u00f3vel...</p>
+        <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem 0" }}>Carregando dados do imóvel...</p>
       )}
       {(!id || hydrated) && (<div style={{ display: "flex", gap: 24, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 600px", minWidth: 0 }}>
 
-      {section("Informa\u00e7\u00f5es gerais", <>
-        {inp("T\u00edtulo *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
+      {section("Informações gerais", <>
+        {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
         {/* Código do imóvel: editável. Em branco = gerado automaticamente pelo bairro ao salvar. */}
         <div style={{ marginBottom: "1rem" }}>
@@ -425,13 +425,13 @@ export default function Form() {
 
         <div style={grid2}>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={labelStyle}>Tipo de im\u00f3vel</label>
+            <label style={labelStyle}>Tipo de imóvel</label>
             <select value={form.tipo || tipos[0]?.nome} onChange={e => sf("tipo", e.target.value)} style={{ ...inputBase }}>
               {tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
             </select>
           </div>
-          {sel("Tipo de transa\u00e7\u00e3o", "transacao", TRANSACOES)}
-          {sel("Estado do im\u00f3vel", "estadoImovel", ESTADOS_IMOVEL)}
+          {sel("Tipo de transação", "transacao", TRANSACOES)}
+          {sel("Estado do imóvel", "estadoImovel", ESTADOS_IMOVEL)}
           {sel("Status", "status", STATUS_IMOVEL)}
           {sel("Visibilidade", "visibilidade", VISIBILIDADE_IMOVEL)}
         </div>
@@ -463,19 +463,19 @@ export default function Form() {
         <div style={{ margin: "0 0 1rem", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", color: "var(--text)" }}>
             <input type="checkbox" checked={!!form.foraRodizio} onChange={e => sf("foraRodizio", e.target.checked)} style={cbStyle} />
-            {"\uD83D\uDEAB"} N\u00e3o incluir no rod\u00edzio autom\u00e1tico
+            {"🚫"} Não incluir no rodízio automático
           </label>
           <p style={{ margin: "6px 0 0 24px", fontSize: 11, color: "var(--text-muted)" }}>
-            O im\u00f3vel continua dispon\u00edvel e vis\u00edvel normalmente, mas fica de fora dos disparos autom\u00e1ticos para os grupos de corretores e das publica\u00e7\u00f5es autom\u00e1ticas no Instagram.
+            O imóvel continua disponível e visível normalmente, mas fica de fora dos disparos automáticos para os grupos de corretores e das publicações automáticas no Instagram.
           </p>
         </div>
 
-        {(!isLote || isRural) && inp("Metragem de constru\u00e7\u00e3o (m\u00b2)", "metragem", { type: "number" })}
-        {inp("Metragem total do terreno (m\u00b2)", "metragemTotal", { type: "number" })}
-        {temCondominio && inp("Nome do condom\u00ednio", "nomeCondominio")}
+        {(!isLote || isRural) && inp("Metragem de construção (m²)", "metragem", { type: "number" })}
+        {inp("Metragem total do terreno (m²)", "metragemTotal", { type: "number" })}
+        {temCondominio && inp("Nome do condomínio", "nomeCondominio")}
       </>)}
 
-      {!isLocacao && section("Condi\u00e7\u00f5es comerciais", <>
+      {!isLocacao && section("Condições comerciais", <>
         {CONDICOES.map(c => (
           <div key={c}>
             <label style={togStyle}>
@@ -498,14 +498,14 @@ export default function Form() {
         {(form.fotos || []).length >= 2 && (
           <button onClick={organizarFotosIA} disabled={organizando || uploading}
             style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid var(--primary)", background: (organizando || uploading) ? "var(--bg-muted)" : "var(--primary-light)", color: "var(--primary)", cursor: (organizando || uploading) ? "default" : "pointer", fontSize: 13, marginBottom: 12, marginLeft: 8 }}>
-            {organizando ? "Organizando com IA..." : "\u2728 Organizar fotos com IA"}
+            {organizando ? "Organizando com IA..." : "✨ Organizar fotos com IA"}
           </button>
         )}
-        {organizando && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>A IA est\u00e1 olhando as fotos e definindo a melhor ordem (capa + passeio l\u00f3gico)...</p>}
+        {organizando && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>A IA está olhando as fotos e definindo a melhor ordem (capa + passeio lógico)...</p>}
         <FotosGrid fotos={form.fotos || []} onChange={fs => sf("fotos", fs)} onRemove={i => sf("fotos", form.fotos.filter((_, idx) => idx !== i))} />
       </>)}
 
-      {section("Localiza\u00e7\u00e3o", <>
+      {section("Localização", <>
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>CEP</label>
           <input value={form.cep || ""} onChange={e => {
@@ -519,7 +519,7 @@ export default function Form() {
               geocodingSilencioso(cidade, bairro, estado, endereco, e.target.value);
             });
           }} placeholder="Ex: 74000000" maxLength={8} style={inputBase} />
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>Digite o CEP (somente n\u00fameros) para preencher automaticamente.</p>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>Digite o CEP (somente números) para preencher automaticamente.</p>
         </div>
         <div style={grid2}>
           <div style={{ marginBottom: "1rem" }}>
@@ -527,7 +527,7 @@ export default function Form() {
             <input value={form.cidade || ""} onChange={e => {
               sf("cidade", e.target.value);
               geocodingSilencioso(e.target.value, form.bairro, form.estado, form.endereco, form.cep);
-            }} placeholder="Ex: Goi\u00e2nia" style={inputBase} />
+            }} placeholder="Ex: Goiânia" style={inputBase} />
           </div>
           <div style={{ marginBottom: "1rem" }}>
             <label style={labelStyle}>Estado (UF)</label>
@@ -542,13 +542,13 @@ export default function Form() {
             geocodingSilencioso(form.cidade, e.target.value, form.estado, form.endereco, form.cep);
           }} placeholder="Ex: Setor Sul" style={inputBase} />
         </div>
-        {inp("Endere\u00e7o (vis\u00edvel s\u00f3 para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
+        {inp("Endereço (visível só para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Link do Google Maps</label>
           <input value={form.mapsLink || ""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps" style={inputBase} />
-          {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none" }}>Verificar link {"\u2192"}</a>}
+          {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none" }}>Verificar link {"→"}</a>}
         </div>
-        {(isLote || isRural) && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("\u00c1gua", "agua")}{tog("Esgoto", "esgoto")}</div>}
+        {(isLote || isRural) && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("Água", "agua")}{tog("Esgoto", "esgoto")}</div>}
       </>)}
 
       {(isLote || isRural) && section("Detalhes do terreno", <>
@@ -559,58 +559,58 @@ export default function Form() {
           : inp("Medidas", "medidas", { ph: "Ex: 15x30 irregular" })}
       </>)}
 
-      {(isConstrucao || isRural) && section("Detalhes da constru\u00e7\u00e3o", <>
+      {(isConstrucao || isRural) && section("Detalhes da construção", <>
         <div style={grid2}>
           {inp("Quartos", "quartos", { type: "number" })}
-          {inp("Su\u00edtes", "suites", { type: "number" })}
+          {inp("Suítes", "suites", { type: "number" })}
           {inp("Garagens", "garagens", { type: "number" })}
           {inp("Banheiros", "banheiros", { type: "number" })}
-          {inp("Valor de avalia\u00e7\u00e3o (R$)", "valorAvaliacao", { type: "number" })}
+          {inp("Valor de avaliação (R$)", "valorAvaliacao", { type: "number" })}
           {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
         </div>
       </>)}
 
       {isVenda && section("Valor de venda", <>
         <div style={grid2}>
-          {inp("Pre\u00e7o de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
+          {inp("Preço de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
           {inp("IPTU (R$)", "valorIPTU", { type: "number" })}
-          {temCondominio && inp("Valor do condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
+          {temCondominio && inp("Valor do condomínio (R$)", "valorCondominio", { type: "number" })}
         </div>
       </>)}
 
-      {isLocacao && section("Valores de loca\u00e7\u00e3o", <>
+      {isLocacao && section("Valores de locação", <>
         <div style={grid2}>
           {inp("Aluguel (R$)", "valorAluguel", { type: "number" })}
-          {inp("Condom\u00ednio (R$)", "valorCondominio", { type: "number" })}
+          {inp("Condomínio (R$)", "valorCondominio", { type: "number" })}
           {inp("IPTU (R$)", "valorIPTU", { type: "number" })}
         </div>
-        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--primary)", fontWeight: 500 }}>Total: {formatBRL(valorFinalLoc()) || "\u2014"}</p>
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--primary)", fontWeight: 500 }}>Total: {formatBRL(valorFinalLoc()) || "—"}</p>
       </>)}
 
-      {section("Descri\u00e7\u00e3o", <>
+      {section("Descrição", <>
         <div style={{ marginBottom: 12 }}>
-          {tog("Im\u00f3vel de \u00e1gio (assumir financiamento)", "_agio")}
+          {tog("Imóvel de ágio (assumir financiamento)", "_agio")}
         </div>
         {form._agio && (
           <div style={{ marginBottom: 12, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-soft, #fafafa)" }}>
-            <p style={{ margin: "0 0 10px", fontWeight: 500, fontSize: 13, color: "var(--primary-dark)" }}>Dados do \u00e1gio</p>
+            <p style={{ margin: "0 0 10px", fontWeight: 500, fontSize: 13, color: "var(--primary-dark)" }}>Dados do ágio</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 160px" }}>{inp("Valor da parcela (R$)", "agioParcela", { type: "number" })}</div>
               <div style={{ flex: "1 1 160px" }}>{inp("Prazo (meses p/ quitar)", "agioPrazo", { type: "number" })}</div>
               <div style={{ flex: "1 1 160px" }}>{inp("Saldo devedor (R$)", "agioSaldoDevedor", { type: "number" })}</div>
             </div>
             <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--primary)", fontWeight: 500 }}>
-              Valor total (\u00e1gio + saldo): {formatBRL((parseFloat(form.preco) || 0) + (parseFloat(form.agioSaldoDevedor) || 0)) || "\u2014"}
+              Valor total (ágio + saldo): {formatBRL((parseFloat(form.preco) || 0) + (parseFloat(form.agioSaldoDevedor) || 0)) || "—"}
             </p>
           </div>
         )}
         <div style={{ marginBottom: 8 }}>
-          <label style={labelStyle}>Caracter\u00edsticas extras (uma por linha)</label>
+          <label style={labelStyle}>Características extras (uma por linha)</label>
           <textarea value={form.extras || ""} onChange={e => sf("extras", e.target.value)} placeholder={"Ex:\nAr condicionado\nPiscina aquecida"} rows={3}
             style={{ ...inputBase, resize: "vertical", lineHeight: 1.6 }} />
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <label style={{ fontSize: 13, color: "var(--text-soft)" }}>Descri\u00e7\u00e3o completa (edit\u00e1vel)</label>
+          <label style={{ fontSize: 13, color: "var(--text-soft)" }}>Descrição completa (editável)</label>
           <button onClick={() => sf("descricao", gerarDescricao(form))}
             style={{ fontSize: 12, padding: "4px 12px", borderRadius: 7, border: "1px solid var(--primary)", background: "var(--primary-light)", color: "var(--primary)", cursor: "pointer" }}>
             Gerar automaticamente
@@ -620,7 +620,7 @@ export default function Form() {
           style={{ ...inputBase, resize: "vertical", lineHeight: 1.6 }} />
       </>)}
 
-      {section("Propriet\u00e1rio (vis\u00edvel s\u00f3 para admin) *", <>
+      {section("Proprietário (visível só para admin) *", <>
         <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone *", "telefoneProprietario", telProprietarioIntl, setTelProprietarioIntl)}</div>
       </>)}
 
@@ -628,9 +628,9 @@ export default function Form() {
         <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone *", "telefoneCaptador", telCaptadorIntl, setTelCaptadorIntl)}</div>
       </>)}
 
-      {section("Onde foi anunciado (vis\u00edvel s\u00f3 para admin)", <>
+      {section("Onde foi anunciado (visível só para admin)", <>
         <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px" }}>
-          {"\u2699"} = integra\u00e7\u00e3o autom\u00e1tica via feed XML
+          {"⚙"} = integração automática via feed XML
         </p>
         {CANAIS.map(canal => {
           const info = form.anuncios?.[canal];
@@ -641,7 +641,7 @@ export default function Form() {
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
                 <input type="checkbox" checked={ligado} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
                 <span style={{ fontSize: 14 }}>
-                  {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>{"\u2699"}</span>}
+                  {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>{"⚙"}</span>}
                   {canal}
                 </span>
               </label>
@@ -655,7 +655,7 @@ export default function Form() {
         <button onClick={() => navigate(-1)} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
         <button onClick={save} disabled={saving || uploading}
           style={{ ...btnPrimary, flex: 2, padding: "11px 0", background: (saving || uploading) ? "#aaa" : "var(--primary)", cursor: (saving || uploading) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
-          {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar im\u00f3vel"}
+          {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar imóvel"}
         </button>
       </div>
       </div>{/* fim da coluna do formulário */}
