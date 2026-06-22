@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
 import { ThemeProvider } from "./shared/ThemeProvider";
 import Galeria from "./shared/Galeria";
-import { useUserRole, ehDiretorSSO } from "./shared/userRole";
+import { useUserRole, ehDiretorEfetivo } from "./shared/userRole";
 
 // Público
 import Home from "./publico/Home";
@@ -64,19 +64,6 @@ export default function App() {
       </BrowserRouter>
     </ThemeProvider>
   );
-}
-
-// ─── É diretor? Mesma regra usada na Lista: SSO diretor OU admin do Firebase OU
-//     acesso mestre por senha de backup (quem tem a senha é o diretor). ───
-function entrouPorSenhaBackup() {
-  try {
-    const temSenha = sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1";
-    const temSSO = !!localStorage.getItem("admin_sso");
-    // Entrou pela senha mestra e NÃO é um corretor que veio do Portal → trata como diretor.
-    return temSenha && !temSSO;
-  } catch {
-    return false;
-  }
 }
 
 // ─── Guard de rotas do admin ───
@@ -148,7 +135,7 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
 
   // ─── Autenticado. Se a rota é restrita a diretor, valida o papel. ───
   if (requireDiretor) {
-    const ehDiretor = ehDiretorSSO() || isAdmin || entrouPorSenhaBackup();
+    const ehDiretor = ehDiretorEfetivo(isAdmin);
     if (!ehDiretor) {
       // Pode ser que o papel via Firebase ainda esteja carregando — espera antes de bloquear,
       // pra nunca trancar um diretor por engano (evita falso negativo).
