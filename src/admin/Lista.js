@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
@@ -53,7 +53,8 @@ export default function Lista({ onLogout }) {
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
-    await deleteDoc(doc(db, "imoveis", id));
+    try { await excluirImovelBackend(id); }
+    catch (e) { alert("Erro ao excluir: " + e.message); }
   };
 
   // Abre a página pública do imóvel em nova aba.
@@ -124,7 +125,7 @@ export default function Lista({ onLogout }) {
       for (const im of faltantes) {
         try {
           const codigo = await reservarCodigoImovel(db, im.bairro);
-          await updateDoc(doc(db, "imoveis", im.id), { codigo });
+          await editarImovelBackend(im.id, { codigo });
           feitos++;
         } catch (e) { erros++; }
       }
