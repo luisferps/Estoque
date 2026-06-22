@@ -6,7 +6,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, usuarioSSO } from "../shared/userRole";
+import { useUserRole, usuarioSSO, ehDiretorSSO } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -49,12 +49,23 @@ function extrasParaTexto(v) {
   return String(v);
 }
 
+// Quem entrou pela senha mestra de backup (sem SSO do Portal) é o diretor — pode editar tudo.
+function entrouPorSenhaBackup() {
+  try {
+    const temSenha = sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1";
+    const temSSO = !!localStorage.getItem("admin_sso");
+    return temSenha && !temSSO;
+  } catch {
+    return false;
+  }
+}
+
 export default function Form() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { imoveis, loading } = useImoveis();
   const { tipos } = useTipos();
-  const { user, perfil } = useUserRole();
+  const { user, perfil, isAdmin, loading: loadingRole } = useUserRole();
   const [form, setForm] = useState(emptyForm);
   const [hydrated, setHydrated] = useState(!id);
   const [saving, setSaving] = useState(false);
@@ -82,16 +93,30 @@ export default function Form() {
     if (!id) return;
     if (loading) return;
     const existing = imoveis.find(i => i.id === id);
-    if (existing) {
-      setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
-      setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
-      setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
-      setHydrated(true);
-    } else if (imoveis.length > 0) {
-      alert("Im\u00f3vel n\u00e3o encontrado.");
-      navigate("/admin");
+    if (!existing) {
+      if (imoveis.length > 0) { alert("Im\u00f3vel n\u00e3o encontrado."); navigate("/admin"); }
+      return;
     }
-  }, [id, imoveis, loading, navigate]);
+    // Permiss\u00e3o de edi\u00e7\u00e3o: s\u00f3 o DONO (captadorEmail) ou DIRETOR pode editar.
+    // Bloqueia corretor/gerente que tente abrir /admin/editar/:id de im\u00f3vel de outro pela URL.
+    const meuEmail = (usuarioSSO() || "").toLowerCase();
+    const dono = String(existing.captadorEmail || "").toLowerCase();
+    const souDono = !!meuEmail && !!dono && meuEmail === dono;
+    const ehDiretor = ehDiretorSSO() || isAdmin || entrouPorSenhaBackup();
+    if (!souDono && !ehDiretor) {
+      // O papel via Firebase pode ainda estar carregando — espera antes de bloquear,
+      // pra nunca barrar um diretor por engano (falso negativo).
+      if (loadingRole) return;
+      alert("Voc\u00ea s\u00f3 pode editar im\u00f3veis captados por voc\u00ea.");
+      navigate("/admin");
+      return;
+    }
+    // Liberado (dono ou diretor) — carrega o im\u00f3vel no formul\u00e1rio.
+    setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
+    setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
+    setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
+    setHydrated(true);
+  }, [id, imoveis, loading, loadingRole, isAdmin, navigate]);
 
   // Imóvel NOVO: pré-preenche captador com os dados de quem está logado.
   // O dono é marcado por captadorEmail (vem do Portal/SSO) — funciona pro diretor e corretores.
