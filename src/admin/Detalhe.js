@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
-import { db } from "../firebase";
+import { excluirImovelBackend, criarImovelBackend } from "../shared/estoqueApi";
 import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
@@ -62,20 +61,21 @@ export default function Detalhe() {
 
   const del = async () => {
     if (!window.confirm("Excluir esse imóvel?")) return;
-    await deleteDoc(doc(db, "imoveis", id));
-    navigate("/admin");
+    try { await excluirImovelBackend(id); navigate("/admin"); }
+    catch (e) { alert("Erro ao excluir: " + e.message); }
   };
 
   const duplicar = async () => {
     if (!window.confirm(`Duplicar "${im.titulo}"?`)) return;
     const { id: _id, createdAt: _ca, ...data } = im;
-    const docRef = await addDoc(collection(db, "imoveis"), {
-      ...data,
-      titulo: `${data.titulo} (cópia)`,
-      anuncios: {},
-      createdAt: Date.now()
-    });
-    navigate(`/admin/editar/${docRef.id}`);
+    try {
+      const novoId = await criarImovelBackend({
+        ...data,
+        titulo: `${data.titulo} (cópia)`,
+        anuncios: {},
+      });
+      navigate(`/admin/editar/${novoId}`);
+    } catch (e) { alert("Erro ao duplicar: " + e.message); }
   };
 
   const row = (label, val) => val ? (
