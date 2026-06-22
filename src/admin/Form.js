@@ -230,6 +230,16 @@ export default function Form() {
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Dispon\u00edvel";
 
+      // Ágio: se marcado, garante a linha "Ágio / assumir financiamento" nos extras
+      // (mesmo texto/padrão que o backend usa na captação). Se desmarcado, remove a linha.
+      {
+        const LINHA_AGIO = "Ágio / assumir financiamento";
+        let linhasExtras = String(data.extras || "").split("\n").map(x => x.trim()).filter(Boolean)
+          .filter(l => l.toLowerCase() !== LINHA_AGIO.toLowerCase());
+        if (data._agio) linhasExtras.unshift(LINHA_AGIO);
+        data.extras = linhasExtras.join("\n");
+      }
+
       // ── Campos obrigatórios para PUBLICAR (ativar) a ficha ──
       // Faltando qualquer um, o imóvel é salvo mas fica "Aguardando Finalização"
       // (não entra no ar). O usuário pode completar depois.
@@ -241,7 +251,18 @@ export default function Form() {
       if (!(data.cidade || "").trim() || !(data.bairro || "").trim()) faltando.push("localização");
       if (!(data.endereco || "").trim()) faltando.push("endereço");
       if (!Array.isArray(data.fotos) || data.fotos.length === 0) faltando.push("fotos");
-      if (!(String(data.metragem || "")).trim()) faltando.push("metragem");
+      // Metragem respeita o tipo: lote/terreno usa metragemTotal; construção usa metragem;
+      // rural (tem os dois) aceita qualquer um dos dois. (Antes exigia sempre "metragem",
+      // o que rebaixava todo lote pra "Aguardando finalização" ao reeditar.)
+      const temMetragemConstrucao = !!(String(data.metragem || "")).trim();
+      const temMetragemTerreno = !!(String(data.metragemTotal || "")).trim();
+      if (isRural) {
+        if (!temMetragemConstrucao && !temMetragemTerreno) faltando.push("metragem");
+      } else if (isLote) {
+        if (!temMetragemTerreno) faltando.push("metragem do terreno");
+      } else {
+        if (!temMetragemConstrucao) faltando.push("metragem");
+      }
       if (!(data.titulo || "").trim()) faltando.push("título");
       if (!(data.tipo || "").trim()) faltando.push("tipo de imóvel");
       if (!(data.transacao || "").trim()) faltando.push("tipo de transação");
@@ -251,6 +272,15 @@ export default function Form() {
       if (faltando.length > 0) {
         data.status = "Aguardando finaliza\u00e7\u00e3o";
         data.faltandoFinalizar = faltando; // guarda o que falta, pra mostrar na ficha
+        // Avisa o usuário o que falta e deixa ELE decidir se salva incompleto
+        // (fica "Aguardando finalização") ou volta pra completar agora.
+        const lista = faltando.map(f => "• " + f).join("\n");
+        const querSalvar = window.confirm(
+          "Este imóvel NÃO vai ao ar porque faltam campos obrigatórios:\n\n" + lista +
+          "\n\nClique OK para salvar mesmo assim (fica \"Aguardando finalização\")," +
+          "\nou Cancelar para voltar e completar agora."
+        );
+        if (!querSalvar) { setSaving(false); return; }
       } else {
         data.faltandoFinalizar = [];
       }
@@ -558,6 +588,9 @@ export default function Form() {
       </>)}
 
       {section("Descri\u00e7\u00e3o", <>
+        <div style={{ marginBottom: 12 }}>
+          {tog("Im\u00f3vel de \u00e1gio (assumir financiamento)", "_agio")}
+        </div>
         <div style={{ marginBottom: 8 }}>
           <label style={labelStyle}>Caracter\u00edsticas extras (uma por linha)</label>
           <textarea value={form.extras || ""} onChange={e => sf("extras", e.target.value)} placeholder={"Ex:\nAr condicionado\nPiscina aquecida"} rows={3}
