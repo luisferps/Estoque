@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
@@ -39,6 +38,50 @@ function ehEmCondominio(tipo) {
 
 // Backend Railway (mesmo motor de visão que organiza as fotos na captação).
 const BACKEND_URL = "https://agentes-de-whatsapp-production.up.railway.app";
+
+// Token de sessão do Portal (gravado em admin_sso.sessao pelo App ao resgatar o SSO).
+// É o que o backend valida pra saber quem é o usuário e seu papel (diretor/corretor).
+function tokenSessaoSSO() {
+  try {
+    const raw = localStorage.getItem("admin_sso");
+    if (!raw) return "";
+    const d = JSON.parse(raw);
+    return (d && d.sessao) ? String(d.sessao) : "";
+  } catch { return ""; }
+}
+
+// Salva o imóvel PELO BACKEND (rotas protegidas). O backend confere papel/dono
+// e grava no Firestore. Mantém toda a lógica de validação/código/geocoding aqui no front.
+// Retorna o id do imóvel salvo. Lança erro (com mensagem amigável) se falhar.
+async function salvarImovelBackend(idImovel, data) {
+  const token = tokenSessaoSSO();
+  if (!token) throw new Error("Sessão não encontrada. Saia e entre de novo pelo Portal.");
+  const url = BACKEND_URL + (idImovel ? "/estoque/imovel/editar" : "/estoque/imovel/criar");
+  const body = idImovel ? { id: idImovel, data } : { data };
+  let r;
+  try {
+    r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error("Falha de conexão com o servidor. Tente de novo em instantes.");
+  }
+  let j = null;
+  try { j = await r.json(); } catch { j = null; }
+  if (r.ok && j && j.ok) return j.id || idImovel;
+  const err = (j && j.error) || ("http_" + r.status);
+  const amigaveis = {
+    nao_autenticado: "Sua sessão expirou. Saia e entre de novo pelo Portal.",
+    sem_permissao: "Você só pode editar imóveis captados por você.",
+    so_pode_criar_em_seu_nome: "O imóvel precisa ser cadastrado em seu nome.",
+    nao_pode_trocar_dono: "Você não pode transferir o imóvel para outro captador.",
+    imovel_nao_encontrado: "Imóvel não encontrado.",
+    firestore_indisponivel: "Servidor temporariamente indisponível. Tente novamente.",
+  };
+  throw new Error(amigaveis[err] || ("Erro ao salvar (" + err + ")."));
+}
 
 // Imóveis vindos da captação podem ter "extras" como array (a IA às vezes devolve
 // uma lista). O formulário e a prévia esperam TEXTO (uma característica por linha) e
@@ -225,8 +268,9 @@ export default function Form() {
         });
         if (coords) { data.latitude = coords.latitude; data.longitude = coords.longitude; }
       }
-      if (id) await updateDoc(doc(db, "imoveis", id), data);
-      else await addDoc(collection(db, "imoveis"), { ...data, createdAt: Date.now() });
+      // Grava PELO BACKEND (rota protegida): o servidor confere papel/dono e escreve no Firestore.
+      // (O createdAt do imóvel novo é definido pelo backend.)
+      await salvarImovelBackend(id, data);
       navigate("/admin");
     } catch (e) { alert("Erro: " + e.message); }
     setSaving(false);
