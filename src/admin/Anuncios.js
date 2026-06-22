@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { editarImovelBackend } from "../shared/estoqueApi";
 import { CANAIS, TRANSACOES } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { formatBRL, matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO, geocodificarEndereco } from "../shared/utils";
@@ -55,7 +54,7 @@ export default function Anuncios() {
   const toggle = async (im, canal) => {
     const atual = im.anuncios?.[canal];
     const novo = { ...(im.anuncios || {}), [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } };
-    try { await updateDoc(doc(db, "imoveis", im.id), { anuncios: novo }); }
+    try { await editarImovelBackend(im.id, { anuncios: novo }); }
     catch (e) { alert("Erro: " + e.message); }
   };
 
@@ -109,7 +108,7 @@ export default function Anuncios() {
 
       if (Object.keys(updates).length > 0) {
         try {
-          await updateDoc(doc(db, "imoveis", im.id), updates);
+          await editarImovelBackend(im.id, updates);
         } catch {
           log.erros++;
         }
