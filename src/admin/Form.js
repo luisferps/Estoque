@@ -591,6 +591,19 @@ export default function Form() {
         <div style={{ marginBottom: 12 }}>
           {tog("Im\u00f3vel de \u00e1gio (assumir financiamento)", "_agio")}
         </div>
+        {form._agio && (
+          <div style={{ marginBottom: 12, padding: 12, border: "1px solid var(--border)", borderRadius: 8, background: "var(--bg-soft, #fafafa)" }}>
+            <p style={{ margin: "0 0 10px", fontWeight: 500, fontSize: 13, color: "var(--primary-dark)" }}>Dados do \u00e1gio</p>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 160px" }}>{inp("Valor da parcela (R$)", "agioParcela", { type: "number" })}</div>
+              <div style={{ flex: "1 1 160px" }}>{inp("Prazo (meses p/ quitar)", "agioPrazo", { type: "number" })}</div>
+              <div style={{ flex: "1 1 160px" }}>{inp("Saldo devedor (R$)", "agioSaldoDevedor", { type: "number" })}</div>
+            </div>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--primary)", fontWeight: 500 }}>
+              Valor total (\u00e1gio + saldo): {formatBRL((parseFloat(form.preco) || 0) + (parseFloat(form.agioSaldoDevedor) || 0)) || "\u2014"}
+            </p>
+          </div>
+        )}
         <div style={{ marginBottom: 8 }}>
           <label style={labelStyle}>Caracter\u00edsticas extras (uma por linha)</label>
           <textarea value={form.extras || ""} onChange={e => sf("extras", e.target.value)} placeholder={"Ex:\nAr condicionado\nPiscina aquecida"} rows={3}
