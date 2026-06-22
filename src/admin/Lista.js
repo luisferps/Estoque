@@ -44,7 +44,7 @@ export default function Lista({ onLogout }) {
       && (cidade === "Todas" || im.cidade === cidade)
       && (status === "Todos" || statusDoImovel(im) === status)
       // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
-      && (im.status !== "Aguardando finaliza\u00e7\u00e3o" || ehDiretor
+      && (im.status !== "Aguardando finalização" || ehDiretor
           || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
           || (user && im.captadorUid && im.captadorUid === user.uid))
     );
