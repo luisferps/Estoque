@@ -106,7 +106,7 @@ export default function Detalhe() {
       </div>
 
       {/* Aviso: imóvel não publicado por faltar dados obrigatórios */}
-      {im.status === "Aguardando finaliza\u00e7\u00e3o" && (
+      {im.status === "Aguardando finalização" && (
         <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "12px 16px", marginBottom: "1rem", color: "var(--primary-dark)", fontSize: 13.5 }}>
           <b>⚠️ Aguardando finalização</b> — este imóvel ainda não está publicado.
           {Array.isArray(im.faltandoFinalizar) && im.faltandoFinalizar.length > 0 && (
