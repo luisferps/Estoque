@@ -166,14 +166,16 @@ export function gerarDescricao(form) {
   if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
   if (form.extras) {
     // não repetir o valor de venda: extras às vezes traz "Venda: R$..." ou "R$ ..." (já sai abaixo)
-    const ehLinhaPreco = (l) => /^-?\s*(venda|valor de venda|pre[çc]o)\b/i.test(l) || /^-?\s*r\$\s*\d/i.test(l);
+    const ehLinhaPreco = (l) => /^-?\s*(venda|[áa]gio|valor de venda|pre[çc]o)\b/i.test(l) || /^-?\s*r\$\s*\d/i.test(l);
     linhas.push(...form.extras.split("\n").map(x => x.trim()).filter(Boolean).filter(l => !ehLinhaPreco(l)).map(l => l.startsWith("-") ? l : `- ${l}`));
   }
   linhas.push("");
   const loc = form.transacao === "Locação";
   const ven = form.transacao === "Venda" || form.transacao === "Venda e Locação";
   if (ven && parseFloat(form.preco)) {
-    linhas.push(`Venda: ${formatBRL(form.preco)}`);
+    // Ágio: troca o rótulo "Venda" por "Ágio" (imóvel financiado/em consórcio).
+    const rotuloVenda = form._agio ? "Ágio" : "Venda";
+    linhas.push(`${rotuloVenda}: ${formatBRL(form.preco)}`);
     if (parseFloat(form.valorAvaliacao)) linhas.push(`Avaliado em ${formatBRL(form.valorAvaliacao)}`);
     if (parseFloat(form.valorEntrada)) linhas.push(`Entrada: ${formatBRL(form.valorEntrada)}`);
   }
