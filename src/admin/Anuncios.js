@@ -15,6 +15,8 @@ export default function Anuncios() {
   const [fCidade, setFCidade] = useState("Todas");
   const [fCanal, setFCanal] = useState("Todos");
   const [soPendencias, setSoPendencias] = useState(false);
+  const [sortCol, setSortCol] = useState("");
+  const [sortDir, setSortDir] = useState("asc");
 
   const [migrando, setMigrando] = useState(false);
   const [migracaoTotal, setMigracaoTotal] = useState(0);
@@ -50,6 +52,31 @@ export default function Anuncios() {
       && matchCanal
       && matchPendencia;
   }), [imoveis, fTipo, fTransacao, fCidade, fCanal, soPendencias]);
+
+  // Ordenação tipo Excel: clica no cabeçalho → ordena por aquela coluna (alterna A→Z / Z→A).
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const va = valorOrdenacao(a, sortCol);
+      const vb = valorOrdenacao(b, sortCol);
+      let cmp;
+      if (typeof va === "number" && typeof vb === "number") cmp = va - vb;
+      else cmp = String(va).localeCompare(String(vb), "pt-BR", { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sortCol, sortDir]);
+
+  const ordenarPor = (col) => {
+    if (sortCol === col) setSortDir(d => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
+  const setaDe = (col) => {
+    if (sortCol !== col) return <span style={{ opacity: 0.35, fontSize: 9 }}> ↕</span>;
+    return <span style={{ fontSize: 10 }}>{sortDir === "asc" ? " ▲" : " ▼"}</span>;
+  };
 
   const toggle = async (im, canal) => {
     const atual = im.anuncios?.[canal];
@@ -201,25 +228,25 @@ export default function Anuncios() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, color: "var(--text)" }}>
           <thead>
             <tr>
-              <th style={th}>Tipo</th>
-              <th style={th}>Status</th>
-              <th style={th}>Cidade</th>
-              <th style={th}>Bairro</th>
-              <th style={th}>Preço</th>
-              <th style={{ ...th, whiteSpace: "nowrap" }}>Proprietário</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("tipo")} title="Clique para ordenar">Tipo{setaDe("tipo")}</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("status")} title="Clique para ordenar">Status{setaDe("status")}</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("cidade")} title="Clique para ordenar">Cidade{setaDe("cidade")}</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("bairro")} title="Clique para ordenar">Bairro{setaDe("bairro")}</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("preco")} title="Clique para ordenar">Preço{setaDe("preco")}</th>
+              <th style={{ ...th, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("proprietario")} title="Clique para ordenar">Proprietário{setaDe("proprietario")}</th>
               {CANAIS.map(c => (
-                <th key={c} style={{ ...thCanal }}>
+                <th key={c} style={{ ...thCanal, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor(c)} title="Clique para ordenar por status no feed">
                   {CANAIS_AUTO.includes(c) && <span title="Integração automática via feed XML">⚙ </span>}
-                  {c}
+                  {c}{setaDe(c)}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {sorted.length === 0 && (
               <tr><td colSpan={6 + CANAIS.length} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Nenhum imóvel encontrado.</td></tr>
             )}
-            {filtered.map((im, idx) => {
+            {sorted.map((im, idx) => {
               const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal) + "/mês" : "") : formatBRL(im.preco);
               return (
                 <tr key={im.id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--bg-section)" }}>
@@ -289,6 +316,26 @@ export default function Anuncios() {
       </div>
     </div>
   );
+}
+
+// Extrai o valor comparável de cada coluna para a ordenação (texto minúsculo ou número).
+function valorOrdenacao(im, col) {
+  switch (col) {
+    case "tipo": return (im.tipo || "").toLowerCase();
+    case "status": return (statusDoImovel(im) || "").toLowerCase();
+    case "cidade": return (im.cidade || "").toLowerCase();
+    case "bairro": return (im.bairro || "").toLowerCase();
+    case "preco": {
+      const v = im.transacao === "Locação" ? im.valorFinal : im.preco;
+      return parseFloat(v) || 0;
+    }
+    case "proprietario": return (im.nomeProprietario || "").toLowerCase();
+    default:
+      // Canais automáticos: 0 = no feed, 1 = fora (desc joga os "fora" pro topo).
+      if (CANAIS_AUTO.includes(col)) return validarParaCanal(im, col).length > 0 ? 1 : 0;
+      // Canais manuais: 0 = marcado, 1 = não marcado.
+      return im.anuncios?.[col]?.ativo ? 0 : 1;
+  }
 }
 
 const th = { padding: "8px 10px", textAlign: "left", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
