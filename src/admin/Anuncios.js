@@ -37,11 +37,11 @@ export default function Anuncios() {
     else if (fCanal.startsWith("nao_")) matchCanal = !im.anuncios?.[fCanal.replace("nao_", "")]?.ativo;
     else if (fCanal.startsWith("sim_")) matchCanal = !!im.anuncios?.[fCanal.replace("sim_", "")]?.ativo;
 
+    // "Só os que não sobem": imóvel que está FORA de algum feed automático por
+    // requisito faltando — independe da marcação manual (o que vale é o feed real).
     let matchPendencia = true;
     if (soPendencias) {
-      matchPendencia = CANAIS_AUTO.some(c =>
-        im.anuncios?.[c]?.ativo && validarParaCanal(im, c).length > 0
-      );
+      matchPendencia = CANAIS_AUTO.some(c => validarParaCanal(im, c).length > 0);
     }
 
     return (fTipo === "Todos" || im.tipo === fTipo)
@@ -189,7 +189,7 @@ export default function Anuncios() {
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: soPendencias ? "var(--primary-light)" : "var(--bg-input)", color: soPendencias ? "var(--primary-dark)" : "var(--text)" }}>
           <input type="checkbox" checked={soPendencias} onChange={e => setSoPendencias(e.target.checked)} style={{ width: 14, height: 14, accentColor: "var(--primary)" }} />
-          ⚠️ Só com pendências
+          ❌ Só os que não sobem
         </label>
         <span style={{ fontSize: 13, color: "var(--text-muted)", alignSelf: "center" }}>{filtered.length} imóvel(is)</span>
       </div>
@@ -233,29 +233,40 @@ export default function Anuncios() {
                   <td style={{ ...td, color: "var(--primary)", fontWeight: 500, whiteSpace: "nowrap" }}>{preco || "—"}</td>
                   <td style={{ ...td, whiteSpace: "nowrap" }}>{im.nomeProprietario || "—"}</td>
                   {CANAIS.map(canal => {
+                    const isAuto = CANAIS_AUTO.includes(canal);
+
+                    // CANAIS AUTOMÁTICOS (feed XML): mostram o status REAL do feed,
+                    // não a marcação manual. ✅ no feed (sem pendências) / ❌ fora (com o motivo).
+                    if (isAuto) {
+                      const problemas = validarParaCanal(im, canal);
+                      const noFeed = problemas.length === 0;
+                      const corBorda = noFeed ? "var(--primary)" : "#dc2626";
+                      const corFundo = noFeed ? "var(--primary-light)" : "#fee2e2";
+                      const icone = noFeed ? "✅" : "❌";
+                      const motivos = `${canal} — fora do feed:\n\n• ${problemas.join("\n• ")}`;
+                      const tooltipTitle = noFeed ? `${canal} — no feed` : `${canal} — fora do feed:\n• ${problemas.join("\n• ")}`;
+                      return (
+                        <td key={canal} style={{ padding: 5, textAlign: "center" }}>
+                          <button
+                            onClick={() => { if (!noFeed) alert(motivos); }}
+                            title={tooltipTitle}
+                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: corFundo, border: `1px solid ${corBorda}`, borderRadius: 8, padding: "4px 6px", cursor: noFeed ? "default" : "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
+                            <span style={{ fontSize: 14 }}>{icone}</span>
+                            <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{noFeed ? "no feed" : "fora"}</span>
+                          </button>
+                        </td>
+                      );
+                    }
+
+                    // CANAIS MANUAIS: marcação manual mesmo (clique pra ligar/desligar).
                     const info = im.anuncios?.[canal];
                     const ativo = !!info?.ativo;
-                    const isAuto = CANAIS_AUTO.includes(canal);
-                    const problemas = ativo && isAuto ? validarParaCanal(im, canal) : [];
-                    const temProblema = problemas.length > 0;
-
-                    const corBorda = !ativo ? "var(--border-soft)"
-                      : temProblema ? "#d97706"
-                      : "var(--primary)";
-                    const corFundo = !ativo ? "var(--bg-muted)"
-                      : temProblema ? "#fef3c7"
-                      : "var(--primary-light)";
-                    const icone = !ativo ? "⬜"
-                      : temProblema ? "⚠️"
-                      : "✅";
-
-                    const tooltipTitle = temProblema
-                      ? `Não será publicado em ${canal}:\n• ${problemas.join("\n• ")}`
-                      : "";
-
+                    const corBorda = ativo ? "var(--primary)" : "var(--border-soft)";
+                    const corFundo = ativo ? "var(--primary-light)" : "var(--bg-muted)";
+                    const icone = ativo ? "✅" : "⬜";
                     return (
                       <td key={canal} style={{ padding: 5, textAlign: "center" }}>
-                        <button onClick={() => toggle(im, canal)} title={tooltipTitle}
+                        <button onClick={() => toggle(im, canal)} title={ativo ? `Marcado em ${info.data}` : "Clique para marcar como anunciado à mão"}
                           style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: corFundo, border: `1px solid ${corBorda}`, borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
                           <span style={{ fontSize: 14 }}>{icone}</span>
                           {ativo && <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{info.data}</span>}
@@ -272,10 +283,9 @@ export default function Anuncios() {
 
       <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--bg-section)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)" }}>
         <strong style={{ color: "var(--text)" }}>Legenda:</strong>{" "}
-        <span style={{ marginRight: 14 }}>⬜ Não anunciado</span>
-        <span style={{ marginRight: 14 }}>✅ Anunciado</span>
-        <span style={{ marginRight: 14, color: "#d97706" }}>⚠️ Anunciado mas com pendências (passe o mouse para ver)</span>
-        <span>⚙ Canal com integração automática via feed XML</span>
+        <span style={{ marginRight: 14 }}>⚙ = canal de feed automático → ✅ no feed</span>
+        <span style={{ marginRight: 14, color: "#dc2626" }}>❌ fora do feed (clique no ❌ pra ver o motivo)</span>
+        <span>Demais canais = marcação manual: ⬜ não marcado / ✅ marcado à mão</span>
       </div>
     </div>
   );
