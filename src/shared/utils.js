@@ -51,6 +51,15 @@ export function apareceNoSite(im) {
   return v !== "Ocultar do site" && v !== "Ocultar de tudo";
 }
 
+// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta).
+// Espelha apareceNoSite, mas pro lado dos portais: "Ocultar dos portais" mantém
+// o imóvel no site e o tira dos feeds; "Ocultar de tudo" tira de tudo. Os demais
+// valores (ou vazio) mantêm o imóvel nos feeds dos portais.
+export function apareceNosPortais(im) {
+  const v = (im?.visibilidade || "").trim();
+  return v !== "Ocultar dos portais" && v !== "Ocultar de tudo";
+}
+
 export function totalLocacao(im) {
   return (parseFloat(im?.valorAluguel) || 0) + (parseFloat(im?.valorCondominio) || 0) + (parseFloat(im?.valorIPTU) || 0);
 }
@@ -447,6 +456,11 @@ export function validarParaCanal(im, canal) {
   const status = (im.status || "").toLowerCase();
   if (status && status !== "disponível" && status !== "disponivel") {
     problemas.push("Status não está como Disponível");
+  }
+
+  // Visibilidade: "Ocultar dos portais" e "Ocultar de tudo" tiram o imóvel dos feeds.
+  if (!apareceNosPortais(im)) {
+    problemas.push("Visibilidade está ocultando dos portais");
   }
 
   const fotos = (im.fotos || []).filter(Boolean);
