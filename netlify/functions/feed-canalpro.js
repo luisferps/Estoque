@@ -144,6 +144,91 @@ function resolvePropType(imovel, tipo, central) {
   return cod;
 }
 
+// ---------------------------------------------------------------------------
+// BLINDAGEM DO FEED — evita que dados ruins no cadastro façam o Grupo OLX
+// recusar o anúncio na entrada (motivos clássicos: contato na descrição,
+// cidade abreviada, coordenada fora do estado).
+// ---------------------------------------------------------------------------
+
+// Remove telefone, link, e-mail e nome/CRECI da DESCRIÇÃO (campo de texto).
+// O Grupo OLX/VivaReal reprova anúncios com contato no texto; isto blinda o
+// feed independentemente do que cada corretor digitar no cadastro. Remove a
+// SENTENÇA inteira que contém o contato, sem deixar "rabos" no texto.
+// IMPORTANTE: não mexe no contato OFICIAL do anúncio (bloco <ContactInfo>),
+// que continua intacto — é por ele que o lead chega.
+function limparDescricaoPortais(texto) {
+  let t = String(texto || "");
+
+  // 1) Acha o primeiro indício de contato (link, e-mail, nome da imobiliária,
+  //    CRECI ou telefone) e remove a SENTENÇA inteira que o contém. Repete para
+  //    limpar blocos encadeados. Fim de sentença = ".!?" seguido de espaço/fim
+  //    (ou quebra de linha) — assim o "." interno de uma URL/e-mail não confunde.
+  const gatilhos = [
+    /https?:\/\/\S+/i,
+    /\bwww\.\S+/i,
+    /\b(?:bit\.ly|wa\.me|api\.whatsapp\.com|encr\.pw|cutt\.ly)\/\S+/i,
+    /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
+    /INERENTE\s+GEST[ÃA]O\s+IMOBILI[ÁA]RIA/i,
+    /\bCRECI\b/i,
+    /\bCJ\s*-?\s*\d{4,6}\b/i,
+    /\(?\d{2}\)?\s*9?[\s.-]?\d{4}[\s.-]?\d{4}/,
+    /\b9\d{4}[\s.-]?\d{4}\b/,
+  ];
+  for (let passada = 0; passada < 6; passada++) {
+    let corte = -1;
+    for (const re of gatilhos) {
+      const m = t.match(re);
+      if (m && typeof m.index === "number" && (corte === -1 || m.index < corte)) corte = m.index;
+    }
+    if (corte === -1) break;
+    const antes = t.slice(0, corte);
+    const reIni = /[.!?](?=\s)|\n/g;
+    let ini = -1, mi;
+    while ((mi = reIni.exec(antes)) !== null) ini = mi.index;
+    const depois = t.slice(corte);
+    const mf = depois.match(/[.!?](?=\s|$)|\n/);
+    const fim = mf ? corte + mf.index + 1 : t.length;
+    t = t.slice(0, ini + 1) + (fim < t.length ? t.slice(fim) : "");
+  }
+
+  // 2) Varredura de segurança: remove telefone/link/e-mail/rótulo de canal
+  //    que por acaso tenha sobrado solto (sem pontuação ao redor).
+  t = t.replace(/\bhttps?:\/\/\S+/gi, " ");
+  t = t.replace(/\bwww\.\S+/gi, " ");
+  t = t.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, " ");
+  t = t.replace(/\(?\d{2}\)?\s*9?[\s.-]?\d{4}[\s.-]?\d{4}/g, " ");
+  t = t.replace(/\b9\d{4}[\s.-]?\d{4}\b/g, " ");
+  t = t.replace(/\b(?:whats\s?app|whatsapp|whats|zap)\b/gi, " ");
+
+  // 3) Limpeza de espaços, separadores e pontuação órfãos.
+  t = t.replace(/[ \t]{2,}/g, " ");
+  t = t.replace(/\s*[|–—-]\s*[|–—-]\s*/g, " ");
+  t = t.replace(/ +([.,;:!?])/g, "$1");
+  t = t.replace(/[ \t]+\n/g, "\n");
+  t = t.replace(/\n{3,}/g, "\n\n");
+  t = t.replace(/[\s,;:|–—-]+$/g, "");
+  return t.trim();
+}
+
+// Normaliza cidades que o Grupo OLX não reconhece abreviadas.
+// Ex.: "Aparecida" sozinho é recusado; o correto é "Aparecida de Goiânia".
+function normalizarCidade(cidade) {
+  const c = String(cidade || "").trim();
+  if (/^aparecida(\s*[-/]?\s*go)?$/i.test(c)) return "Aparecida de Goiânia";
+  return c;
+}
+
+// Valida se a coordenada cai dentro de Goiás (bounding box com folga).
+// Coordenada claramente fora do estado (erro de cadastro/geocodificação,
+// ex.: imóvel plotado em São Paulo) é descartada — o Grupo OLX então
+// localiza o imóvel pelo endereço (cidade/bairro/CEP), que está correto.
+function coordenadaEmGoias(lat, lng) {
+  const la = parseFloat(String(lat).replace(",", "."));
+  const lo = parseFloat(String(lng).replace(",", "."));
+  if (!isFinite(la) || !isFinite(lo)) return false;
+  return la <= -12.0 && la >= -20.0 && lo <= -45.5 && lo >= -54.0;
+}
+
 // Constrói um único <Listing> a partir do documento Firestore.
 // Retorna null se o imóvel não atende requisitos mínimos (e loga o motivo).
 function buildListing(imovel, tiposCentral) {
@@ -171,8 +256,8 @@ function buildListing(imovel, tiposCentral) {
     }
   }
 
-  // Descrição mínima de 50 caracteres
-  const descricao = (imovel.descricao || "").trim();
+  // Descrição mínima de 50 caracteres (já blindada contra contato/link/CRECI)
+  const descricao = limparDescricaoPortais((imovel.descricao || "").trim());
   if (descricao.length < 50) {
     console.log(`[CanalPro] Pulado ${id}: descrição < 50 caracteres`);
     return null;
@@ -216,7 +301,7 @@ function buildListing(imovel, tiposCentral) {
   // Localização — Country, State, City, Neighborhood são obrigatórios
   const uf = (imovel.estado || "GO").substring(0, 2).toUpperCase();
   const estadoNome = imovel.estadoNome || "Goiás";
-  const cidade = imovel.cidade || "";
+  const cidade = normalizarCidade(imovel.cidade || "");
   const bairro = imovel.bairro || "";
   if (!cidade || !bairro) {
     console.log(`[CanalPro] Pulado ${id}: cidade ou bairro vazios`);
@@ -231,7 +316,7 @@ function buildListing(imovel, tiposCentral) {
   if (imovel.endereco) enderecoPartes.push(`        <Address>${cdata(imovel.endereco)}</Address>`);
   enderecoPartes.push(`        <StreetNumber>${cdata(numeroEndereco)}</StreetNumber>`);
   if (imovel.cep) enderecoPartes.push(`        <PostalCode>${String(imovel.cep).replace(/\D/g, "")}</PostalCode>`);
-  if (imovel.latitude && imovel.longitude) {
+  if (imovel.latitude && imovel.longitude && coordenadaEmGoias(imovel.latitude, imovel.longitude)) {
     enderecoPartes.push(`        <Latitude>${imovel.latitude}</Latitude>`);
     enderecoPartes.push(`        <Longitude>${imovel.longitude}</Longitude>`);
   }
