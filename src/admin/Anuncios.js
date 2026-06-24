@@ -10,6 +10,7 @@ export default function Anuncios() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
   const { tipos } = useTipos();
+  const [busca, setBusca] = useState("");
   const [fTipo, setFTipo] = useState("Todos");
   const [fTransacao, setFTransacao] = useState("Todos");
   const [fCidade, setFCidade] = useState("Todas");
@@ -46,12 +47,18 @@ export default function Anuncios() {
       matchPendencia = CANAIS_AUTO.some(c => validarParaCanal(im, c).length > 0);
     }
 
+    // Busca livre: procura o texto digitado em código, título, tipo, cidade, bairro e proprietário.
+    const q = busca.trim().toLowerCase();
+    const matchBusca = !q || [im.codigo, im.titulo, im.tipo, im.cidade, im.bairro, im.nomeProprietario, im.descricao]
+      .some(v => (v || "").toString().toLowerCase().includes(q));
+
     return (fTipo === "Todos" || im.tipo === fTipo)
       && matchTransacao(im, fTransacao)
       && (fCidade === "Todas" || im.cidade === fCidade)
       && matchCanal
-      && matchPendencia;
-  }), [imoveis, fTipo, fTransacao, fCidade, fCanal, soPendencias]);
+      && matchPendencia
+      && matchBusca;
+  }), [imoveis, fTipo, fTransacao, fCidade, fCanal, soPendencias, busca]);
 
   // Ordenação tipo Excel: clica no cabeçalho → ordena por aquela coluna (alterna A→Z / Z→A).
   const sorted = useMemo(() => {
@@ -194,6 +201,13 @@ export default function Anuncios() {
       )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+        <input
+          type="text"
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          placeholder="🔎 Buscar (código, título, bairro, proprietário...)"
+          style={{ ...selectStyle, minWidth: 280, flex: "1 1 280px" }}
+        />
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={selectStyle}>
           <option value="Todos">Todos os tipos</option>{tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
         </select>
@@ -251,8 +265,14 @@ export default function Anuncios() {
               return (
                 <tr key={im.id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--bg-section)" }}>
                   <td style={td}>
-                    <span style={tag("primary")}>{im.tipo}</span>
-                    {im.transacao && <span style={{ ...tag(), marginLeft: 4 }}>{im.transacao}</span>}
+                    <button onClick={() => navigate(`/admin/editar/${im.id}`)} title="Clique para abrir a edição deste imóvel"
+                      style={{ background: "none", border: "none", padding: 0, margin: 0, cursor: "pointer", textAlign: "left", display: "inline-flex", flexDirection: "column", gap: 3, font: "inherit", color: "var(--text)" }}>
+                      {im.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textDecoration: "underline" }}>{im.codigo}</span>}
+                      <span>
+                        <span style={tag("primary")}>{im.tipo}</span>
+                        {im.transacao && <span style={{ ...tag(), marginLeft: 4 }}>{im.transacao}</span>}
+                      </span>
+                    </button>
                   </td>
                   <td style={td}>{statusDoImovel(im)}</td>
                   <td style={td}>{im.cidade || "—"}</td>
