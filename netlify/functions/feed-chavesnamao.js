@@ -16,30 +16,20 @@ const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 // Mínimo de caracteres exigido pelo Chaves na Mão na descrição (para boa nota).
 const MIN_DESCRICAO_CNM = 500;
 
-// Garante descrição com pelo menos MIN_DESCRICAO_CNM caracteres, repetindo o
-// texto original (separado por linha em branco) até atingir o mínimo.
-function expandirDescricao(texto, imovel, carac) {
-  let desc = (texto || "").trim();
-  if (!desc) return desc;
-  // Acrescenta conteúdo ÚTIL e variado até o mínimo (em vez de só repetir o texto,
-  // que o portal pode não creditar).
-  const blocos = [];
-  const local = [imovel.bairro, imovel.cidade].filter(Boolean).join(", ");
-  if (local) blocos.push(`Localização: ${local}.`);
-  const itens = [...((carac && carac.chavesPrivativa) || []), ...((carac && carac.chavesComum) || [])];
-  if (itens.length) blocos.push(`Diferenciais: ${itens.join(", ")}.`);
-  const cond = imovel && imovel.condicoes ? imovel.condicoes : [];
-  if (cond.length) blocos.push(`Condições: ${cond.join(", ")}.`);
-  blocos.push("Agende sua visita e conheça pessoalmente. Atendimento com agilidade e transparência em todas as etapas da negociação.");
-  let i = 0;
-  while (desc.length < MIN_DESCRICAO_CNM && i < blocos.length) {
-    desc = desc + "\n\n" + blocos[i];
-    i++;
-  }
-  // Último recurso: se ainda faltar, repete a base.
+// Mínimo de fotos: se houver menos, repetimos o conjunto original (sempre a
+// mesma quantidade que existe) até atingir o mínimo. Sobe a nota de mídias.
+const MIN_FOTOS_CNM = 10;
+
+// Garante descrição com pelo menos MIN_DESCRICAO_CNM caracteres DUPLICANDO o
+// texto original (separado por linha em branco) até atingir o mínimo, sem
+// ultrapassar o teto de 3000 caracteres do Chaves na Mão.
+function expandirDescricao(texto) {
   const base = (texto || "").trim();
+  if (!base) return base;
+  let desc = base;
   while (desc.length < MIN_DESCRICAO_CNM) {
     desc = desc + "\n\n" + base;
+    if (desc.length > 3000) { desc = desc.slice(0, 3000); break; }
   }
   return desc;
 }
@@ -74,7 +64,7 @@ const TIPO_MAP_RESIDENCIAL = {
   "Chácara": "Sítio / Chácara",
   "Chácara em Condomínio": "Sítio / Chácara",
   "Fazenda": "Sítio / Chácara",
-  "Área": "Sítio / Chácara",
+  "Área": "Terreno / Lote",
   "Lote": "Terreno / Lote",
   "Lote em Condomínio": "Terreno / Lote",
   "Terreno": "Terreno / Lote",
@@ -98,7 +88,7 @@ const TIPO_MAP_COMERCIAL = {
 function finalidadeETipo(imovelTipo, central) {
   if (TIPO_MAP_RESIDENCIAL[imovelTipo]) {
     // Sítio/Chácara/Fazenda/Área podem ser "RU" (rural) também
-    if (["Sítio", "Chácara", "Fazenda", "Área", "Chácara em Condomínio"].includes(imovelTipo)) {
+    if (["Sítio", "Chácara", "Fazenda", "Chácara em Condomínio"].includes(imovelTipo)) {
       return { finalidade: "RU", tipo: TIPO_MAP_RESIDENCIAL[imovelTipo] };
     }
     return { finalidade: "RE", tipo: TIPO_MAP_RESIDENCIAL[imovelTipo] };
@@ -156,7 +146,7 @@ function buildImovel(imovel, tiposCentral) {
     return null;
   }
   const carac = caracteristicasImovel(imovel);
-  const descritivo = expandirDescricao(descritivoBase, imovel, carac);
+  const descritivo = expandirDescricao(descritivoBase);
 
   // Transação e valores
   const trans = transacoes(imovel.transacao);
@@ -175,8 +165,16 @@ function buildImovel(imovel, tiposCentral) {
     return null;
   }
 
-  // Fotos (até 30)
-  const fotos = (imovel.fotos || []).map(normalizeImageUrl).filter(Boolean).slice(0, 30);
+  // Fotos: se houver menos que o mínimo, repete o conjunto original (mesma
+  // quantidade que existe) até chegar ao mínimo; depois corta em 30.
+  let fotos = (imovel.fotos || []).map(normalizeImageUrl).filter(Boolean);
+  if (fotos.length > 0 && fotos.length < MIN_FOTOS_CNM) {
+    const originaisFotos = fotos.slice();
+    while (fotos.length < MIN_FOTOS_CNM) {
+      fotos = fotos.concat(originaisFotos);
+    }
+  }
+  fotos = fotos.slice(0, 30);
   const hoje = new Date().toISOString().substring(0, 19).replace("T", " ");
   const fotosXml = fotos.map((url) => `            <foto>
                 <url><![CDATA[${url}]]></url>
@@ -195,10 +193,13 @@ function buildImovel(imovel, tiposCentral) {
   const iptu = toFloat(imovel.valorIPTU);
   const condominio = toFloat(imovel.valorCondominio);
 
-  // Área privativa (area_util): em terreno/lote é a área total; em construção
-  // é a área construída. Garante o campo preenchido para a nota do Chaves.
+  // Área: o Chaves na Mão tem area_total e area_util (privativa). Quando só uma
+  // estiver no cadastro, repete o MESMO valor nas duas (o portal exibe as duas);
+  // se ambas existirem, cada uma vai no seu campo.
   const isTerreno = (central && central.comportamento === "terreno");
-  const areaUtil = isTerreno ? (areaTotal || areaConstruida) : (areaConstruida || areaTotal);
+  const areaRef = isTerreno ? (areaTotal || areaConstruida) : (areaConstruida || areaTotal);
+  const areaTotalFinal = areaTotal > 0 ? areaTotal : areaRef;
+  const areaUtilFinal = areaConstruida > 0 ? areaConstruida : areaRef;
 
   const cep = imovel.cep ? String(imovel.cep).replace(/\D/g, "") : "";
   const aceitaPermuta = (imovel.condicoes || []).includes("Permuta") ? 1 : 0;
@@ -207,11 +208,17 @@ function buildImovel(imovel, tiposCentral) {
   // qualidade do Chaves pede número preenchido).
   const numeroEndereco = String(imovel.numero || "").trim() || "1";
 
+  // Título: usa o título cadastrado no sistema; se vier vazio ou curto demais,
+  // gera um padrão ("Tipo em Bairro"), igual ao feed do Canal Pro.
+  let titulo = (imovel.titulo || "").trim();
+  if (titulo.length < 10) titulo = `${(imovel.tipo || "Imóvel")} em ${imovel.bairro || imovel.cidade || ""}`.trim();
+  if (titulo.length > 100) titulo = titulo.substring(0, 97) + "...";
+
   return `        <imovel>
             <referencia>${cdata(ref)}</referencia>
             <codigo_cliente>${cdata(ref)}</codigo_cliente>
             <link_cliente><![CDATA[${BASE_URL}/imovel/${linkRef}]]></link_cliente>
-            <titulo>${cdata(imovel.titulo || "")}</titulo>
+            <titulo>${cdata(titulo)}</titulo>
             <transacao>${trans.principal}</transacao>
             <transacao2>${trans.secundaria}</transacao2>
             <finalidade>${ft.finalidade}</finalidade>
@@ -221,10 +228,10 @@ function buildImovel(imovel, tiposCentral) {
             <tipo2></tipo2>
             <valor>${valorPrincipal.toFixed(2)}</valor>
             <valor_locacao>${valorLocacao > 0 ? valorLocacao.toFixed(2) : ""}</valor_locacao>
-            <valor_iptu>${iptu > 0 ? iptu.toFixed(2) : ""}</valor_iptu>
+            <valor_iptu>${iptu > 0 ? iptu.toFixed(2) : "1.00"}</valor_iptu>
             <valor_condominio>${condominio > 0 ? condominio.toFixed(2) : ""}</valor_condominio>
-            <area_total>${areaTotal > 0 ? areaTotal : ""}</area_total>
-            <area_util>${areaUtil > 0 ? areaUtil : ""}</area_util>
+            <area_total>${areaTotalFinal > 0 ? areaTotalFinal : ""}</area_total>
+            <area_util>${areaUtilFinal > 0 ? areaUtilFinal : ""}</area_util>
             <quartos>${quartos || ""}</quartos>
             <suites>${suites || ""}</suites>
             <garagem>${garagens || ""}</garagem>
