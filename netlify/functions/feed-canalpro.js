@@ -14,10 +14,11 @@ const {
 const BASE_URL = "https://imoveisdisponiveis.netlify.app";
 
 // Mínimo de fotos para boa pontuação no Canal Pro/ZAP. Quando o imóvel tem
-// menos que isso, repetimos as fotos existentes até atingir o mínimo.
-// OBS: o ZAP pode detectar/penalizar fotos repetidas; isto é uma medida
-// paliativa para a nota de mídias enquanto não há fotos reais suficientes.
-const MIN_FOTOS_CANALPRO = 8;
+// menos que isso, repetimos o conjunto original (sempre a mesma quantidade
+// que existe) até atingir o mínimo. OBS: o ZAP pode detectar/penalizar fotos
+// repetidas; é uma medida paliativa para a nota de mídias enquanto não há
+// fotos reais suficientes.
+const MIN_FOTOS_CANALPRO = 10;
 
 // Identificador do anúncio (ListingID) — usa o código legível do Estoque
 // (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
@@ -245,14 +246,14 @@ function buildListing(imovel, tiposCentral) {
     return null;
   }
 
-  // Repete as fotos existentes até atingir o mínimo (MIN_FOTOS_CANALPRO),
-  // sem ultrapassar 30. Só repete quando há menos fotos que o mínimo.
-  if (fotos.length < MIN_FOTOS_CANALPRO) {
+  // Se houver menos fotos que o mínimo, REPETE o conjunto original (sempre a
+  // mesma quantidade que existe) até chegar ao mínimo. Ex.: 4 fotos -> 8 -> 12;
+  // 3 -> 6 -> 9 -> 12; 5 -> 10. A primeira foto (destaque) continua sendo a
+  // original. O corte em 30 fotos é feito mais abaixo, na montagem das mídias.
+  if (fotos.length > 0 && fotos.length < MIN_FOTOS_CANALPRO) {
     const originais = fotos.slice();
-    let i = 0;
-    while (fotos.length < MIN_FOTOS_CANALPRO && fotos.length < 30) {
-      fotos.push(originais[i % originais.length]);
-      i++;
+    while (fotos.length < MIN_FOTOS_CANALPRO) {
+      fotos = fotos.concat(originais);
     }
   }
 
@@ -342,6 +343,9 @@ function buildListing(imovel, tiposCentral) {
 
   const condominio = toInt(imovel.valorCondominio);
   const iptuMensal = toInt(imovel.valorIPTU);
+  // IPTU sempre presente no feed: quando o cadastro tem zero (ou vazio), sobe
+  // como 1 para os portais não recusarem/penalizarem o anúncio por IPTU ausente.
+  const iptuAnual = iptuMensal > 0 ? iptuMensal * 12 : 1;
 
   // Características/comodidades (sobe a nota do anúncio).
   const carac = caracteristicasImovel(imovel);
@@ -357,7 +361,7 @@ function buildListing(imovel, tiposCentral) {
     listPriceTag && `        ${listPriceTag}`,
     rentalPriceTag && `        ${rentalPriceTag}`,
     condominio > 0 && `        <PropertyAdministrationFee currency="BRL">${condominio}</PropertyAdministrationFee>`,
-    iptuMensal > 0 && `        <Iptu currency="BRL" period="Yearly">${iptuMensal * 12}</Iptu>`,
+    `        <Iptu currency="BRL" period="Yearly">${iptuAnual}</Iptu>`,
     quartos > 0 && `        <Bedrooms>${quartos}</Bedrooms>`,
     suites > 0 && `        <Suites>${suites}</Suites>`,
     banheiros > 0 && `        <Bathrooms>${banheiros}</Bathrooms>`,
