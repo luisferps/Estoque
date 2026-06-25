@@ -463,6 +463,15 @@ export function validarParaCanal(im, canal) {
     problemas.push("Visibilidade está ocultando dos portais");
   }
 
+  // Canal desligado de propósito: na tela "Onde foi anunciado", os canais
+  // automáticos vêm LIGADOS por padrão. Se a caixinha foi DESMARCADA (opt-out
+  // explícito, ativo:false), o feed tira o imóvel daquele portal — mesmo com
+  // todos os campos completos. Espelha o temFlagAnuncio() dos feeds XML, que
+  // antes não era checado aqui (a tela mostrava ✅ "no feed" indevidamente).
+  if (im.anuncios && im.anuncios[canal] && im.anuncios[canal].ativo === false) {
+    problemas.push('Canal desligado à mão em "Onde foi anunciado" (remarque para voltar ao feed)');
+  }
+
   const fotos = (im.fotos || []).filter(Boolean);
   const desc = (im.descricao || "").trim();
   const cidade = (im.cidade || "").trim();
@@ -505,7 +514,7 @@ export function validarParaCanal(im, canal) {
     if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
     if (!cidade) problemas.push("Preencha a cidade");
     if (!estado) problemas.push("Preencha o estado (UF)");
-    if (!im.latitude || !im.longitude) problemas.push("Coordenadas não foram encontradas — verifique cidade/bairro");
+    if (!parseFloat(im.latitude) || !parseFloat(im.longitude)) problemas.push("Coordenadas não foram encontradas — verifique cidade/bairro");
     if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
     if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
     if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
