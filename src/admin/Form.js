@@ -247,7 +247,16 @@ export default function Form() {
       if (!(data.nomeProprietario || "").trim()) faltando.push("dados do proprietário");
       if (!(data.telefoneProprietario || "").trim()) faltando.push("telefone do proprietário");
       if (!(data.descricao || "").trim()) faltando.push("descrição");
-      if (!(String(data.preco || "")).trim()) faltando.push("valor");
+      // O "valor" obrigatório depende da TRANSAÇÃO:
+      // - Locação: o valor é o ALUGUEL (campo valorAluguel).
+      // - Venda (e "Venda e Locação"): o valor é o PREÇO de venda (campo preco).
+      // (Antes checava sempre "preco", então imóvel de locação caía em "Aguardando
+      //  finalização" mesmo com o aluguel preenchido.)
+      if (isLocacao) {
+        if (!(String(data.valorAluguel || "")).trim()) faltando.push("valor");
+      } else {
+        if (!(String(data.preco || "")).trim()) faltando.push("valor");
+      }
       if (!(data.cidade || "").trim() || !(data.bairro || "").trim()) faltando.push("localização");
       if (!(data.endereco || "").trim()) faltando.push("endereço");
       if (!Array.isArray(data.fotos) || data.fotos.length === 0) faltando.push("fotos");
