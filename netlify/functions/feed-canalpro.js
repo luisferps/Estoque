@@ -230,6 +230,32 @@ function coordenadaEmGoias(lat, lng) {
   return la <= -12.0 && la >= -20.0 && lo <= -45.5 && lo >= -54.0;
 }
 
+// CEP central (real) de cada cidade — tampão usado quando o imóvel NÃO tem
+// CEP válido no cadastro. São CEPs de logradouro central, aceitos pelo Grupo
+// OLX, pra garantir que o anúncio publica (a localização fina vem do bairro
+// e da coordenada). Onde o cadastro tiver CEP de verdade, ELE é usado; este
+// tampão só entra quando o CEP está vazio ou inválido.
+const CEP_FALLBACK_CIDADE = {
+  "goiania": "74050100",              // Av. Goiás, Setor Central, Goiânia
+  "aparecida de goiania": "74980010", // Centro, Aparecida de Goiânia
+};
+const CEP_FALLBACK_PADRAO = "74050100"; // Goiânia (Av. Goiás, Centro)
+
+function cidadeChave(c) {
+  return String(c || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+// Retorna SEMPRE um CEP de 8 dígitos: o do imóvel quando válido; senão, o CEP
+// central da cidade (tampão). Evita a recusa do Canal Pro por "CEP vazio/inválido".
+function cepValidoOuFallback(imovel, cidade) {
+  const limpo = String(imovel.cep || "").replace(/\D/g, "");
+  if (limpo.length === 8) return limpo;
+  const c = cidadeChave(cidade);
+  if (CEP_FALLBACK_CIDADE[c]) return CEP_FALLBACK_CIDADE[c];
+  if (c.indexOf("aparecida") >= 0) return CEP_FALLBACK_CIDADE["aparecida de goiania"];
+  return CEP_FALLBACK_PADRAO;
+}
+
 // Constrói um único <Listing> a partir do documento Firestore.
 // Retorna null se o imóvel não atende requisitos mínimos (e loga o motivo).
 function buildListing(imovel, tiposCentral) {
@@ -316,7 +342,7 @@ function buildListing(imovel, tiposCentral) {
   const enderecoPartes = [];
   if (imovel.endereco) enderecoPartes.push(`        <Address>${cdata(imovel.endereco)}</Address>`);
   enderecoPartes.push(`        <StreetNumber>${cdata(numeroEndereco)}</StreetNumber>`);
-  if (imovel.cep) enderecoPartes.push(`        <PostalCode>${String(imovel.cep).replace(/\D/g, "")}</PostalCode>`);
+  enderecoPartes.push(`        <PostalCode>${cepValidoOuFallback(imovel, cidade)}</PostalCode>`);
   if (imovel.latitude && imovel.longitude && coordenadaEmGoias(imovel.latitude, imovel.longitude)) {
     enderecoPartes.push(`        <Latitude>${imovel.latitude}</Latitude>`);
     enderecoPartes.push(`        <Longitude>${imovel.longitude}</Longitude>`);
@@ -330,12 +356,23 @@ function buildListing(imovel, tiposCentral) {
   }).join("\n");
 
   // Detalhes
-  const quartos = toInt(imovel.quartos);
+  let quartos = toInt(imovel.quartos);
   const suites = toInt(imovel.suites);
   const garagens = toInt(imovel.garagens);
   // Banheiros: usa o que tiver, ou estima como quartos (mínimo 1 para residencial)
   let banheiros = toInt(imovel.banheiros);
   if (!banheiros && quartos > 0) banheiros = quartos;
+  // O Canal Pro/ZAP EXIGE quartos e banheiros (>=1) para imóvel residencial com
+  // edificação (casa, apto, condomínio, chácara/sítio com casa...). Terreno/lote
+  // e comercial ficam de fora. Onde o cadastro veio sem valor, garante o mínimo
+  // pra não ser recusado; onde tem número real, mantém.
+  const ehTerrenoOuComercial = propType === "Residential / Land Lot"
+    || propType === "Commercial / Land Lot"
+    || usageType(tipo) === "Commercial";
+  if (!ehTerrenoOuComercial) {
+    if (quartos < 1) quartos = 1;
+    if (banheiros < 1) banheiros = 1;
+  }
 
   const areaTag = isLote
     ? `        <LotArea unit="square metres">${metragemTotal || area}</LotArea>`
