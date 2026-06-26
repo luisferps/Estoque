@@ -103,11 +103,23 @@ export default function Form() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [organizando, setOrganizando] = useState(false);
-  // Toggle "Internacional" por campo de telefone (proprietário e captador).
-  // Inicializa ligado se o valor já salvo começar com "+".
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
   const [telCaptadorIntl, setTelCaptadorIntl] = useState(false);
+  // Lista de captadores cadastrados no Supabase (via backend)
+  const [listaCaptadores, setListaCaptadores] = useState([]);
   const fileRef = useRef();
+
+  // Carrega lista de captadores do Supabase via backend
+  useEffect(() => {
+    const token = tokenSessaoSSO();
+    if (!token) return;
+    fetch(BACKEND_URL + '/captadores/listar', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+      .then(r => r.json())
+      .then(j => { if (j.ok) setListaCaptadores(j.captadores || []); })
+      .catch(() => {});
+  }, []);
 
   function migrarAnuncios(anuncios) {
     if (!anuncios) return {};
@@ -218,8 +230,8 @@ export default function Form() {
     if (!form.titulo) return alert("Preencha o título.");
     if (!telefoneValido(form.telefoneProprietario, telProprietarioIntl))
       return alert("Informe o telefone do proprietário: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
-    if (!telefoneValido(form.telefoneCaptador, telCaptadorIntl))
-      return alert("Informe o telefone do captador: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
+    if (!form.nomeCaptador || !(form.captadores_ids || []).length)
+      return alert("Selecione pelo menos um captador.");
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
@@ -633,8 +645,91 @@ export default function Form() {
         <div style={grid2}>{inp("Nome", "nomeProprietario")}{inpTel("Telefone *", "telefoneProprietario", telProprietarioIntl, setTelProprietarioIntl)}</div>
       </>)}
 
-      {section("Captador *", <>
-        <div style={grid2}>{inp("Nome", "nomeCaptador")}{inpTel("Telefone *", "telefoneCaptador", telCaptadorIntl, setTelCaptadorIntl)}</div>
+      {section("Captador(es) *", <>
+        {listaCaptadores.length === 0 ? (
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
+            Nenhum captador cadastrado ainda. Adicione no <b>Cadastro de Pessoas</b> com a função Captador.
+          </p>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+              {listaCaptadores.map(cap => {
+                const selecionados = form.captadores_ids || [];
+                const ativo = selecionados.includes(cap.id);
+                return (
+                  <button
+                    key={cap.id}
+                    type="button"
+                    onClick={() => {
+                      const atual = form.captadores_ids || [];
+                      const novos = ativo
+                        ? atual.filter(x => x !== cap.id)
+                        : [...atual, cap.id];
+                      // divide comissão igual entre captadores
+                      const pct = novos.length > 0 ? Math.round(100 / novos.length) : 0;
+                      const captadoresDetalhes = novos.map((cid, idx) => ({
+                        id: cid,
+                        nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
+                        pct: idx === 0 ? (100 - pct * (novos.length - 1)) : pct
+                      }));
+                      setForm(p => ({
+                        ...p,
+                        captadores_ids: novos,
+                        captadores_detalhes: captadoresDetalhes,
+                        // mantém nomeCaptador/captadorEmail para compatibilidade
+                        nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
+                      }));
+                    }}
+                    style={{
+                      padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
+                      border: ativo ? "2px solid var(--primary)" : "1.5px solid var(--border-soft)",
+                      background: ativo ? "rgba(59,130,246,.15)" : "var(--bg-card)",
+                      color: ativo ? "var(--primary)" : "var(--text-muted)",
+                      cursor: "pointer", transition: "all .15s"
+                    }}
+                  >
+                    {cap.nome}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Percentuais editáveis quando há mais de 1 captador */}
+            {(form.captadores_detalhes || []).length > 1 && (
+              <div style={{ background: "var(--bg-card)", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Divisão da comissão de captação:</div>
+                {(form.captadores_detalhes || []).map((cap, idx) => (
+                  <div key={cap.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <span style={{ flex: 1, fontSize: 13 }}>{cap.nome}</span>
+                    <input
+                      type="number" min="0" max="100" step="1"
+                      value={cap.pct}
+                      onChange={e => {
+                        const val = Number(e.target.value) || 0;
+                        setForm(p => {
+                          const det = [...(p.captadores_detalhes || [])];
+                          det[idx] = { ...det[idx], pct: val };
+                          return { ...p, captadores_detalhes: det };
+                        });
+                      }}
+                      style={{ ...inputBase, width: 70, textAlign: "center" }}
+                    />
+                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                  Total: {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0)}%
+                  {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0) !== 100 && (
+                    <span style={{ color: "#dc2626", marginLeft: 6 }}>⚠ deve somar 100%</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+        {/* Campo legado nomeCaptador oculto — mantém compatibilidade */}
+        <div style={{ display: "none" }}>
+          {inp("Nome", "nomeCaptador")}
+        </div>
       </>)}
 
       {section("Onde foi anunciado (visível só para admin)", <>
