@@ -147,7 +147,7 @@ export default function Home() {
   const cardActions = (im) => (
     <>
       <a href={`https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(`Olá! Tenho interesse no imóvel: ${im.titulo || "imóvel"}\n${window.location.origin}/imovel/${im.id}`)}`}
-        target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={waBtnStyle}>💬 WhatsApp</a>
+        target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ ...waBtnStyle, minWidth: 0, flex: 1 }}>💬 WhatsApp</a>
       <div style={{ position: "relative", flex: 1 }} onClick={e => e.stopPropagation()}>
         <button onClick={() => setShareOpenId(shareOpenId === im.id ? null : im.id)} style={compartilharBtnStyle}>
           ↗ Compartilhar
@@ -193,21 +193,23 @@ export default function Home() {
         </p>
 
         {/* Comprar / Alugar / Todos — em destaque */}
-        <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: 6, gap: 6, backdropFilter: "blur(6px)" }}>
-          {MODOS.map(m => {
-            const on = transacao === m.key;
-            return (
-              <button key={m.key} className={"modo-btn " + (on ? "on" : "")} onClick={() => { setTransacao(m.key); setTipo("Todos"); setValorMin(""); setValorMax(""); }}
-                style={{
-                  border: "none", cursor: "pointer", borderRadius: 999, padding: "12px 28px", fontSize: 15.5, fontWeight: 800,
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  background: on ? "#fff" : "transparent", color: on ? "var(--primary-dark)" : "rgba(255,255,255,0.94)",
-                  boxShadow: on ? "0 8px 22px rgba(0,0,0,0.22)" : "none"
-                }}>
-                <span style={{ fontSize: 17 }}>{m.icon}</span>{m.label}
-              </button>
-            );
-          })}
+        <div style={{ maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+          <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: 5, gap: 4, backdropFilter: "blur(6px)", whiteSpace: "nowrap" }}>
+            {MODOS.map(m => {
+              const on = transacao === m.key;
+              return (
+                <button key={m.key} className={"modo-btn " + (on ? "on" : "")} onClick={() => { setTransacao(m.key); setTipo("Todos"); setValorMin(""); setValorMax(""); }}
+                  style={{
+                    border: "none", cursor: "pointer", borderRadius: 999, padding: "10px clamp(14px, 4vw, 28px)", fontSize: "clamp(13px, 3.5vw, 15.5px)", fontWeight: 800,
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    background: on ? "#fff" : "transparent", color: on ? "var(--primary-dark)" : "rgba(255,255,255,0.94)",
+                    boxShadow: on ? "0 8px 22px rgba(0,0,0,0.22)" : "none", flexShrink: 0
+                  }}>
+                  <span style={{ fontSize: "clamp(14px, 4vw, 17px)" }}>{m.icon}</span>{m.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
