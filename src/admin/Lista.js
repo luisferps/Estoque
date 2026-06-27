@@ -5,8 +5,6 @@ import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta } from "../shared/utils";
-import { btnPrimary } from "../shared/styles";
-import { DarkModeToggle } from "../shared/ThemeProvider";
 import ImovelCard from "../shared/ImovelCard";
 import Filtros from "../shared/Filtros";
 
@@ -137,56 +135,11 @@ export default function Lista({ onLogout }) {
     alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
   };
 
-  const loc = window.location.pathname;
-
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
-      {/* CABEÇALHO FIXO */}
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--bg-card)", borderBottom: "1px solid var(--border-soft)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 1rem" }}>
-          {/* Linha 1: título + ações */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 6px", flexWrap: "wrap", gap: 6 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--primary-dark)" }}>
-              Inerente — Imóveis ({filtered.length})
-            </h2>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-              <DarkModeToggle />
-              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
-              <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
-              <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
-            </div>
-          </div>
-          {/* Linha 2: abas de navegação */}
-          <div style={{ display: "flex", gap: 2, overflowX: "auto", paddingBottom: 0 }}>
-            {[
-              { label: "🏠 Imóveis", path: "/admin" },
-              { label: "🔍 Consulta", path: "/admin/consulta" },
-              ...(ehDiretor ? [
-                { label: "📢 Anúncios", path: "/admin/anuncios" },
-                { label: "🏠 Rotação", path: "/admin/rotacao" },
-                { label: "⭐ Destaques", path: "/admin/destaques" },
-                { label: "👥 Corretores", path: "/admin/corretores" },
-                { label: "📥 Importar", path: "/admin/importar" },
-                { label: "🏷️ Tipos", path: "/admin/tipos" },
-              ] : []),
-              { label: "🌐 Site", path: "/", externo: true },
-            ].map(aba => (
-              <button key={aba.path} onClick={() => aba.externo ? window.open("/", "_blank") : navigate(aba.path)}
-                style={{
-                  padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "none",
-                  background: "none", cursor: "pointer", whiteSpace: "nowrap",
-                  borderBottom: loc === aba.path ? "2px solid var(--primary)" : "2px solid transparent",
-                  color: loc === aba.path ? "var(--primary)" : "var(--text-soft)",
-                  borderRadius: 0,
-                }}>
-                {aba.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
+      <h2 style={{ margin: "0 0 1rem", fontSize: 18, fontWeight: 600, color: "var(--primary-dark)" }}>
+        Imóveis ({filtered.length})
+      </h2>
 
       {/* Migração de códigos faltantes — aparece só se houver imóveis sem código */}
       {semCodigo > 0 && (
@@ -252,7 +205,6 @@ export default function Lista({ onLogout }) {
           </div>
         ))}
       </div>
-    </div>
     </div>
   );
 }
