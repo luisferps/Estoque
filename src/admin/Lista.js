@@ -5,7 +5,7 @@ import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta } from "../shared/utils";
-import { btnPrimary, btnOutline, pageWrap } from "../shared/styles";
+import { btnPrimary } from "../shared/styles";
 import { DarkModeToggle } from "../shared/ThemeProvider";
 import ImovelCard from "../shared/ImovelCard";
 import Filtros from "../shared/Filtros";
@@ -37,7 +37,7 @@ export default function Lista({ onLogout }) {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     const base = imoveis.filter(im =>
-      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q))
+      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
       && matchTransacao(im, transacao)
       && (estado === "Todos" || im.estadoImovel === estado)
@@ -64,6 +64,7 @@ export default function Lista({ onLogout }) {
 
   // Copia a descrição pronta (mesma função da ficha) pro WhatsApp.
   const [copiadoId, setCopiadoId] = useState(null);
+  const [hoverFoto, setHoverFoto] = useState(null); // {id, x, y} para prévia de foto
   const copiarDescricao = async (im) => {
     const txt = descricaoPronta(im);
     try {
@@ -136,29 +137,56 @@ export default function Lista({ onLogout }) {
     alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
   };
 
+  const loc = window.location.pathname;
+
   return (
-    <div style={pageWrap(1100)}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: "var(--primary-dark)" }}>
-          Painel Admin — Imóveis ({filtered.length})
-        </h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <DarkModeToggle />
-          <button onClick={() => navigate("/")} style={btnOutline}>Ver site público</button>
-          <button onClick={() => navigate("/admin/consulta")} style={btnOutline}>Consulta</button>
-          {ehDiretor && <>
-            <button onClick={() => navigate("/admin/anuncios")} style={menuBtn}>Anúncios</button>
-            <button onClick={() => navigate("/admin/rotacao")} style={menuBtnDestaque}>🏠 Rotação</button>
-            <button onClick={() => navigate("/admin/destaques")} style={menuBtnDestaque}>⭐ Destaques</button>
-            <button onClick={() => navigate("/admin/corretores")} style={menuBtn}>Corretores</button>
-            <button onClick={() => navigate("/admin/importar")} style={menuBtn}>Importar</button>
-            <button onClick={() => navigate("/admin/tipos")} style={menuBtn}>Tipos</button>
-          </>}
-          <span style={{ fontSize: 12, color: "var(--primary)", fontWeight: 500 }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
-          <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
-          <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      {/* CABEÇALHO FIXO */}
+      <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--bg-card)", borderBottom: "1px solid var(--border-soft)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 1rem" }}>
+          {/* Linha 1: título + ações */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0 6px", flexWrap: "wrap", gap: 6 }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--primary-dark)" }}>
+              Inerente — Imóveis ({filtered.length})
+            </h2>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <DarkModeToggle />
+              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
+              <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
+              <button onClick={() => navigate("/admin/novo")} style={btnPrimary}>+ Novo</button>
+            </div>
+          </div>
+          {/* Linha 2: abas de navegação */}
+          <div style={{ display: "flex", gap: 2, overflowX: "auto", paddingBottom: 0 }}>
+            {[
+              { label: "🏠 Imóveis", path: "/admin" },
+              { label: "🔍 Consulta", path: "/admin/consulta" },
+              ...(ehDiretor ? [
+                { label: "📢 Anúncios", path: "/admin/anuncios" },
+                { label: "🏠 Rotação", path: "/admin/rotacao" },
+                { label: "⭐ Destaques", path: "/admin/destaques" },
+                { label: "👥 Corretores", path: "/admin/corretores" },
+                { label: "📥 Importar", path: "/admin/importar" },
+                { label: "🏷️ Tipos", path: "/admin/tipos" },
+              ] : []),
+              { label: "🌐 Site", path: "/", externo: true },
+            ].map(aba => (
+              <button key={aba.path} onClick={() => aba.externo ? window.open("/", "_blank") : navigate(aba.path)}
+                style={{
+                  padding: "8px 14px", fontSize: 12, fontWeight: 600, border: "none",
+                  background: "none", cursor: "pointer", whiteSpace: "nowrap",
+                  borderBottom: loc === aba.path ? "2px solid var(--primary)" : "2px solid transparent",
+                  color: loc === aba.path ? "var(--primary)" : "var(--text-soft)",
+                  borderRadius: 0,
+                }}>
+                {aba.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
 
       {/* Migração de códigos faltantes — aparece só se houver imóveis sem código */}
       {semCodigo > 0 && (
@@ -193,10 +221,20 @@ export default function Lista({ onLogout }) {
         </div>
       )}
 
+      {/* Prévia flutuante de foto ao passar o mouse */}
+      {hoverFoto && (
+        <div style={{ position: "fixed", left: hoverFoto.x + 16, top: hoverFoto.y - 80, zIndex: 999, pointerEvents: "none", transition: "opacity 0.15s" }}>
+          <img src={hoverFoto.src} alt="" style={{ width: 200, height: 150, objectFit: "cover", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.3)", border: "2px solid var(--primary)" }} />
+          <div style={{ background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "3px 8px", borderRadius: "0 0 8px 8px", textAlign: "center" }}>{hoverFoto.total} foto(s)</div>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
         {filtered.map(im => (
+          <div key={im.id}
+            onMouseEnter={e => im.fotos?.[0] && setHoverFoto({ src: im.fotos[0], total: im.fotos.length, x: e.clientX, y: e.clientY })}
+            onMouseMove={e => hoverFoto && setHoverFoto(h => ({ ...h, x: e.clientX, y: e.clientY }))}
+            onMouseLeave={() => setHoverFoto(null)}>
           <ImovelCard
-            key={im.id}
             im={im}
             onClick={() => navigate(`/admin/imovel/${im.id}`)}
             actions={
@@ -211,8 +249,10 @@ export default function Lista({ onLogout }) {
               </>
             }
           />
+          </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }
@@ -221,16 +261,4 @@ const miniBtn = {
   flex: 1, padding: "6px 8px", fontSize: 12, borderRadius: 7,
   border: "1px solid var(--border-soft)", background: "var(--bg-muted)",
   color: "var(--text)", cursor: "pointer"
-};
-
-const menuBtn = {
-  fontSize: 13, padding: "7px 14px", borderRadius: 8,
-  border: "1px solid var(--border-soft)", background: "var(--bg-muted)",
-  color: "var(--text-soft)", cursor: "pointer", fontWeight: 500
-};
-
-const menuBtnDestaque = {
-  fontSize: 13, padding: "7px 14px", borderRadius: 8,
-  border: "1px solid var(--primary)", background: "var(--primary-light)",
-  color: "var(--primary-dark)", cursor: "pointer", fontWeight: 600
 };
