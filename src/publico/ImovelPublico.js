@@ -379,7 +379,7 @@ export default function ImovelPublico() {
                 <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>
                   📍 {[
                     // Endereço: só o nome da rua (remove número, QD, LT, Quadra, Lote)
-                    im.endereco ? im.endereco.replace(/,?\s*(n[°º\.:]?\s*\d+[\w-]*|qd?\.?\s*\d+|lt?\.?\s*\d+|quadra\s*\d+|lote\s*\d+)/gi, "").trim().replace(/,\s*$/, "").trim() : null,
+                    im.endereco ? im.endereco.replace(/,?\s*(n[°º.:]?\s*\d+[\w-]*|qd?\.?\s*\d+|lt?\.?\s*\d+|quadra\s*\d+|lote\s*\d+)/gi, "").trim().replace(/,\s*$/, "").trim() : null,
                     im.bairro, im.cidade, im.estado
                   ].filter(Boolean).join(", ")}
                 </p>
