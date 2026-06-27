@@ -24,8 +24,6 @@ const MIGRAR_CANAIS = {
   "Marketplace Facebook": "Marketplace Facebook",
 };
 
-// Tipos que SAO "em condominio" (viraram tipos proprios). O nome do condominio
-// e o valor do condominio passam a depender do TIPO escolhido, nao mais de uma flag.
 const TIPOS_EM_CONDOMINIO = [
   "Casa em Condomínio",
   "Sobrado em Condomínio",
@@ -36,11 +34,8 @@ function ehEmCondominio(tipo) {
   return TIPOS_EM_CONDOMINIO.includes(String(tipo || "").trim());
 }
 
-// Backend Railway (mesmo motor de visão que organiza as fotos na captação).
 const BACKEND_URL = "https://agentes-de-whatsapp-production.up.railway.app";
 
-// Token de sessão do Portal (gravado em admin_sso.sessao pelo App ao resgatar o SSO).
-// É o que o backend valida pra saber quem é o usuário e seu papel (diretor/corretor).
 function tokenSessaoSSO() {
   try {
     const raw = localStorage.getItem("admin_sso");
@@ -50,9 +45,6 @@ function tokenSessaoSSO() {
   } catch { return ""; }
 }
 
-// Salva o imóvel PELO BACKEND (rotas protegidas). O backend confere papel/dono
-// e grava no Firestore. Mantém toda a lógica de validação/código/geocoding aqui no front.
-// Retorna o id do imóvel salvo. Lança erro (com mensagem amigável) se falhar.
 async function salvarImovelBackend(idImovel, data) {
   const token = tokenSessaoSSO();
   if (!token) throw new Error("Sessão não encontrada. Saia e entre de novo pelo Portal.");
@@ -83,9 +75,6 @@ async function salvarImovelBackend(idImovel, data) {
   throw new Error(amigaveis[err] || ("Erro ao salvar (" + err + ")."));
 }
 
-// Imóveis vindos da captação podem ter "extras" como array (a IA às vezes devolve
-// uma lista). O formulário e a prévia esperam TEXTO (uma característica por linha) e
-// chamam .trim()/.split() — então normalizamos pra string ao carregar, senão a tela quebra.
 function extrasParaTexto(v) {
   if (Array.isArray(v)) return v.filter(Boolean).join("\n");
   if (v == null) return "";
@@ -104,7 +93,6 @@ export default function Form() {
   const [uploading, setUploading] = useState(false);
   const [organizando, setOrganizando] = useState(false);
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
-  const [telCaptadorIntl, setTelCaptadorIntl] = useState(false);
   // Lista de captadores cadastrados no Supabase (via backend)
   const [listaCaptadores, setListaCaptadores] = useState([]);
   const fileRef = useRef();
@@ -141,35 +129,26 @@ export default function Form() {
       if (imoveis.length > 0) { alert("Imóvel não encontrado."); navigate("/admin"); }
       return;
     }
-    // Permissão de edição: só o DONO (captadorEmail) ou DIRETOR pode editar.
-    // Bloqueia corretor/gerente que tente abrir /admin/editar/:id de imóvel de outro pela URL.
     const meuEmail = (usuarioSSO() || "").toLowerCase();
     const dono = String(existing.captadorEmail || "").toLowerCase();
     const souDono = !!meuEmail && !!dono && meuEmail === dono;
     const ehDiretor = ehDiretorEfetivo(isAdmin);
     if (!souDono && !ehDiretor) {
-      // O papel via Firebase pode ainda estar carregando — espera antes de bloquear,
-      // pra nunca barrar um diretor por engano (falso negativo).
       if (loadingRole) return;
       alert("Você só pode editar imóveis captados por você.");
       navigate("/admin");
       return;
     }
-    // Liberado (dono ou diretor) — carrega o imóvel no formulário.
     setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
     setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
-    setTelCaptadorIntl((existing.telefoneCaptador || "").trim().startsWith("+"));
     setHydrated(true);
   }, [id, imoveis, loading, loadingRole, isAdmin, navigate]);
 
-  // Imóvel NOVO: pré-preenche captador com os dados de quem está logado.
-  // O dono é marcado por captadorEmail (vem do Portal/SSO) — funciona pro diretor e corretores.
-  // O perfil do Firebase (useUserRole) é usado como complemento se existir (nome/telefone).
   useEffect(() => {
-    if (id) return;            // só para imóvel novo
+    if (id) return;
     const email = usuarioSSO();
     setForm(p => {
-      if (p.captadorEmail) return p; // já preenchido (não sobrescreve)
+      if (p.captadorEmail) return p;
       return {
         ...p,
         nomeCaptador: p.nomeCaptador || perfil?.nome || "",
@@ -178,19 +157,15 @@ export default function Form() {
         captadorUid: user?.uid || "",
       };
     });
-    if ((perfil?.telefone || "").trim().startsWith("+")) setTelCaptadorIntl(true);
   }, [id, perfil, user]);
 
-  // isLote por comportamento OU por nome (pega "Lote em Condomínio", "Lote Comercial",
-  // "Área Comercial" etc. mesmo se o comportamento no cadastro estiver errado/vazio).
   const isLote = ehTerreno(form.tipo, tipos) || tipoEhLotePorNome(form.tipo);
   const isConstrucao = ehConstrucao(form.tipo, tipos) && !isLote;
-  // Tipos rurais têm casa E terreno -> mostram os dois grupos de campos.
   const isRural = /ch[áa]cara|s[íi]tio|fazenda|rancho|haras/i.test(form.tipo || "");
   const isLocacao = form.transacao === "Locação";
   const isVenda = form.transacao === "Venda" || form.transacao === "Venda e Locação";
   const emCondominio = ehEmCondominio(form.tipo);
-  const temCondominio = emCondominio || form.tipo === "Apartamento"; // apartamento ja e condominio
+  const temCondominio = emCondominio || form.tipo === "Apartamento";
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
   const valorFinalLoc = () => (parseFloat(form.valorAluguel) || 0) + (parseFloat(form.valorCondominio) || 0) + (parseFloat(form.valorIPTU) || 0) || "";
@@ -199,27 +174,20 @@ export default function Form() {
   const toggleAnuncio = (canal) => {
     const atual = form.anuncios?.[canal];
     const isAuto = CANAIS_AUTO.includes(canal);
-    // estado atual "ligado": canal automático publica por padrão (a menos que ativo:false)
     const ligado = isAuto ? (atual ? atual.ativo !== false : true) : !!(atual && atual.ativo);
     const data = new Date().toLocaleDateString("pt-BR");
-    // desligar canal automático grava opt-out explícito (ativo:false), não null
     const novo = ligado ? (isAuto ? { ativo: false, data } : null) : { ativo: true, data };
     setForm(p => ({ ...p, anuncios: { ...p.anuncios, [canal]: novo } }));
   };
 
-  // Validação de telefone (proprietário e captador são obrigatórios).
-  // Modo nacional: aceita 10 dígitos (fixo) ou 11 (celular: 3º dígito = 9).
-  // Modo internacional: aceita qualquer número iniciado por "+" com 8+ caracteres
-  // (mesmo critério do cadastro de tratativas do CRM).
   const telefoneValido = (value, intl) => {
     if (intl) return (value || "").trim().startsWith("+") && (value || "").trim().length >= 8;
     const d = (value || "").replace(/\D/g, "");
-    if (d.length === 10) return true;            // fixo (DDD + 8)
-    if (d.length === 11 && d[2] === "9") return true; // celular (DDD + 9 + 8)
+    if (d.length === 10) return true;
+    if (d.length === 11 && d[2] === "9") return true;
     return false;
   };
 
-  // Geocoding silencioso -- chamado automaticamente ao mudar cidade/bairro
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
     if (!cidade) return;
     const coords = await geocodificarEndereco({ endereco, bairro, cidade, estado, cep });
@@ -235,15 +203,11 @@ export default function Form() {
     setSaving(true);
     try {
       const { id: _id, ...data } = form;
-      // Tipos "em condominio" sao tipos proprios; a flag antiga nao e mais usada.
-      // Garante coerencia: tipo de condominio -> condominio=true; senao limpa a flag.
       data.condominio = ehEmCondominio(data.tipo) || data.tipo === "Apartamento";
       if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
       if (!data.status) data.status = "Disponível";
 
-      // Ágio: se marcado, garante a linha "Ágio / assumir financiamento" nos extras
-      // (mesmo texto/padrão que o backend usa na captação). Se desmarcado, remove a linha.
       {
         const LINHA_AGIO = "Ágio / assumir financiamento";
         let linhasExtras = String(data.extras || "").split("\n").map(x => x.trim()).filter(Boolean)
@@ -252,18 +216,10 @@ export default function Form() {
         data.extras = linhasExtras.join("\n");
       }
 
-      // ── Campos obrigatórios para PUBLICAR (ativar) a ficha ──
-      // Faltando qualquer um, o imóvel é salvo mas fica "Aguardando Finalização"
-      // (não entra no ar). O usuário pode completar depois.
       const faltando = [];
       if (!(data.nomeProprietario || "").trim()) faltando.push("dados do proprietário");
       if (!(data.telefoneProprietario || "").trim()) faltando.push("telefone do proprietário");
       if (!(data.descricao || "").trim()) faltando.push("descrição");
-      // O "valor" obrigatório depende da TRANSAÇÃO:
-      // - Locação: o valor é o ALUGUEL (campo valorAluguel).
-      // - Venda (e "Venda e Locação"): o valor é o PREÇO de venda (campo preco).
-      // (Antes checava sempre "preco", então imóvel de locação caía em "Aguardando
-      //  finalização" mesmo com o aluguel preenchido.)
       if (isLocacao) {
         if (!(String(data.valorAluguel || "")).trim()) faltando.push("valor");
       } else {
@@ -272,9 +228,6 @@ export default function Form() {
       if (!(data.cidade || "").trim() || !(data.bairro || "").trim()) faltando.push("localização");
       if (!(data.endereco || "").trim()) faltando.push("endereço");
       if (!Array.isArray(data.fotos) || data.fotos.length === 0) faltando.push("fotos");
-      // Metragem respeita o tipo: lote/terreno usa metragemTotal; construção usa metragem;
-      // rural (tem os dois) aceita qualquer um dos dois. (Antes exigia sempre "metragem",
-      // o que rebaixava todo lote pra "Aguardando finalização" ao reeditar.)
       const temMetragemConstrucao = !!(String(data.metragem || "")).trim();
       const temMetragemTerreno = !!(String(data.metragemTotal || "")).trim();
       if (isRural) {
@@ -292,9 +245,7 @@ export default function Form() {
 
       if (faltando.length > 0) {
         data.status = "Aguardando finalização";
-        data.faltandoFinalizar = faltando; // guarda o que falta, pra mostrar na ficha
-        // Avisa o usuário o que falta e deixa ELE decidir se salva incompleto
-        // (fica "Aguardando finalização") ou volta pra completar agora.
+        data.faltandoFinalizar = faltando;
         const lista = faltando.map(f => "• " + f).join("\n");
         const querSalvar = window.confirm(
           "Este imóvel NÃO vai ao ar porque faltam campos obrigatórios:\n\n" + lista +
@@ -306,12 +257,9 @@ export default function Form() {
         data.faltandoFinalizar = [];
       }
 
-      // Código automático: se ainda não tem código e há bairro, reserva o próximo
-      // do contador persistente (atômico, nunca repete). Imóveis que já têm código mantêm.
       if (!(data.codigo || "").trim() && (data.bairro || "").trim()) {
         data.codigo = await reservarCodigoImovel(db, data.bairro);
       }
-      // Geocoding automatico ao salvar se ainda nao tem coordenadas
       if (!data.latitude && !data.longitude && data.cidade) {
         const coords = await geocodificarEndereco({
           endereco: data.endereco, bairro: data.bairro,
@@ -319,8 +267,6 @@ export default function Form() {
         });
         if (coords) { data.latitude = coords.latitude; data.longitude = coords.longitude; }
       }
-      // Grava PELO BACKEND (rota protegida): o servidor confere papel/dono e escreve no Firestore.
-      // (O createdAt do imóvel novo é definido pelo backend.)
       await salvarImovelBackend(id, data);
       navigate("/admin");
     } catch (e) { alert("Erro: " + e.message); }
@@ -340,9 +286,6 @@ export default function Form() {
     e.target.value = "";
   };
 
-  // Organiza as fotos com IA: melhor foto como capa + da segunda em diante um
-  // passeio lógico pelo imóvel. Usa o mesmo motor de visão do backend (Railway),
-  // que já faz isso na captação. Nenhuma foto é perdida — só reordenadas.
   const organizarFotosIA = async () => {
     const fotos = (form.fotos || []).filter(Boolean);
     if (fotos.length < 2) return;
@@ -431,7 +374,6 @@ export default function Form() {
       {section("Informações gerais", <>
         {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
-        {/* Código do imóvel: editável. Em branco = gerado automaticamente pelo bairro ao salvar. */}
         <div style={{ marginBottom: "1rem" }}>
           <label style={labelStyle}>Código do imóvel</label>
           <input
@@ -457,7 +399,6 @@ export default function Form() {
           {sel("Visibilidade", "visibilidade", VISIBILIDADE_IMOVEL)}
         </div>
 
-        {/* Atalhos rápidos de status (marcam o campo Status acima) */}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 1rem" }}>
           {[
             ["✅ Disponível", "Disponível", "#059669"],
@@ -479,8 +420,6 @@ export default function Form() {
           })}
         </div>
 
-        {/* Rodízio automático: tira o imóvel dos disparos automáticos (grupos de corretores + Instagram).
-            Continua disponível e visível normalmente; só não entra na divulgação automática. */}
         <div style={{ margin: "0 0 1rem", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)" }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", color: "var(--text)" }}>
             <input type="checkbox" checked={!!form.foraRodizio} onChange={e => sf("foraRodizio", e.target.checked)} style={cbStyle} />
@@ -665,7 +604,6 @@ export default function Form() {
                       const novos = ativo
                         ? atual.filter(x => x !== cap.id)
                         : [...atual, cap.id];
-                      // divide comissão igual entre captadores
                       const pct = novos.length > 0 ? Math.round(100 / novos.length) : 0;
                       const captadoresDetalhes = novos.map((cid, idx) => ({
                         id: cid,
@@ -676,7 +614,6 @@ export default function Form() {
                         ...p,
                         captadores_ids: novos,
                         captadores_detalhes: captadoresDetalhes,
-                        // mantém nomeCaptador/captadorEmail para compatibilidade
                         nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
                       }));
                     }}
@@ -693,7 +630,6 @@ export default function Form() {
                 );
               })}
             </div>
-            {/* Percentuais editáveis quando há mais de 1 captador */}
             {(form.captadores_detalhes || []).length > 1 && (
               <div style={{ background: "var(--bg-card)", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Divisão da comissão de captação:</div>
@@ -726,7 +662,6 @@ export default function Form() {
             )}
           </>
         )}
-        {/* Campo legado nomeCaptador oculto — mantém compatibilidade */}
         <div style={{ display: "none" }}>
           {inp("Nome", "nomeCaptador")}
         </div>
@@ -762,7 +697,7 @@ export default function Form() {
           {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar imóvel"}
         </button>
       </div>
-      </div>{/* fim da coluna do formulário */}
+      </div>
       <div className="previa-col" style={{ flex: "0 0 320px", position: "sticky", top: 16, alignSelf: "flex-start", maxWidth: "100%" }}>
         <PreviaQualidade form={form} isLote={isLote} />
       </div>
