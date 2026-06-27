@@ -74,16 +74,33 @@ export default function ImovelPublico() {
     setFavoritos(nova); gravarFavoritos(nova);
   };
 
-  // Imóveis relacionados: mesmo tipo + mesma transação (Venda/Locação), exclui o atual.
-  // Cai pra mesma cidade se não houver. Limita a 6.
+  // Sugeridos: mesmo tipo + região próxima (raio ~15km por lat/lon).
+  // Fallback: mesmo tipo na mesma cidade. Limita a 6.
   const relacionados = useMemo(() => {
     if (!im) return [];
-    const base = imoveis.filter(x => x.id !== im.id && statusDoImovel(x) === "Disponível" && apareceNoSite(x));
-    const mesmoTipoTrans = base.filter(x => x.tipo === im.tipo && (x.transacao || "") === (im.transacao || ""));
-    if (mesmoTipoTrans.length >= 3) return mesmoTipoTrans.slice(0, 6);
-    const mesmoTipo = base.filter(x => x.tipo === im.tipo);
-    if (mesmoTipo.length >= 3) return mesmoTipo.slice(0, 6);
-    return base.filter(x => x.cidade && x.cidade === im.cidade).slice(0, 6);
+    const base = imoveis.filter(x => x.id !== im.id && statusDoImovel(x) === "Disponível" && apareceNoSite(x) && x.tipo === im.tipo);
+    // Se o imóvel atual tem coordenadas, ordena por distância
+    const lat1 = parseFloat(im.latitude);
+    const lon1 = parseFloat(im.longitude);
+    if (lat1 && lon1) {
+      const comDist = base
+        .map(x => {
+          const lat2 = parseFloat(x.latitude);
+          const lon2 = parseFloat(x.longitude);
+          if (!lat2 || !lon2) return { x, dist: 9999 };
+          // Fórmula de Haversine simplificada (graus → km)
+          const dlat = (lat2 - lat1) * Math.PI / 180;
+          const dlon = (lon2 - lon1) * Math.PI / 180;
+          const a = Math.sin(dlat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dlon/2)**2;
+          return { x, dist: 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) };
+        })
+        .filter(({ dist }) => dist <= 15) // até 15km
+        .sort((a, b) => a.dist - b.dist)
+        .map(({ x }) => x);
+      if (comDist.length >= 2) return comDist.slice(0, 6);
+    }
+    // Fallback: mesma cidade, mesmo tipo
+    return base.filter(x => x.cidade === im.cidade).slice(0, 6);
   }, [imoveis, im]);
 
   // SEO: atualiza o título da aba e a meta description.
@@ -126,8 +143,6 @@ export default function ImovelPublico() {
   const isLot = isLote(im);
   const isLoc = isLocacao(im);
   const isVen = isVenda(im);
-  const ehLancamento = im.estadoImovel === "Imóvel Novo";
-
   const mensagemWa = `Olá! Tenho interesse no imóvel: ${im.titulo}\n${window.location.href}`;
   const linkWa = `https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(mensagemWa)}`;
 
@@ -163,7 +178,7 @@ export default function ImovelPublico() {
       <div style={{
         position: "relative",
         background: "radial-gradient(120% 130% at 50% -12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 42%), linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)",
-        color: "#fff", padding: "1.4rem 1.5rem 2rem", borderRadius: "0 0 30px 30px"
+        color: "#fff", padding: "1rem clamp(0.8rem, 4vw, 1.5rem) 2rem", borderRadius: "0 0 30px 30px"
       }}>
         <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center" }}>
           <button onClick={() => navigate("/")} style={{
@@ -173,13 +188,12 @@ export default function ImovelPublico() {
           }}>← Voltar</button>
 
           <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap", justifyContent: "center" }}>
-            {ehLancamento && <span style={chipHero}>✨ Lançamento</span>}
             {im.tipo && <span style={chipHero}>{im.tipo}</span>}
             {im.transacao && <span style={chipHero}>{im.transacao}</span>}
             {im.condominio && <span style={chipHero}>Em condomínio</span>}
           </div>
 
-          <h1 className="display" style={{ margin: "10px 0 4px", fontSize: "clamp(26px, 4.2vw, 38px)", fontWeight: 800, lineHeight: 1.1 }}>{im.titulo}</h1>
+          <h1 className="display" style={{ margin: "10px 0 4px", fontSize: "clamp(22px, 5.5vw, 38px)", fontWeight: 800, lineHeight: 1.1 }}>{im.titulo}</h1>
           {(im.bairro || im.cidade) && (
             <p style={{ margin: 0, fontSize: 14, opacity: 0.92, fontWeight: 600, letterSpacing: 0.2 }}>
               {[im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase()}
@@ -214,17 +228,17 @@ export default function ImovelPublico() {
       </div>
 
       {/* CONTEÚDO */}
-      <div style={{ maxWidth: 880, margin: "-22px auto 0", padding: "0 1.25rem", position: "relative", zIndex: 2 }}>
+      <div style={{ maxWidth: 880, margin: "-22px auto 0", padding: "0 clamp(0.6rem, 4vw, 1.25rem)", position: "relative", zIndex: 2 }}>
         {/* Galeria */}
         {im.fotos?.length > 0 ? (
           <div className="card-soft" style={{ padding: 10, marginBottom: "1rem" }}>
             <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)}
               style={{ width: "100%", maxHeight: 520, objectFit: "contain", borderRadius: 14, cursor: "zoom-in", background: "var(--bg-muted)" }} />
             {im.fotos.length > 1 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
                 {im.fotos.map((f, i) => (
                   <img key={i} src={f} onClick={() => setFotoIdx(i)} alt=""
-                    style={{ width: 76, height: 76, objectFit: "cover", borderRadius: 12, cursor: "pointer", flexShrink: 0, border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
+                    style={{ width: 88, height: 88, objectFit: "cover", borderRadius: 12, cursor: "pointer", flexShrink: 0, border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
                 ))}
               </div>
             )}
@@ -257,16 +271,16 @@ export default function ImovelPublico() {
         )}
 
         {/* CTAs: WhatsApp + Compartilhar */}
-        <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexDirection: "column" }}>
           <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
-            flex: "2 1 240px", textAlign: "center", padding: "14px 0",
+            textAlign: "center", padding: "16px 0",
             borderRadius: 14, fontWeight: 800, fontSize: 16,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8
           }}>
             💬 Tenho interesse — falar no WhatsApp
           </a>
-          <div style={{ position: "relative", flex: "1 1 160px" }}>
-            <button onClick={() => setShare(s => !s)} className="btn-grad" style={{ width: "100%", padding: "14px 0", borderRadius: 14, fontWeight: 800, fontSize: 15 }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setShare(s => !s)} className="btn-grad" style={{ width: "100%", padding: "13px 0", borderRadius: 14, fontWeight: 800, fontSize: 15 }}>
               ↗ Compartilhar
             </button>
             {share && <CompartilharPopup im={im} onCopiarTexto={copiarDescricao} copiado={copiado} onClose={() => setShare(false)} />}
@@ -363,7 +377,11 @@ export default function ImovelPublico() {
             <div>
               {(im.endereco || im.bairro || im.cidade) && (
                 <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>
-                  📍 {[im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ")}
+                  📍 {[
+                    // Endereço: só o nome da rua (remove número, QD, LT, Quadra, Lote)
+                    im.endereco ? im.endereco.replace(/,?\s*(n[°º\.:]?\s*\d+[\w-]*|qd?\.?\s*\d+|lt?\.?\s*\d+|quadra\s*\d+|lote\s*\d+)/gi, "").trim().replace(/,\s*$/, "").trim() : null,
+                    im.bairro, im.cidade, im.estado
+                  ].filter(Boolean).join(", ")}
                 </p>
               )}
               <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
@@ -371,7 +389,7 @@ export default function ImovelPublico() {
                   src={embedSrc}
                   title="Mapa"
                   loading="lazy"
-                  style={{ width: "100%", height: 320, border: 0, display: "block" }}
+                  style={{ width: "100%", height: "min(320px, 56vw)", border: 0, display: "block" }}
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
@@ -405,7 +423,7 @@ export default function ImovelPublico() {
           <div style={{ margin: "2rem 0 1rem" }}>
             <h2 className="display" style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 800, color: "var(--text)" }}>Imóveis relacionados</h2>
             <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "var(--text-muted)" }}>Outras opções que podem te interessar</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 16 }}>
               {relacionados.map(r => (
                 <ImovelCard key={r.id} im={r} onClick={() => navigate(`/imovel/${r.id}`)} showStatus={false} />
               ))}
