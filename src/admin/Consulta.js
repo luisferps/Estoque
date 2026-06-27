@@ -23,6 +23,7 @@ export default function Consulta() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
   const [search, setSearch] = useState(salvos.search || "");
+  const [hoverFoto, setHoverFoto] = useState(null);
   const [tipo, setTipo] = useState(salvos.tipo || "Todos");
   const [transacao, setTransacao] = useState(salvos.transacao || "Todos");
   const [estado, setEstado] = useState(salvos.estado || "Todos");
@@ -52,7 +53,7 @@ export default function Consulta() {
       return parseFloat(String(im.valorAluguel || "").replace(/[^\d]/g, "")) || 0;
     };
     const base = imoveis.filter(im =>
-      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q))
+      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
       && matchTransacao(im, transacao)
       && (estado === "Todos" || im.estadoImovel === estado)
