@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from "react-router-dom";
-import { ThemeProvider } from "./shared/ThemeProvider";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from "react-router-dom";
+import { ThemeProvider, DarkModeToggle } from "./shared/ThemeProvider";
 import Galeria from "./shared/Galeria";
 import { useUserRole, ehDiretorEfetivo } from "./shared/userRole";
 
@@ -41,6 +41,60 @@ function DominioGuard() {
     }
   }, []);
   return null;
+}
+
+
+// ─── Cabeçalho fixo do admin (aparece em todas as telas admin) ───
+function AdminHeader({ onLogout }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAdmin } = useUserRole();
+  const ehDiretor = ehDiretorEfetivo(isAdmin);
+  const loc = location.pathname;
+
+  const abas = [
+    { label: "🏠 Imóveis", path: "/admin" },
+    { label: "🔍 Consulta", path: "/admin/consulta" },
+    ...(ehDiretor ? [
+      { label: "📢 Anúncios", path: "/admin/anuncios" },
+      { label: "🏠 Rotação", path: "/admin/rotacao" },
+      { label: "⭐ Destaques", path: "/admin/destaques" },
+      { label: "👥 Corretores", path: "/admin/corretores" },
+      { label: "📥 Importar", path: "/admin/importar" },
+      { label: "🏷️ Tipos", path: "/admin/tipos" },
+    ] : []),
+    { label: "🌐 Site", path: "/", externo: true },
+  ];
+
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--bg-card)", borderBottom: "1px solid var(--border-soft)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+      <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", gap: 6 }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--primary-dark)" }}>Inerente</span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <DarkModeToggle />
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
+            {onLogout && <button onClick={onLogout} style={{ fontSize: 12, padding: "4px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer" }}>Sair</button>}
+            <button onClick={() => navigate("/admin/novo")} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 7, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 700 }}>+ Novo</button>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 0, overflowX: "auto", scrollbarWidth: "none" }}>
+          {abas.map(aba => (
+            <button key={aba.path} onClick={() => aba.externo ? window.open("/", "_blank") : navigate(aba.path)}
+              style={{
+                padding: "7px 13px", fontSize: 12, fontWeight: 600, border: "none",
+                background: "none", cursor: "pointer", whiteSpace: "nowrap",
+                borderBottom: loc === aba.path ? "2px solid var(--primary)" : "2px solid transparent",
+                color: loc === aba.path ? "var(--primary)" : "var(--text-soft)",
+                borderRadius: 0, flexShrink: 0,
+              }}>
+              {aba.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -85,7 +139,7 @@ export default function App() {
 }
 
 // ─── Guard de rotas do admin ───
-function AdminRoute({ element: Component, requireDiretor = false }) {
+function AdminRoute({ element: Component, requireDiretor = false, onLogout }) {
   const [isAuth, setIsAuth] = useState(null);
   const { isAdmin, loading: loadingRole } = useUserRole();
 
@@ -149,7 +203,12 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
     }
   }
 
-  return <Component onLogout={onLogout} />;
+  return (
+    <>
+      <AdminHeader onLogout={onLogout} />
+      <Component onLogout={onLogout} />
+    </>
+  );
 }
 
 function TelaVerificando() {
