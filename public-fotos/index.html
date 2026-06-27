@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fotos do Imóvel</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      background: #0e0e10;
+      color: #f4f4f5;
+      min-height: 100dvh;
+      overscroll-behavior: none;
+    }
+
+    /* ── Carregando ── */
+    #loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      gap: 16px;
+      color: #9a9aa3;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #2a2a30;
+      border-top-color: #25D366;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Erro ── */
+    #erro {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      gap: 12px;
+      color: #9a9aa3;
+      text-align: center;
+      padding: 2rem;
+    }
+    #erro span { font-size: 3rem; }
+
+    /* ── Conteúdo ── */
+    #conteudo { display: none; }
+
+    /* ── Header ── */
+    .header {
+      padding: 1.25rem 1rem 1rem;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .titulo {
+      font-family: 'Manrope', sans-serif;
+      font-size: clamp(18px, 5vw, 24px);
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.4px;
+      line-height: 1.25;
+    }
+    .subtitulo {
+      font-size: 13px;
+      color: #9a9aa3;
+      margin-top: 4px;
+    }
+
+    /* ── Carrossel ── */
+    .carrossel-wrap {
+      position: relative;
+      max-width: 700px;
+      margin: 0 auto;
+      touch-action: pan-y;
+    }
+    .carrossel {
+      overflow: hidden;
+      border-radius: 18px;
+      background: #18181b;
+      position: relative;
+      aspect-ratio: 4/3;
+    }
+    @media (max-width: 480px) {
+      .carrossel { border-radius: 14px; aspect-ratio: 1/1; }
+    }
+    .slides {
+      display: flex;
+      height: 100%;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: transform;
+    }
+    .slide {
+      min-width: 100%;
+      height: 100%;
+      flex-shrink: 0;
+    }
+    .slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #18181b;
+    }
+
+    /* ── Setas ── */
+    .seta {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0,0,0,0.55);
+      border: none;
+      color: #fff;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .seta:hover { background: rgba(0,0,0,0.80); }
+    .seta-esq { left: 10px; }
+    .seta-dir { right: 10px; }
+    @media (max-width: 480px) {
+      .seta { width: 36px; height: 36px; font-size: 16px; }
+    }
+
+    /* ── Contador ── */
+    .contador {
+      position: absolute;
+      bottom: 12px;
+      right: 14px;
+      background: rgba(0,0,0,0.60);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      pointer-events: none;
+    }
+
+    /* ── Miniaturas ── */
+    .miniaturas {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 10px 1rem 4px;
+      max-width: 700px;
+      margin: 0 auto;
+      scrollbar-width: none;
+    }
+    .miniaturas::-webkit-scrollbar { display: none; }
+    .miniatura {
+      min-width: 60px; height: 60px;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.2s, opacity 0.2s;
+      flex-shrink: 0;
+      opacity: 0.55;
+    }
+    .miniatura.ativa { border-color: #25D366; opacity: 1; }
+    .miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+    /* ── Botão baixar ── */
+    .acoes {
+      padding: 1rem 1rem 2rem;
+      max-width: 700px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .btn-baixar {
+      flex: 1;
+      min-width: 200px;
+      padding: 13px 20px;
+      border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(37,211,102,0.28);
+      font-family: inherit;
+      transition: filter 0.2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-baixar:active { filter: brightness(0.9); }
+    .btn-baixar:disabled { background: #2a2a30; box-shadow: none; cursor: default; color: #9a9aa3; }
+  </style>
+</head>
+<body>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Carregando fotos...</p>
+  </div>
+
+  <div id="erro">
+    <span>📷</span>
+    <p style="font-size:18px;font-weight:700;color:#f4f4f5;">Imóvel não encontrado</p>
+    <p>O link pode estar desatualizado ou as fotos foram removidas.</p>
+  </div>
+
+  <div id="conteudo">
+    <div class="header">
+      <div class="titulo" id="titulo">Fotos do imóvel</div>
+      <div class="subtitulo" id="subtitulo"></div>
+    </div>
+
+    <div class="carrossel-wrap" id="carrosselWrap">
+      <div class="carrossel" id="carrossel">
+        <div class="slides" id="slides"></div>
+        <button class="seta seta-esq" id="setaEsq" aria-label="Anterior">&#8249;</button>
+        <button class="seta seta-dir" id="setaDir" aria-label="Próxima">&#8250;</button>
+        <div class="contador" id="contador">1 / 1</div>
+      </div>
+    </div>
+
+    <div class="miniaturas" id="miniaturas"></div>
+
+    <div class="acoes">
+      <button class="btn-baixar" id="btnBaixar">⬇️ Baixar todas as fotos</button>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB8Jq17jELr17zonEVmLRjy-p7dmeLLskw",
+      authDomain: "estoque-53f1e.firebaseapp.com",
+      projectId: "estoque-53f1e",
+      storageBucket: "estoque-53f1e.firebasestorage.app",
+      messagingSenderId: "265114904725",
+      appId: "1:265114904725:web:c97ac40636b76b6c8f939c"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // ── Pega o ID da URL: /fotos/ID ──
+    function getIdDaUrl() {
+      const partes = window.location.pathname.split('/').filter(Boolean);
+      // aceita /fotos/ID ou /ID
+      if (partes[0] === 'fotos' && partes[1]) return partes[1];
+      if (partes[0]) return partes[0];
+      return null;
+    }
+
+    // ── Estado do carrossel ──
+    let atual = 0;
+    let fotos = [];
+    let touchStartX = 0;
+
+    function irPara(idx) {
+      const total = fotos.length;
+      if (total === 0) return;
+      atual = (idx + total) % total;
+      document.getElementById('slides').style.transform = `translateX(-${atual * 100}%)`;
+      document.getElementById('contador').textContent = `${atual + 1} / ${total}`;
+      // miniatura ativa
+      document.querySelectorAll('.miniatura').forEach((m, i) => {
+        m.classList.toggle('ativa', i === atual);
+        if (i === atual) m.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      });
+    }
+
+    function montar(imovel) {
+      fotos = (imovel.fotos || []).filter(Boolean);
+
+      if (fotos.length === 0) {
+        mostrarErro();
+        return;
+      }
+
+      // Título e subtítulo
+      document.getElementById('titulo').textContent = imovel.titulo || 'Fotos do imóvel';
+      const partes = [imovel.bairro, imovel.cidade].filter(Boolean);
+      if (partes.length) document.getElementById('subtitulo').textContent = partes.join(' · ');
+
+      // Slides
+      const slidesEl = document.getElementById('slides');
+      fotos.forEach((url, i) => {
+        const slide = document.createElement('div');
+        slide.className = 'slide';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = `Foto ${i + 1}`;
+        img.loading = i === 0 ? 'eager' : 'lazy';
+        slide.appendChild(img);
+        slidesEl.appendChild(slide);
+      });
+
+      // Miniaturas
+      const minEl = document.getElementById('miniaturas');
+      fotos.forEach((url, i) => {
+        const div = document.createElement('div');
+        div.className = 'miniatura' + (i === 0 ? ' ativa' : '');
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = '';
+        img.loading = 'lazy';
+        div.appendChild(img);
+        div.addEventListener('click', () => irPara(i));
+        minEl.appendChild(div);
+      });
+
+      // Setas
+      document.getElementById('setaEsq').addEventListener('click', () => irPara(atual - 1));
+      document.getElementById('setaDir').addEventListener('click', () => irPara(atual + 1));
+
+      // Teclado
+      document.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft') irPara(atual - 1);
+        if (e.key === 'ArrowRight') irPara(atual + 1);
+      });
+
+      // Touch swipe
+      const carrossel = document.getElementById('carrossel');
+      carrossel.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+      carrossel.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) > 40) irPara(dx < 0 ? atual + 1 : atual - 1);
+      });
+
+      // Esconder setas se só 1 foto
+      if (fotos.length <= 1) {
+        document.getElementById('setaEsq').style.display = 'none';
+        document.getElementById('setaDir').style.display = 'none';
+      }
+
+      // Contador inicial
+      document.getElementById('contador').textContent = `1 / ${fotos.length}`;
+
+      // Botão baixar
+      const btn = document.getElementById('btnBaixar');
+      btn.textContent = `⬇️ Baixar todas (${fotos.length} fotos)`;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Baixando...';
+        for (let i = 0; i < fotos.length; i++) {
+          try {
+            const resp = await fetch(fotos[i]);
+            const blob = await resp.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${imovel.titulo || 'imovel'}_foto${i + 1}.jpg`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+            await new Promise(r => setTimeout(r, 300));
+          } catch {}
+        }
+        btn.disabled = false;
+        btn.textContent = `⬇️ Baixar todas (${fotos.length} fotos)`;
+      });
+
+      // Exibir
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('conteudo').style.display = 'block';
+    }
+
+    function mostrarErro() {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('erro').style.display = 'flex';
+    }
+
+    // ── Main ──
+    (async () => {
+      const id = getIdDaUrl();
+      if (!id) { mostrarErro(); return; }
+
+      try {
+        const snap = await getDoc(doc(db, 'imoveis', id));
+        if (!snap.exists()) { mostrarErro(); return; }
+        montar({ id: snap.id, ...snap.data() });
+      } catch (e) {
+        console.error(e);
+        mostrarErro();
+      }
+    })();
+  </script>
+</body>
+</html>
