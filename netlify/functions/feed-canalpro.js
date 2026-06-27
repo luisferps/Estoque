@@ -7,7 +7,7 @@
 
 const { getDb } = require("./_firebase");
 const {
-  cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
+  cdata, normalizeImageUrl, toInt, toMetros, isDisponivelEstrito, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
 } = require("./_helpers");
 
@@ -447,7 +447,7 @@ exports.handler = async () => {
     snap.forEach((doc) => {
       totalCount++;
       const imovel = { id: doc.id, ...doc.data() };
-      if (!isDisponivel(imovel)) return;
+      if (!isDisponivelEstrito(imovel)) return;
       if (!apareceNosPortais(imovel)) return;
       if (!temFlagAnuncio(imovel, "Canal Pro")) return;
       flagCount++;
