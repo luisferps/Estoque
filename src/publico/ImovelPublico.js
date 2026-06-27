@@ -33,6 +33,7 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
+  const mapsLink = im.mapsLink || (im.latitude && im.longitude ? `https://www.google.com/maps?q=${im.latitude},${im.longitude}` : null);
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
@@ -43,6 +44,7 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
       }}>
         <a href={wa} target="_blank" rel="noreferrer" onClick={onClose} style={popItem}>💬 WhatsApp</a>
         <a href={mail} onClick={onClose} style={popItem}>✉️ Email</a>
+        {mapsLink && <a href={mapsLink} target="_blank" rel="noreferrer" onClick={onClose} style={popItem}>📍 Localização no mapa</a>}
         <button onClick={copiarLink} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>🔗 Copiar link</button>
         <button onClick={onCopiarTexto} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>
           {copiado ? "✓ Copiado!" : "📋 Copiar descrição"}
@@ -67,6 +69,7 @@ export default function ImovelPublico() {
   const [share, setShare] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [favoritos, setFavoritos] = useState(lerFavoritos);
+  const [vizinhancas, setVizinhancas] = useState([]);
   const ehFavorito = im ? favoritos.includes(im.id) : false;
   const toggleFavorito = () => {
     if (!im) return;
@@ -74,34 +77,44 @@ export default function ImovelPublico() {
     setFavoritos(nova); gravarFavoritos(nova);
   };
 
-  // Sugeridos: mesmo tipo + região próxima (raio ~15km por lat/lon).
-  // Fallback: mesmo tipo na mesma cidade. Limita a 6.
+  // Sugeridos: mesmo tipo nos bairros vizinhos (tabela vizinhanças do Railway).
+  // Fallback: mesma cidade, mesmo tipo.
   const relacionados = useMemo(() => {
     if (!im) return [];
     const base = imoveis.filter(x => x.id !== im.id && statusDoImovel(x) === "Disponível" && apareceNoSite(x) && x.tipo === im.tipo);
-    // Se o imóvel atual tem coordenadas, ordena por distância
-    const lat1 = parseFloat(im.latitude);
-    const lon1 = parseFloat(im.longitude);
-    if (lat1 && lon1) {
-      const comDist = base
-        .map(x => {
-          const lat2 = parseFloat(x.latitude);
-          const lon2 = parseFloat(x.longitude);
-          if (!lat2 || !lon2) return { x, dist: 9999 };
-          // Fórmula de Haversine simplificada (graus → km)
-          const dlat = (lat2 - lat1) * Math.PI / 180;
-          const dlon = (lon2 - lon1) * Math.PI / 180;
-          const a = Math.sin(dlat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dlon/2)**2;
-          return { x, dist: 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)) };
-        })
-        .filter(({ dist }) => dist <= 15) // até 15km
-        .sort((a, b) => a.dist - b.dist)
-        .map(({ x }) => x);
-      if (comDist.length >= 2) return comDist.slice(0, 6);
+
+    // Normaliza nome para busca (sem acento, minúsculo)
+    const norm = s => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    // Tenta encontrar os vizinhos do bairro do imóvel atual
+    if (vizinhancas.length > 0 && im.bairro) {
+      const bairroNorm = norm(im.bairro);
+      const entrada = vizinhancas.find(v =>
+        norm(v.nome) === bairroNorm ||
+        (v.apelidos && String(v.apelidos).split(",").map(a => norm(a.trim())).includes(bairroNorm))
+      );
+      if (entrada && entrada.vizinhos) {
+        // vizinhos é CSV de chaves; normaliza para comparar com nomes dos imóveis
+        const chavesViz = String(entrada.vizinhos).split(",").map(s => norm(s.trim())).filter(Boolean);
+        const noVizinho = base.filter(x => {
+          const bn = norm(x.bairro);
+          return bn === bairroNorm || chavesViz.some(cv => bn.includes(cv) || cv.includes(bn));
+        });
+        if (noVizinho.length >= 2) return noVizinho.slice(0, 6);
+      }
     }
+
     // Fallback: mesma cidade, mesmo tipo
     return base.filter(x => x.cidade === im.cidade).slice(0, 6);
-  }, [imoveis, im]);
+  }, [imoveis, im, vizinhancas]);
+
+  // Carrega vizinhanças do backend para melhorar os imóveis relacionados
+  useEffect(() => {
+    fetch("https://agentes-de-whatsapp-production.up.railway.app/grupos/vizinhancas-publico")
+      .then(r => r.json())
+      .then(d => { if (d && d.ok) setVizinhancas(d.vizinhancas || []); })
+      .catch(() => {});
+  }, []);
 
   // SEO: atualiza o título da aba e a meta description.
   useEffect(() => {
@@ -404,17 +417,7 @@ export default function ImovelPublico() {
           ));
         })()}
 
-        <div className="card-soft" style={{
-          background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)",
-          border: "1px solid var(--primary-border)", padding: "1.4rem 1rem", textAlign: "center", margin: "1rem 0"
-        }}>
-          <p style={{ margin: "0 0 6px", fontSize: 16, color: "var(--primary-dark)", fontWeight: 800 }}>
-            Quer saber mais sobre esse imóvel?
-          </p>
-          <p style={{ margin: 0, fontSize: 13, color: "var(--text-soft)" }}>
-            Fale agora com um dos nossos corretores. Atendimento rápido e sem compromisso.
-          </p>
-        </div>
+
 
         {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem", textAlign: "center" }}>{RODAPE}</p>}
 
@@ -433,8 +436,9 @@ export default function ImovelPublico() {
 
         <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "14px 0", borderRadius: 14, fontWeight: 800, fontSize: 16,
-          marginTop: "0.5rem", marginBottom: "2.5rem"
+          padding: "16px 0", borderRadius: 14, fontWeight: 800, fontSize: 16,
+          marginTop: "0.5rem", marginBottom: "2.5rem",
+          textDecoration: "none", width: "100%", boxSizing: "border-box"
         }}>
           💬 Falar com a {EMPRESA.nome} no WhatsApp
         </a>
