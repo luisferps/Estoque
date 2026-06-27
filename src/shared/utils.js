@@ -234,7 +234,7 @@ export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
     const galeria = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
-    txt += `\n\nFotos:\n${galeria}\n(esse link é único para as fotos desse imóvel, mas caso precise delas por mensagem me avise)`;
+    txt += `\n\nFotos:\n${galeria}`;
   }
 
   if (im.mapsLink) txt += `\n\nLocalização:\n${im.mapsLink}`;
@@ -244,41 +244,121 @@ export function descricaoPronta(im) {
 // ─── Geração de PDF ───
 export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
   const COR_P = "#C0392B";
-  const has = k => camposSel.includes(k);
   const lote = im => tipoEhLotePorNome(im.tipo);
-  const rows = imoveis.map(im => {
-    const total = (parseFloat(im.valorAluguel) || 0) + (parseFloat(im.valorCondominio) || 0) + (parseFloat(im.valorIPTU) || 0);
-    return `<tr>
-      ${has("tipo") ? `<td>${im.tipo || ""} / ${im.transacao || ""}</td>` : ""}
-      ${has("status") ? `<td>${im.status || "Disponível"}</td>` : ""}
-      ${has("cidade") ? `<td>${im.cidade || ""}</td>` : ""}
-      ${has("bairro") ? `<td>${im.bairro || ""}</td>` : ""}
-      ${has("maps") ? `<td>${im.mapsLink ? `<a href="${im.mapsLink}">Ver mapa</a>` : ""}</td>` : ""}
-      ${has("metragem") ? `<td>${im.metragem ? im.metragem + " m²" : ""}</td>` : ""}
-      ${has("terreno") ? `<td>${im.metragemTotal ? im.metragemTotal + " m²" : ""}</td>` : ""}
-      ${has("quartos") ? `<td>${im.quartos || ""}</td>` : ""}
-      ${has("suites") ? `<td>${im.suites || ""}</td>` : ""}
-      ${has("garagens") ? `<td>${im.garagens || ""}</td>` : ""}
-      ${has("asfalto") ? `<td>${lote(im) ? (im.asfalto ? "Sim" : "Não") : ""}</td>` : ""}
-      ${has("agua") ? `<td>${lote(im) ? (im.agua ? "Sim" : "Não") : ""}</td>` : ""}
-      ${has("esgoto") ? `<td>${lote(im) ? (im.esgoto ? "Sim" : "Não") : ""}</td>` : ""}
-      ${has("muro") ? `<td>${lote(im) ? (im.muro ? "Sim" : "Não") : ""}</td>` : ""}
-      ${has("medidas") ? `<td>${lote(im) ? (im.retangular && im.frente && im.laterais ? `${im.frente}x${im.laterais}m` : (im.medidas || "")) : ""}</td>` : ""}
-      ${has("preco") ? `<td>${im.transacao === "Locação" ? (formatBRL(im.valorAluguel) || "") : (formatBRL(im.preco) || "")}</td>` : ""}
-      ${has("condominio") ? `<td>${formatBRL(im.valorCondominio) || ""}</td>` : ""}
-      ${has("iptu") ? `<td>${formatBRL(im.valorIPTU) || ""}</td>` : ""}
-      ${has("total") ? `<td>${total > 0 ? formatBRL(total) : ""}</td>` : ""}
-    </tr>`;
-  }).join("");
-  const headers = PDF_CAMPOS.filter(c => has(c.key)).map(c => `<th>${c.label}</th>`).join("");
+  const isLoc = im => (im.transacao || "").includes("Locação");
+  const isVen = im => (im.transacao || "").includes("Venda");
+
+  // Ficha completa para imóvel único; tabela para múltiplos
+  const fichaUnica = imoveis.length === 1;
+
+  const fichaHtml = (im) => {
+    const fotos = (im.fotos || []).filter(Boolean);
+    const fotosHtml = fotos.length ? `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0;page-break-inside:avoid">
+        ${fotos.map((f, i) => `<img src="${f}" style="width:100%;height:140px;object-fit:cover;border-radius:6px;${i===0?'grid-column:span 3;height:240px':''}" />`).join("")}
+      </div>` : "";
+
+    const row = (l, v) => v ? `<tr><td style="color:#888;font-size:11px;width:140px;padding:4px 8px">${l}</td><td style="font-size:12px;font-weight:600;padding:4px 8px">${v}</td></tr>` : "";
+    const total = (parseFloat(im.valorAluguel)||0)+(parseFloat(im.valorCondominio)||0)+(parseFloat(im.valorIPTU)||0);
+
+    return `
+      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-bottom:2px solid ${COR_P};padding-bottom:12px">
+          <div>
+            <h1 style="margin:0;font-size:20px;color:${COR_P}">${im.titulo || im.tipo || "Imóvel"}</h1>
+            ${im.bairro || im.cidade ? `<p style="margin:4px 0 0;font-size:13px;color:#666">${[im.bairro,im.cidade].filter(Boolean).join(", ")}</p>` : ""}
+          </div>
+          ${im.codigo ? `<span style="font-size:12px;font-weight:700;color:${COR_P};border:1px solid ${COR_P};padding:4px 10px;border-radius:6px">CÓD: ${String(im.codigo).toUpperCase()}</span>` : ""}
+        </div>
+
+        ${fotosHtml}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
+          <div>
+            <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Características</p>
+            <table style="width:100%;border-collapse:collapse">
+              ${row("Tipo", im.tipo)}
+              ${row("Transação", im.transacao)}
+              ${row("Estado", im.estadoImovel)}
+              ${row("Metragem", im.metragem ? im.metragem+" m²" : null)}
+              ${row("Terreno", im.metragemTotal ? im.metragemTotal+" m²" : null)}
+              ${!lote(im) ? row("Quartos", im.quartos) : ""}
+              ${!lote(im) ? row("Suítes", im.suites) : ""}
+              ${!lote(im) ? row("Banheiros", im.banheiros) : ""}
+              ${row("Garagens", im.garagens)}
+              ${lote(im) ? row("Asfalto", im.asfalto ? "Sim" : null) : ""}
+              ${lote(im) ? row("Água", im.agua ? "Sim" : null) : ""}
+              ${lote(im) ? row("Esgoto", im.esgoto ? "Sim" : null) : ""}
+              ${lote(im) ? row("Muro", im.muro ? "Sim" : null) : ""}
+              ${lote(im) && im.retangular && im.frente && im.laterais ? row("Medidas", `${im.frente}x${im.laterais}m`) : ""}
+            </table>
+          </div>
+          <div>
+            <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Valores</p>
+            <table style="width:100%;border-collapse:collapse">
+              ${isVen(im) ? row("Preço de venda", formatBRL(im.preco)) : ""}
+              ${isLoc(im) ? row("Aluguel", formatBRL(im.valorAluguel)) : ""}
+              ${row("Condomínio", formatBRL(im.valorCondominio))}
+              ${row("IPTU", formatBRL(im.valorIPTU))}
+              ${total > 0 && isLoc(im) ? row("Total/mês", formatBRL(total)) : ""}
+              ${row("Avaliação", formatBRL(im.valorAvaliacao))}
+              ${row("Entrada", formatBRL(im.valorEntrada))}
+            </table>
+            ${im.mapsLink ? `<a href="${im.mapsLink}" style="display:inline-block;margin-top:12px;font-size:12px;color:${COR_P}">📍 Ver no Google Maps</a>` : ""}
+          </div>
+        </div>
+
+        ${im.descricao ? `
+        <div style="margin-top:16px;page-break-inside:avoid">
+          <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Descrição</p>
+          <p style="font-size:12px;color:#444;line-height:1.6;white-space:pre-wrap">${im.descricao}</p>
+        </div>` : ""}
+
+        <div style="margin-top:20px;padding-top:12px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">
+          Inerente Gestão Imobiliária — gerado em ${new Date().toLocaleDateString("pt-BR")}
+        </div>
+      </div>`;
+  };
+
+  // Para múltiplos imóveis, mantém tabela compacta
+  const tabelaHtml = () => {
+    const has = k => camposSel.includes(k);
+    const rows = imoveis.map(im => {
+      const total = (parseFloat(im.valorAluguel)||0)+(parseFloat(im.valorCondominio)||0)+(parseFloat(im.valorIPTU)||0);
+      return `<tr>
+        ${has("tipo") ? `<td>${im.tipo||""} / ${im.transacao||""}</td>` : ""}
+        ${has("status") ? `<td>${im.status||"Disponível"}</td>` : ""}
+        ${has("cidade") ? `<td>${im.cidade||""}</td>` : ""}
+        ${has("bairro") ? `<td>${im.bairro||""}</td>` : ""}
+        ${has("metragem") ? `<td>${im.metragem ? im.metragem+" m²" : ""}</td>` : ""}
+        ${has("quartos") ? `<td>${im.quartos||""}</td>` : ""}
+        ${has("preco") ? `<td>${isLoc(im) ? (formatBRL(im.valorAluguel)||"") : (formatBRL(im.preco)||"")}</td>` : ""}
+        ${has("total") ? `<td>${total > 0 ? formatBRL(total) : ""}</td>` : ""}
+      </tr>`;
+    }).join("");
+    const headers = PDF_CAMPOS.filter(c => has(c.key)).map(c => `<th>${c.label}</th>`).join("");
+    return `<h2 style="color:${COR_P}">${titulo}</h2>
+      <p style="color:#666;font-size:11px">${imoveis.length} imóvel(is) — ${new Date().toLocaleDateString("pt-BR")}</p>
+      <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <thead><tr style="background:${COR_P};color:#fff">${headers}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  };
+
+  const bodyHtml = fichaUnica ? fichaHtml(imoveis[0]) : tabelaHtml();
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:10px;padding:16px}h2{color:${COR_P}}table{width:100%;border-collapse:collapse}th{background:${COR_P};color:#fff;padding:5px 7px;text-align:left;font-size:9px}td{border:1px solid #ddd;padding:4px 7px;vertical-align:top}tr:nth-child(even) td{background:#fdf5f5}a{color:${COR_P}}@media print{body{padding:0}@page{size:A4 landscape;margin:10mm}}</style>
-  </head><body>
-  <h2>${titulo}</h2><p style="color:#666;font-size:11px">Gerado em ${new Date().toLocaleDateString("pt-BR")} — ${imoveis.length} imóvel(is)</p>
-  <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  <style>
+    body{margin:0;padding:0;font-family:Arial,sans-serif}
+    table td,table th{border:1px solid #eee;vertical-align:top}
+    tr:nth-child(even) td{background:#fdf5f5}
+    @media print{body{padding:0}@page{size:A4;margin:10mm}}
+  </style>
+  </head><body>${bodyHtml}</body></html>`;
+
   const w = window.open("", "_blank");
-  w.document.write(html); w.document.close();
-  setTimeout(() => w.print(), 500);
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 800);
 }
 
 // ─── Upload Cloudinary ───
