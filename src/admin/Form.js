@@ -642,73 +642,102 @@ export default function Form() {
           </p>
         ) : (
           <>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-              {listaCaptadores.map(cap => {
-                const selecionados = form.captadores_ids || [];
-                const ativo = selecionados.includes(cap.id);
-                return (
-                  <button
-                    key={cap.id}
-                    type="button"
-                    onClick={() => {
-                      const atual = form.captadores_ids || [];
-                      const novos = ativo
-                        ? atual.filter(x => x !== cap.id)
-                        : [...atual, cap.id];
-                      const pct = novos.length > 0 ? Math.round(100 / novos.length) : 0;
-                      const captadoresDetalhes = novos.map((cid, idx) => ({
-                        id: cid,
-                        nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
-                        pct: idx === 0 ? (100 - pct * (novos.length - 1)) : pct
-                      }));
-                      setForm(p => ({
-                        ...p,
-                        captadores_ids: novos,
-                        captadores_detalhes: captadoresDetalhes,
-                        nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
-                      }));
-                    }}
-                    style={{
-                      padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600,
-                      border: ativo ? "2px solid var(--primary)" : "1.5px solid var(--border-soft)",
-                      background: ativo ? "rgba(59,130,246,.15)" : "var(--bg-card)",
-                      color: ativo ? "var(--primary)" : "var(--text-muted)",
-                      cursor: "pointer", transition: "all .15s"
-                    }}
-                  >
-                    {cap.nome}
-                  </button>
-                );
-              })}
-            </div>
-            {(form.captadores_detalhes || []).length > 1 && (
-              <div style={{ background: "var(--bg-card)", borderRadius: 10, padding: "10px 14px", marginBottom: 8 }}>
-                <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 8 }}>Divisão da comissão de captação:</div>
-                {(form.captadores_detalhes || []).map((cap, idx) => (
-                  <div key={cap.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <span style={{ flex: 1, fontSize: 13 }}>{cap.nome}</span>
-                    <input
-                      type="number" min="0" max="100" step="1"
-                      value={cap.pct}
-                      onChange={e => {
-                        const val = Number(e.target.value) || 0;
-                        setForm(p => {
-                          const det = [...(p.captadores_detalhes || [])];
-                          det[idx] = { ...det[idx], pct: val };
-                          return { ...p, captadores_detalhes: det };
-                        });
-                      }}
-                      style={{ ...inputBase, width: 70, textAlign: "center" }}
-                    />
-                    <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
-                  </div>
+            {/* Select com busca — funciona com qualquer quantidade de captadores */}
+            <select
+              value=""
+              onChange={e => {
+                const capId = e.target.value;
+                if (!capId) return;
+                const atual = form.captadores_ids || [];
+                if (atual.includes(capId)) return;
+                const novos = [...atual, capId];
+                const pct = Math.round(100 / novos.length);
+                const captadoresDetalhes = novos.map((cid, idx) => ({
+                  id: cid,
+                  nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
+                  pct: idx === 0 ? (100 - pct * (novos.length - 1)) : pct
+                }));
+                setForm(p => ({
+                  ...p,
+                  captadores_ids: novos,
+                  captadores_detalhes: captadoresDetalhes,
+                  nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
+                }));
+              }}
+              style={{ ...inputBase, color: "var(--text-muted)", marginBottom: 10 }}>
+              <option value="">+ Adicionar captador...</option>
+              {listaCaptadores
+                .filter(cap => !(form.captadores_ids || []).includes(cap.id))
+                .map(cap => (
+                  <option key={cap.id} value={cap.id}>{cap.nome}{cap.telefone ? ` — ${cap.telefone}` : ""}</option>
                 ))}
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                  Total: {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0)}%
-                  {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0) !== 100 && (
-                    <span style={{ color: "#dc2626", marginLeft: 6 }}>⚠ deve somar 100%</span>
-                  )}
-                </div>
+            </select>
+
+            {/* Captadores selecionados */}
+            {(form.captadores_detalhes || []).length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                {(form.captadores_detalhes || []).map((cap, idx) => {
+                  const capInfo = listaCaptadores.find(c => c.id === cap.id);
+                  return (
+                    <div key={cap.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 10, padding: "8px 12px", border: "1px solid var(--border-soft)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{cap.nome}</div>
+                        {capInfo?.telefone && (
+                          <a href={`https://wa.me/55${capInfo.telefone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+                            style={{ fontSize: 12, color: "#25D366", textDecoration: "none" }}>
+                            💬 {capInfo.telefone}
+                          </a>
+                        )}
+                      </div>
+                      {(form.captadores_detalhes || []).length > 1 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <input
+                            type="number" min="0" max="100" step="1"
+                            value={cap.pct}
+                            onChange={e => {
+                              const val = Number(e.target.value) || 0;
+                              setForm(p => {
+                                const det = [...(p.captadores_detalhes || [])];
+                                det[idx] = { ...det[idx], pct: val };
+                                return { ...p, captadores_detalhes: det };
+                              });
+                            }}
+                            style={{ ...inputBase, width: 60, textAlign: "center", padding: "4px 6px" }}
+                          />
+                          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const novos = (form.captadores_ids || []).filter(x => x !== cap.id);
+                          const pct = novos.length > 0 ? Math.round(100 / novos.length) : 0;
+                          const captadoresDetalhes = novos.map((cid, i) => ({
+                            id: cid,
+                            nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
+                            pct: i === 0 ? (100 - pct * (novos.length - 1)) : pct
+                          }));
+                          setForm(p => ({
+                            ...p,
+                            captadores_ids: novos,
+                            captadores_detalhes: captadoresDetalhes,
+                            nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
+                          }));
+                        }}
+                        style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+                {(form.captadores_detalhes || []).length > 1 && (
+                  <div style={{ fontSize: 11, color: "var(--text-muted)", paddingLeft: 4 }}>
+                    Total: {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0)}%
+                    {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0) !== 100 && (
+                      <span style={{ color: "#dc2626", marginLeft: 6 }}>⚠ deve somar 100%</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </>
