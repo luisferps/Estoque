@@ -51,7 +51,7 @@ export function apareceNoSite(im) {
   return v !== "Ocultar do site" && v !== "Ocultar de tudo";
 }
 
-// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta).
+// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta)
 // Espelha apareceNoSite, mas pro lado dos portais: "Ocultar dos portais" mantém
 // o imóvel no site e o tira dos feeds; "Ocultar de tudo" tira de tudo. Os demais
 // valores (ou vazio) mantêm o imóvel nos feeds dos portais.
