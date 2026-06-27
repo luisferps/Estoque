@@ -11,7 +11,7 @@ const {
   carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
 } = require("./_helpers");
 
-const BASE_URL = "https://imoveisdisponiveis.netlify.app";
+const BASE_URL = "https://inerente.com.br";
 
 // Mínimo de caracteres exigido pelo Chaves na Mão na descrição (para boa nota).
 const MIN_DESCRICAO_CNM = 500;
