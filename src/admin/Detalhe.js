@@ -11,6 +11,40 @@ import {
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 
+function linkWA(telefone) {
+  if (!telefone) return null;
+  const d = String(telefone).replace(/\D/g, "");
+  const num = d.startsWith("55") ? d : "55" + d;
+  return `https://wa.me/${num}`;
+}
+
+function LinhaContato({ label, nome, telefone, mostrarTelefone }) {
+  if (!nome && !telefone) return null;
+  const wa = mostrarTelefone && telefone ? linkWA(telefone) : null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+      {nome && (
+        <div style={{ display: "flex", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "var(--text-muted)", minWidth: 140 }}>{label}</span>
+          <span style={{ color: "var(--text)", fontWeight: 500 }}>{nome}</span>
+        </div>
+      )}
+      {mostrarTelefone && telefone && (
+        <div style={{ display: "flex", gap: 8, fontSize: 14, alignItems: "center" }}>
+          <span style={{ color: "var(--text-muted)", minWidth: 140 }}>Telefone</span>
+          <span style={{ color: "var(--text)", fontWeight: 500 }}>{telefone}</span>
+          {wa && (
+            <a href={wa} target="_blank" rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", background: "#25D366", color: "#fff", borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
+              💬 WhatsApp
+            </a>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Detalhe() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -29,19 +63,23 @@ export default function Detalhe() {
   const isVen = isVenda(im);
 
   const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
-  // Diretor = entrou pelo Portal como diretor (SSO) OU é admin na coleção corretores.
   const ehDiretor = ehDiretorEfetivo(isAdmin);
-  // Dono do imóvel = mesmo email do captador (SSO) ou mesmo uid (Firebase).
   const meuEmail = usuarioSSO();
   const souDono = !!(
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
-  const podeEditar = ehDiretor || souDono;            // botão Editar só para dono/diretor
-  const podeVerProprietario = ehDiretor || souDono;   // contato do proprietário só dono/diretor
-  const podeVerAnuncios = ehDiretor;                  // "onde foi anunciado" só diretor
-  const temCaptador = im.nomeCaptador || im.telefoneCaptador;
-  const temProprietario = (im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
+  const podeEditar = ehDiretor || souDono;
+  const podeVerProprietario = ehDiretor || souDono;
+  const podeVerAnuncios = ehDiretor;
+
+  // Captador: público para todos no sistema
+  const nomeCaptador = im.nomeCaptador || "";
+  const telCaptador = im.telefoneCaptador || "";
+  const temCaptador = !!(nomeCaptador || telCaptador);
+
+  // Proprietário: só dono/gerente/diretor
+  const temProprietario = !!(im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
 
   const copiarDescricao = async () => {
     const txt = descricaoPronta(im);
@@ -105,7 +143,6 @@ export default function Detalhe() {
         <button onClick={del} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--primary-border)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 13 }}>🗑️</button>
       </div>
 
-      {/* Aviso: imóvel não publicado por faltar dados obrigatórios */}
       {im.status === "Aguardando finalização" && (
         <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "12px 16px", marginBottom: "1rem", color: "var(--primary-dark)", fontSize: 13.5 }}>
           <b>⚠️ Aguardando finalização</b> — este imóvel ainda não está publicado.
@@ -201,21 +238,27 @@ export default function Detalhe() {
         {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
       </>)}
 
-      {/* Dados sensíveis (proprietário/captador): escondidos por padrão, revelados sob demanda */}
-      {(temCaptador || temProprietario) && (
+      {/* Captador: visível para todos no sistema */}
+      {temCaptador && section("Captador", <>
+        <LinhaContato label="Nome" nome={nomeCaptador} telefone={telCaptador} mostrarTelefone={true} />
+      </>)}
+
+      {/* Proprietário + captador (sensíveis): escondidos por padrão */}
+      {temProprietario && (
         !mostrarSensiveis ? (
           <button onClick={() => setMostrarSensiveis(true)}
             style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px dashed var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 14, marginBottom: "1rem" }}>
-            👁️ Ver dados do proprietário / captador
+            👁️ Ver dados do proprietário
           </button>
         ) : (
           <>
             <button onClick={() => setMostrarSensiveis(false)}
               style={{ width: "100%", padding: "9px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13, marginBottom: 10 }}>
-              🙈 Ocultar dados do proprietário / captador
+              🙈 Ocultar dados do proprietário
             </button>
-            {temCaptador && section("Captador", <>{row("Nome", im.nomeCaptador)}{row("Telefone", im.telefoneCaptador)}</>)}
-            {temProprietario && section("Proprietário", <>{row("Nome", im.nomeProprietario)}{row("Telefone", im.telefoneProprietario)}</>)}
+            {section("Proprietário", <>
+              <LinhaContato label="Nome" nome={im.nomeProprietario} telefone={im.telefoneProprietario} mostrarTelefone={true} />
+            </>)}
           </>
         )
       )}
