@@ -81,7 +81,15 @@ function toMetros(val) {
 // Reservado / Vendido / Alugado são excluídos automaticamente.
 function isDisponivel(imovel) {
   const status = (imovel.status || "").toLowerCase().trim();
+  // Só "disponível" (ou sem status) conta como disponível para os portais.
+  // "Reservado", "Vendido", "Alugado" são explicitamente bloqueados.
   return status === "disponível" || status === "disponivel" || status === "";
+}
+
+// Versão estrita: só aceita explicitamente "disponível" (para feeds de portais)
+function isDisponivelEstrito(imovel) {
+  const status = (imovel.status || "").toLowerCase().trim();
+  return status === "disponível" || status === "disponivel";
 }
 
 // Visibilidade pública (campo "visibilidade" do cadastro). Controla onde o
@@ -239,6 +247,7 @@ module.exports = {
   toFloat,
   toMetros,
   isDisponivel,
+  isDisponivelEstrito,
   apareceNosPortais,
   apareceNoSite,
   temFlagAnuncio,
