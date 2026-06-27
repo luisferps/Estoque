@@ -55,7 +55,7 @@ Para renomear/criar/classificar tipos: usar a tela de Tipos no painel WA. Mudan�
 |---|---|
 | Backend (Railway) | https://agentes-de-whatsapp-production.up.railway.app |
 | Painel WA | https://gruposdecorretores.netlify.app |
-| App Estoque | https://imoveisdisponiveis.netlify.app |
+| App Estoque | https://inerente.com.br |
 | CRM | https://crm-inerente.netlify.app |
 | GitHub backend | https://github.com/luisferps/Agentes-de-Whatsapp (arquivo: `index.js`) |
 | GitHub CRM | https://github.com/luisferps/CRM-Inerente (`src/App.js`, `src/components/ClienteModal.js`) |
@@ -176,9 +176,9 @@ Também há `POST /scheduler/testar-instagram-story` e `POST /scheduler/testar-i
 
 O app Estoque publica o catálogo nos portais via 3 feeds, que são **funções Netlify** (pasta `netlify/functions/`): `feed-canalpro.js`, `feed-chavesnamao.js`, `feed-meta.js` (mais os auxiliares `_firebase.js` e `_helpers.js`). URLs públicas:
 
-- Canal Pro (ZAP, Viva Real, OLX): `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-canalpro`
-- Chaves na Mão: `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-chavesnamao`
-- Meta (Facebook/Instagram): `https://imoveisdisponiveis.netlify.app/.netlify/functions/feed-meta`
+- Canal Pro (ZAP, Viva Real, OLX): `https://inerente.com.br/.netlify/functions/feed-canalpro`
+- Chaves na Mão: `https://inerente.com.br/.netlify/functions/feed-chavesnamao`
+- Meta (Facebook/Instagram): `https://inerente.com.br/.netlify/functions/feed-meta`
 
 **O que entra em cada feed:** imóvel com **status Disponível** + o canal marcado como ativo em `anuncios` (ex: `anuncios["Canal Pro"].ativo`). Marcar/desmarcar o canal na tela **Anúncios** do admin.
 
