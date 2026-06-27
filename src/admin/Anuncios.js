@@ -24,6 +24,9 @@ export default function Anuncios() {
   const [migracaoAtual, setMigracaoAtual] = useState(0);
   const [migracaoNome, setMigracaoNome] = useState("");
   const [migracaoLog, setMigracaoLog] = useState({ uf: 0, coords: 0, erros: 0 });
+  // Modo fila: resolver imóveis com problema um por um
+  const [modoFila, setModoFila] = useState(false);
+  const [filaIdx, setFilaIdx] = useState(0);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
@@ -31,6 +34,13 @@ export default function Anuncios() {
     imoveis.filter(im => !im.estado || !im.latitude || !im.longitude),
     [imoveis]
   );
+
+  // Imóveis com problemas no feed (fora do Canal Pro ou Chaves na Mão)
+  const comProblema = useMemo(() =>
+    imoveis.filter(im => CANAIS_AUTO.some(c => validarParaCanal(im, c).length > 0)),
+    [imoveis]
+  );
+  const imovelFila = modoFila ? comProblema[filaIdx] : null;
 
   const filtered = useMemo(() => imoveis.filter(im => {
     let matchCanal = true;
@@ -163,11 +173,83 @@ export default function Anuncios() {
     );
   };
 
+  // Modo fila: tela de resolver um imóvel por vez
+  if (modoFila && imovelFila) {
+    const problemas = CANAIS_AUTO.flatMap(canal =>
+      validarParaCanal(imovelFila, canal).map(p => ({ canal, problema: p }))
+    );
+    return (
+      <div style={{ maxWidth: 700, margin: "0 auto", padding: "1.5rem 1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1.2rem" }}>
+          <button onClick={() => setModoFila(false)} style={backBtn}>← Sair da fila</button>
+          <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{filaIdx + 1} de {comProblema.length} com problema</span>
+        </div>
+
+        {/* Barra de progresso */}
+        <div style={{ height: 6, background: "var(--bg-muted)", borderRadius: 4, marginBottom: "1.2rem" }}>
+          <div style={{ height: "100%", width: `${((filaIdx) / comProblema.length) * 100}%`, background: "var(--primary)", borderRadius: 4, transition: "width 0.3s" }} />
+        </div>
+
+        {/* Card do imóvel */}
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: "1rem" }}>
+          {imovelFila.fotos?.[0] && (
+            <img src={imovelFila.fotos[0]} alt="" style={{ width: "100%", height: 200, objectFit: "cover" }} />
+          )}
+          <div style={{ padding: "1rem 1.2rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                {imovelFila.codigo && <p style={{ margin: "0 0 2px", fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>CÓD: {imovelFila.codigo}</p>}
+                <h3 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 700, color: "var(--text)" }}>{imovelFila.titulo || imovelFila.tipo}</h3>
+                <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)" }}>{[imovelFila.bairro, imovelFila.cidade].filter(Boolean).join(", ")}</p>
+              </div>
+              <button onClick={() => navigate(`/admin/editar/${imovelFila.id}`)}
+                style={{ padding: "8px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                ✏️ Editar imóvel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Problemas */}
+        <div style={{ background: "#fee2e2", border: "1px solid #dc2626", borderRadius: 10, padding: "1rem 1.2rem", marginBottom: "1.2rem" }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 700, color: "#991b1b", fontSize: 14 }}>❌ Motivos para não subir ao feed:</p>
+          {problemas.map((p, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6, fontSize: 13, color: "#7f1d1d" }}>
+              <span style={{ fontWeight: 700, minWidth: 80 }}>{p.canal}:</span>
+              <span>{p.problema}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Botões de navegação */}
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={() => setFilaIdx(i => Math.max(0, i - 1))} disabled={filaIdx === 0}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: filaIdx === 0 ? "default" : "pointer", fontWeight: 600, fontSize: 14 }}>
+            ← Anterior
+          </button>
+          <button onClick={() => {
+            if (filaIdx < comProblema.length - 1) setFilaIdx(i => i + 1);
+            else { setModoFila(false); alert("Você chegou ao fim da fila!"); }
+          }}
+            style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
+            {filaIdx < comProblema.length - 1 ? "Próximo →" : "✅ Concluir"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={pageWrap(1300)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
         <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Controle de Anúncios</h2>
+        {comProblema.length > 0 && (
+          <button onClick={() => { setModoFila(true); setFilaIdx(0); }}
+            style={{ padding: "8px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            🔧 Resolver {comProblema.length} com problema (um por um)
+          </button>
+        )}
       </div>
 
       {incompletos.length > 0 && !migrando && (
@@ -235,10 +317,7 @@ export default function Anuncios() {
         <span style={{ fontSize: 13, color: "var(--text-muted)", alignSelf: "center" }}>{filtered.length} imóvel(is)</span>
       </div>
 
-      {/* Container com altura limitada: a barra de rolagem horizontal fica sempre
-          visível na base (sem precisar descer até o fim da tabela) e o cabeçalho
-          fica fixo no topo ao rolar verticalmente. */}
-      <div style={{ overflow: "auto", maxHeight: "calc(100vh - 230px)", border: "1px solid var(--border-soft)", borderRadius: 8 }}>
+      <div style={{ overflow: "auto", maxHeight: "calc(100vh - 280px)", border: "1px solid var(--border-soft)", borderRadius: 8 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, color: "var(--text)" }}>
           <thead>
             <tr>
