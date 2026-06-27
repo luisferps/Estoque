@@ -51,7 +51,7 @@ export function apareceNoSite(im) {
   return v !== "Ocultar do site" && v !== "Ocultar de tudo";
 }
 
-// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta)
+// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta).
 // Espelha apareceNoSite, mas pro lado dos portais: "Ocultar dos portais" mantém
 // o imóvel no site e o tira dos feeds; "Ocultar de tudo" tira de tudo. Os demais
 // valores (ou vazio) mantêm o imóvel nos feeds dos portais.
@@ -233,7 +233,7 @@ export function descricaoCompleta(im) {
 export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
-    const galeria = `${window.location.origin}/fotos/${im.id}`;
+    const galeria = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
     txt += `\n\nFotos:\n${galeria}\n(esse link é único para as fotos desse imóvel, mas caso precise delas por mensagem me avise)`;
   }
 
@@ -409,7 +409,7 @@ export async function downloadFotos(im) {
 
 // ─── WhatsApp ───
 export function whatsappTudo(im) {
-  const galeriaLink = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
+  const galeriaLink = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
   const txt = descricaoCompleta(im) +
     (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
     (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "");
