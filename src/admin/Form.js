@@ -94,6 +94,7 @@ export default function Form() {
   const [organizando, setOrganizando] = useState(false);
   const [importandoDrive, setImportandoDrive] = useState(false);
   const [urlDrive, setUrlDrive] = useState('');
+  const [previaFoto, setPreviaFoto] = useState(null);
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
   // Lista de captadores cadastrados no Supabase (via backend)
   const [listaCaptadores, setListaCaptadores] = useState([]);
@@ -344,6 +345,12 @@ export default function Form() {
   const inpTel = (label, key, intl, setIntl) => {
     const val = form[key] || "";
     const invalido = val.trim() !== "" && !telefoneValido(val, intl);
+    const valido = val.trim() !== "" && telefoneValido(val, intl);
+    const waLink = valido ? (() => {
+      const d = val.replace(/\D/g, "");
+      const num = intl ? d : (d.startsWith("55") ? d : "55" + d);
+      return "https://wa.me/" + num;
+    })() : null;
     return (
       <div style={{ marginBottom: "1rem" }}>
         <label style={labelStyle}>
@@ -353,11 +360,19 @@ export default function Form() {
             Internacional
           </label>
         </label>
-        <input type="tel" value={val}
-          onChange={e => sf(key, intl ? e.target.value.replace(/[^\d+\s()-]/g, "") : formatTel(e.target.value))}
-          placeholder={intl ? "+1 555 000 0000" : "(62) 9 9999-9999"}
-          inputMode={intl ? "text" : "numeric"}
-          style={{ ...inputBase, ...(invalido ? { borderColor: "#c0392b" } : {}) }} />
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <input type="tel" value={val}
+            onChange={e => sf(key, intl ? e.target.value.replace(/[^\d+\s()-]/g, "") : formatTel(e.target.value))}
+            placeholder={intl ? "+1 555 000 0000" : "(62) 9 9999-9999"}
+            inputMode={intl ? "text" : "numeric"}
+            style={{ ...inputBase, flex: 1, ...(invalido ? { borderColor: "#c0392b" } : {}) }} />
+          {waLink && (
+            <a href={waLink} target="_blank" rel="noreferrer"
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "9px 12px", background: "#25D366", color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+              💬
+            </a>
+          )}
+        </div>
         {invalido && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#c0392b" }}>{intl ? "Número internacional inválido. Use o formato +código número." : "Número incompleto. Use fixo (10 dígitos) ou celular (11 dígitos com 9)."}</p>}
       </div>
     );
@@ -513,7 +528,17 @@ export default function Form() {
           </button>
         </div>
         {importandoDrive && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>Baixando as fotos do Drive e enviando ao Cloudinary... aguarde.</p>}
-        <FotosGrid fotos={form.fotos || []} onChange={fs => sf("fotos", fs)} onRemove={i => sf("fotos", form.fotos.filter((_, idx) => idx !== i))} />
+        {/* Prévia ampliada da foto */}
+        {previaFoto && (
+          <div onClick={() => setPreviaFoto(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", cursor: "zoom-out" }}>
+            <img src={previaFoto} alt="" style={{ maxWidth: "92vw", maxHeight: "88vh", borderRadius: 12, objectFit: "contain", boxShadow: "0 20px 60px rgba(0,0,0,0.6)" }} />
+            <button onClick={() => setPreviaFoto(null)}
+              style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", fontSize: 28, cursor: "pointer", borderRadius: "50%", width: 44, height: 44, lineHeight: 1 }}>×</button>
+            <p style={{ position: "absolute", bottom: 16, color: "rgba(255,255,255,0.6)", fontSize: 13 }}>Clique em qualquer lugar para fechar</p>
+          </div>
+        )}
+        <FotosGrid fotos={form.fotos || []} onChange={fs => sf("fotos", fs)} onRemove={i => sf("fotos", form.fotos.filter((_, idx) => idx !== i))} onPrevia={setPreviaFoto} />
       </>)}
 
       {section("Localização", <>
