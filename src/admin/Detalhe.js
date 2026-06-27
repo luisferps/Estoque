@@ -62,7 +62,7 @@ export default function Detalhe() {
   const isLoc = isLocacao(im);
   const isVen = isVenda(im);
 
-  const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
+  const galeriaLink = im.fotos?.length ? `https://fotosdoimovel.netlify.app/fotos/${im.id}` : "";
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
   const souDono = !!(
