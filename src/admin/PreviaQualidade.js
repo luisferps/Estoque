@@ -45,8 +45,10 @@ export default function PreviaQualidade({ form, isLote }) {
     add("Vagas", parseFloat(form.garagens) ? "ok" : "aviso", parseFloat(form.garagens) ? null : "Informe as vagas de garagem");
   }
 
-  // IPTU
-  add("IPTU", parseFloat(form.valorIPTU) ? "ok" : "aviso", parseFloat(form.valorIPTU) ? null : "Informe o valor do IPTU");
+  // IPTU — só cobra em locação (em venda é opcional)
+  if (isLocacao) {
+    add("IPTU", parseFloat(form.valorIPTU) ? "ok" : "aviso", parseFloat(form.valorIPTU) ? null : "Informe o valor do IPTU");
+  }
 
   // Condomínio (só cobra se for em condomínio)
   if (emCondominio) add("Condomínio", temCondominio ? "ok" : "aviso", temCondominio ? null : "Informe o valor do condomínio");
