@@ -8,7 +8,7 @@
 const { getDb } = require("./_firebase");
 const { isDisponivel, apareceNoSite } = require("./_helpers");
 
-const BASE_URL = "https://imoveisdisponiveis.netlify.app";
+const BASE_URL = "https://inerente.com.br";
 
 // Identificador usado na URL pública (/imovel/:id). Usa o código legível do
 // Estoque quando existe (ex: "Rosa dos Ventos"), senão o id do Firebase.
