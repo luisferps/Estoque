@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 
-export default function FotosGrid({ fotos, onChange, onRemove }) {
+export default function FotosGrid({ fotos, onChange, onRemove, onPrevia }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
   // touch drag
@@ -59,11 +59,14 @@ export default function FotosGrid({ fotos, onChange, onRemove }) {
               transition: "transform 0.15s",
               touchAction: "none",
             }}>
-            <img src={f} alt="" style={{
-              width: 80, height: 80, objectFit: "cover", borderRadius: 8,
-              border: i === 0 ? "2px solid var(--primary)" : "1px solid var(--border-soft)",
-              display: "block", pointerEvents: "none"
-            }} />
+            <img src={f} alt=""
+              onClick={e => { e.stopPropagation(); onPrevia && onPrevia(f); }}
+              style={{
+                width: 80, height: 80, objectFit: "cover", borderRadius: 8,
+                border: i === 0 ? "2px solid var(--primary)" : "1px solid var(--border-soft)",
+                display: "block", cursor: onPrevia ? "zoom-in" : "default",
+                pointerEvents: onPrevia ? "auto" : "none"
+              }} />
             {i === 0 && (
               <span style={{
                 position: "absolute", bottom: 2, left: 2,
