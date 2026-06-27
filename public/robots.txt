@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /corretores
 
-Sitemap: https://imoveisdisponiveis.netlify.app/sitemap.xml
+Sitemap: https://inerente.com.br/sitemap.xml
