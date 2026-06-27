@@ -1,19 +1,29 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 export default function FotosGrid({ fotos, onChange, onRemove }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
+  // touch drag
+  const touchOrigin = useRef(null);
 
   if (!fotos?.length) return null;
 
   const handleDrop = (i) => {
-    if (dragIdx === null || dragIdx === i) return;
-    const newFotos = [...fotos];
-    const [moved] = newFotos.splice(dragIdx, 1);
-    newFotos.splice(i, 0, moved);
-    onChange(newFotos);
+    if (dragIdx === null || dragIdx === i) { setDragIdx(null); setOverIdx(null); return; }
+    const arr = [...fotos];
+    const [moved] = arr.splice(dragIdx, 1);
+    arr.splice(i, 0, moved);
+    onChange(arr);
     setDragIdx(null);
     setOverIdx(null);
+  };
+
+  // touch: identifica o card sob o dedo pelo elemento mais próximo com data-idx
+  const idxFromTouch = (e) => {
+    const t = e.changedTouches[0];
+    const el = document.elementFromPoint(t.clientX, t.clientY);
+    const card = el && el.closest("[data-idx]");
+    return card ? parseInt(card.getAttribute("data-idx"), 10) : null;
   };
 
   return (
@@ -23,30 +33,43 @@ export default function FotosGrid({ fotos, onChange, onRemove }) {
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {fotos.map((f, i) => (
-          <div key={i}
+          <div
+            key={f + "_" + i}
+            data-idx={i}
             draggable
             onDragStart={() => setDragIdx(i)}
             onDragOver={(e) => { e.preventDefault(); setOverIdx(i); }}
             onDragLeave={() => setOverIdx(null)}
             onDrop={(e) => { e.preventDefault(); handleDrop(i); }}
             onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+            // touch events para mobile
+            onTouchStart={() => { touchOrigin.current = i; setDragIdx(i); }}
+            onTouchMove={(e) => { const t = idxFromTouch(e); if (t !== null) setOverIdx(t); }}
+            onTouchEnd={(e) => {
+              const t = idxFromTouch(e);
+              if (t !== null) handleDrop(t);
+              else { setDragIdx(null); setOverIdx(null); }
+              touchOrigin.current = null;
+            }}
             style={{
               position: "relative",
               cursor: "grab",
               opacity: dragIdx === i ? 0.4 : 1,
               transform: overIdx === i && dragIdx !== i ? "scale(1.05)" : "scale(1)",
               transition: "transform 0.15s",
+              touchAction: "none",
             }}>
             <img src={f} alt="" style={{
               width: 80, height: 80, objectFit: "cover", borderRadius: 8,
               border: i === 0 ? "2px solid var(--primary)" : "1px solid var(--border-soft)",
-              display: "block"
+              display: "block", pointerEvents: "none"
             }} />
             {i === 0 && (
               <span style={{
                 position: "absolute", bottom: 2, left: 2,
                 background: "var(--primary)", color: "#fff", fontSize: 9,
-                padding: "1px 5px", borderRadius: 4, fontWeight: 600
+                padding: "1px 5px", borderRadius: 4, fontWeight: 600,
+                pointerEvents: "none"
               }}>CAPA</span>
             )}
             <button onClick={() => onRemove(i)} style={{
