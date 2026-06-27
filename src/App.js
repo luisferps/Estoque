@@ -26,9 +26,27 @@ import CorretorLogin from "./corretores/Login";
 import CorretorDashboard from "./corretores/Dashboard";
 import MaterialImovel from "./corretores/MaterialImovel";
 
+// ─── Domínio oficial ───
+// Se o site for acessado por qualquer outro domínio que não seja inerente.com.br,
+// redireciona imediatamente para o domínio oficial (preservando o caminho).
+const DOMINIO_OFICIAL = "inerente.com.br";
+
+function DominioGuard() {
+  useEffect(() => {
+    const host = window.location.hostname;
+    if (host !== DOMINIO_OFICIAL && host !== "www." + DOMINIO_OFICIAL) {
+      window.location.replace(
+        "https://" + DOMINIO_OFICIAL + window.location.pathname + window.location.search + window.location.hash
+      );
+    }
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <ThemeProvider>
+      <DominioGuard />
       <BrowserRouter>
         <GaleriaHashRouter>
           <Routes>
@@ -67,16 +85,11 @@ export default function App() {
 }
 
 // ─── Guard de rotas do admin ───
-// Autentica (SSO via Portal OU senha de backup, persistida em localStorage) e,
-// quando a rota pede (requireDiretor), valida também o PAPEL antes de liberar.
 function AdminRoute({ element: Component, requireDiretor = false }) {
-  // Estado de autenticação: null = ainda verificando SSO; true = autenticado; false = mostra PassModal
   const [isAuth, setIsAuth] = useState(null);
-  // Papel via Firebase (complementa o papel que vem do SSO do Portal). Sempre chamado (regra de hooks).
   const { isAdmin, loading: loadingRole } = useUserRole();
 
   useEffect(() => {
-    // 1) Tem ?sso=token na URL? troca por sessão no backend.
     const params = new URLSearchParams(window.location.search);
     const tokenSSO = params.get("sso");
     if (tokenSSO) {
@@ -89,11 +102,9 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
         .then(j => {
           if (j && j.ok && j.sessao) {
             try { localStorage.setItem("admin_sso", JSON.stringify({ usuario: j.usuario, nome: j.nome, perfil: j.perfil, sessao: j.sessao })); } catch {}
-            // Limpa o ?sso= da URL pra não ficar exposto
             try { window.history.replaceState(null, "", window.location.pathname + window.location.hash); } catch {}
             setIsAuth(true);
           } else {
-            // SSO falhou — cai pra verificar sessão local / pedir senha
             verificarSessaoLocal();
           }
         })
@@ -103,7 +114,6 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
     verificarSessaoLocal();
 
     function verificarSessaoLocal() {
-      // 2) Tem sessão local salva (SSO anterior ou senha)? libera.
       try {
         const sso = localStorage.getItem("admin_sso");
         if (sso) { setIsAuth(true); return; }
@@ -111,7 +121,6 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
       try {
         if (sessionStorage.getItem("admin") === "1" || localStorage.getItem("admin") === "1") { setIsAuth(true); return; }
       } catch {}
-      // 3) Nada — mostra PassModal
       setIsAuth(false);
     }
   }, []);
@@ -126,19 +135,15 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
     setIsAuth(false);
   };
 
-  // Enquanto verifica SSO, evita piscar PassModal por meio segundo
   if (isAuth === null) return null;
 
   if (!isAuth) {
     return <PassModal onClose={() => { window.location.href = "/"; }} onSuccess={onSuccess} />;
   }
 
-  // ─── Autenticado. Se a rota é restrita a diretor, valida o papel. ───
   if (requireDiretor) {
     const ehDiretor = ehDiretorEfetivo(isAdmin);
     if (!ehDiretor) {
-      // Pode ser que o papel via Firebase ainda esteja carregando — espera antes de bloquear,
-      // pra nunca trancar um diretor por engano (evita falso negativo).
       if (loadingRole) return <TelaVerificando />;
       return <AcessoRestrito />;
     }
@@ -147,7 +152,6 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
   return <Component onLogout={onLogout} />;
 }
 
-// ─── Telinha enquanto confirma o papel (some rápido) ───
 function TelaVerificando() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-soft, #6b7280)", fontSize: 14, fontFamily: "sans-serif" }}>
@@ -156,7 +160,6 @@ function TelaVerificando() {
   );
 }
 
-// ─── Tela de acesso restrito (corretor/gerente tentou uma rota só de diretor) ───
 function AcessoRestrito() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center", fontFamily: "sans-serif" }}>
@@ -175,13 +178,11 @@ function AcessoRestrito() {
   );
 }
 
-// ─── Galeria por rota /fotos/:id (com preview de foto no WhatsApp via Edge Function) ───
 function FotosRoute() {
   const { id } = useParams();
   return <Galeria id={id} />;
 }
 
-// ─── Suporte ao hash legado #galeria-ID ───
 function GaleriaHashRouter({ children }) {
   const location = useLocation();
   const [galeriaId, setGaleriaId] = useState(() => {
