@@ -28,7 +28,6 @@ function metragem(im) {
 export default function ImovelCard({ im, onClick, actions, showStatus = true }) {
   const status = statusDoImovel(im);
   const corSt = STATUS_COLOR[status] || STATUS_COLOR["Disponível"];
-  const ehLancamento = im.estadoImovel === "Imóvel Novo";
   const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
   const local = [im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase();
   const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
@@ -58,18 +57,7 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
               style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <span style={{ fontSize: 52, opacity: 0.5 }}>🏠</span>}
 
-        {/* Badge "Lançamento" para imóvel novo */}
-        {ehLancamento && (
-          <span style={{
-            position: "absolute", top: 10, left: 10,
-            background: "rgba(20,20,20,0.78)", color: "#fff",
-            fontSize: 11.5, fontWeight: 700, letterSpacing: 0.2,
-            padding: "5px 12px", borderRadius: 999,
-            backdropFilter: "blur(6px)"
-          }}>Lançamento</span>
-        )}
-
-        {/* Status (se for diferente de Disponível) */}
+        {/* Status (se for diferente de Disponível) */
         {showStatus && status !== "Disponível" && (
           <span style={{
             position: "absolute", top: 10, right: 10,
