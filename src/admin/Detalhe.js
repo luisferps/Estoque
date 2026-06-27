@@ -1,315 +1,461 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { excluirImovelBackend, criarImovelBackend } from "../shared/estoqueApi";
-import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
-import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { RODAPE, EMPRESA } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
-  descricaoPronta, downloadFotos, gerarPDF
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta
 } from "../shared/utils";
-import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
+import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
+import ImovelCard from "../shared/ImovelCard";
+import Header from "./Header";
 
-function linkWA(telefone) {
-  if (!telefone) return null;
-  const d = String(telefone).replace(/\D/g, "");
-  const num = d.startsWith("55") ? d : "55" + d;
-  return `https://wa.me/${num}`;
+// chave do localStorage onde guardamos os IDs salvos pelo visitante (favoritos)
+const FAV_KEY = "inerente_favoritos";
+
+function lerFavoritos() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); } catch { return []; }
+}
+function gravarFavoritos(lista) {
+  try { localStorage.setItem(FAV_KEY, JSON.stringify(lista)); } catch {}
 }
 
-function LinhaContato({ label, nome, telefone, mostrarTelefone }) {
-  if (!nome && !telefone) return null;
-  const wa = mostrarTelefone && telefone ? linkWA(telefone) : null;
+// Normaliza um texto para comparar código (sem acento, minúsculo, espaços colapsados).
+function normCod(s) {
+  return (s || "").trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
+  const link = window.location.href;
+  const titulo = im.titulo || "Imóvel";
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
+  const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
+  const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
-      {nome && (
-        <div style={{ display: "flex", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "var(--text-muted)", minWidth: 140 }}>{label}</span>
-          <span style={{ color: "var(--text)", fontWeight: 500 }}>{nome}</span>
-        </div>
-      )}
-      {mostrarTelefone && telefone && (
-        <div style={{ display: "flex", gap: 8, fontSize: 14, alignItems: "center" }}>
-          <span style={{ color: "var(--text-muted)", minWidth: 140 }}>Telefone</span>
-          <span style={{ color: "var(--text)", fontWeight: 500 }}>{telefone}</span>
-          {wa && (
-            <a href={wa} target="_blank" rel="noreferrer"
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", background: "#25D366", color: "#fff", borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
-              💬 WhatsApp
-            </a>
-          )}
-        </div>
-      )}
-    </div>
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
+      <div style={{
+        position: "absolute", bottom: "calc(100% + 6px)", right: 0, zIndex: 91,
+        background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14,
+        boxShadow: "0 14px 36px rgba(0,0,0,0.18)", padding: 6, minWidth: 220, color: "var(--text)"
+      }}>
+        <a href={wa} target="_blank" rel="noreferrer" onClick={onClose} style={popItem}>💬 WhatsApp</a>
+        <a href={mail} onClick={onClose} style={popItem}>✉️ Email</a>
+        <button onClick={copiarLink} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>🔗 Copiar link</button>
+        <button onClick={onCopiarTexto} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>
+          {copiado ? "✓ Copiado!" : "📋 Copiar descrição"}
+        </button>
+      </div>
+    </>
   );
 }
 
-export default function Detalhe() {
+export default function ImovelPublico() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { imoveis } = useImoveis();
-  const { user, isAdmin } = useUserRole();
-  const im = imoveis.find(i => i.id === id);
+  const { imoveis, loading } = useImoveis();
+  // Acha o imóvel pelo id do Firebase OU pelo código.
+  const alvo = (() => { try { return decodeURIComponent(id || ""); } catch { return id || ""; } })();
+  const alvoNorm = normCod(alvo);
+  const im = imoveis.find(i => i.id === id)
+    || imoveis.find(i => i.id === alvo)
+    || imoveis.find(i => normCod(i.codigo) && normCod(i.codigo) === alvoNorm);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
+  const [share, setShare] = useState(false);
   const [copiado, setCopiado] = useState(false);
-  const [mostrarSensiveis, setMostrarSensiveis] = useState(false);
+  const [favoritos, setFavoritos] = useState(lerFavoritos);
+  const ehFavorito = im ? favoritos.includes(im.id) : false;
+  const toggleFavorito = () => {
+    if (!im) return;
+    const nova = ehFavorito ? favoritos.filter(x => x !== im.id) : [...favoritos, im.id];
+    setFavoritos(nova); gravarFavoritos(nova);
+  };
 
-  if (!im) return <div style={pageWrap()}>Carregando...</div>;
+  // Imóveis relacionados: mesmo tipo + mesma transação (Venda/Locação), exclui o atual.
+  // Cai pra mesma cidade se não houver. Limita a 6.
+  const relacionados = useMemo(() => {
+    if (!im) return [];
+    const base = imoveis.filter(x => x.id !== im.id && statusDoImovel(x) === "Disponível" && apareceNoSite(x));
+    const mesmoTipoTrans = base.filter(x => x.tipo === im.tipo && (x.transacao || "") === (im.transacao || ""));
+    if (mesmoTipoTrans.length >= 3) return mesmoTipoTrans.slice(0, 6);
+    const mesmoTipo = base.filter(x => x.tipo === im.tipo);
+    if (mesmoTipo.length >= 3) return mesmoTipo.slice(0, 6);
+    return base.filter(x => x.cidade && x.cidade === im.cidade).slice(0, 6);
+  }, [imoveis, im]);
+
+  // SEO: atualiza o título da aba e a meta description.
+  useEffect(() => {
+    const tituloPadrao = "Inerente Gestão Imobiliária — Imóveis para venda e locação";
+    if (im && im.titulo) {
+      const partes = [im.titulo];
+      if (im.bairro) partes.push(im.bairro);
+      if (im.cidade) partes.push(im.cidade);
+      document.title = partes.join(" - ") + " | Inerente Gestão Imobiliária";
+      const desc = (im.descricao || im.titulo || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      let meta = document.querySelector('meta[name="description"]');
+      if (!meta) { meta = document.createElement("meta"); meta.setAttribute("name", "description"); document.head.appendChild(meta); }
+      meta.setAttribute("content", desc);
+    }
+    return () => { document.title = tituloPadrao; };
+  }, [im]);
+
+  if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
+
+  if (!im && imoveis.length === 0) {
+    return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
+  }
+
+  if (!im || statusDoImovel(im) !== "Disponível" || !apareceNoSite(im)) {
+    return (
+      <div>
+        <Header />
+        <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem" }}>
+          <h2 style={{ color: "var(--text)" }}>Imóvel não disponível</h2>
+          <p style={{ color: "var(--text-muted)" }}>Este imóvel não está mais disponível ou foi removido.</p>
+          <button onClick={() => navigate("/")} className="btn-grad" style={{ marginTop: 16, padding: "11px 26px", borderRadius: 14, fontWeight: 700 }}>
+            Ver outros imóveis
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const isLot = isLote(im);
   const isLoc = isLocacao(im);
   const isVen = isVenda(im);
+  const ehLancamento = im.estadoImovel === "Imóvel Novo";
 
-  const galeriaLink = im.fotos?.length ? `${window.location.origin}/fotos/${im.id}` : "";
-  const ehDiretor = ehDiretorEfetivo(isAdmin);
-  const meuEmail = usuarioSSO();
-  const souDono = !!(
-    (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
-    (user && im.captadorUid && im.captadorUid === user.uid)
-  );
-  const podeEditar = ehDiretor || souDono;
-  const podeVerProprietario = ehDiretor || souDono;
-  const podeVerAnuncios = ehDiretor;
-
-  // Captador: público para todos no sistema
-  const nomeCaptador = im.nomeCaptador || "";
-  const telCaptador = im.telefoneCaptador || "";
-  const temCaptador = !!(nomeCaptador || telCaptador);
-
-  // Proprietário: só dono/gerente/diretor
-  const temProprietario = !!(im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
+  const mensagemWa = `Olá! Tenho interesse no imóvel: ${im.titulo}\n${window.location.href}`;
+  const linkWa = `https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(mensagemWa)}`;
 
   const copiarDescricao = async () => {
-    const txt = descricaoPronta(im);
-    try {
-      await navigator.clipboard.writeText(txt);
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = txt; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
+    try { await navigator.clipboard.writeText(descricaoPronta(im)); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {
+      const ta = document.createElement("textarea"); ta.value = descricaoPronta(im); document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {}
       document.body.removeChild(ta);
     }
-  };
-
-  const pdfImovel = () => gerarPDF([im], PDF_CAMPOS.map(c => c.key), im.titulo || "Imóvel");
-
-  const del = async () => {
-    if (!window.confirm("Excluir esse imóvel?")) return;
-    try { await excluirImovelBackend(id); navigate("/admin"); }
-    catch (e) { alert("Erro ao excluir: " + e.message); }
-  };
-
-  const duplicar = async () => {
-    if (!window.confirm(`Duplicar "${im.titulo}"?`)) return;
-    const { id: _id, createdAt: _ca, ...data } = im;
-    try {
-      const novoId = await criarImovelBackend({
-        ...data,
-        titulo: `${data.titulo} (cópia)`,
-        anuncios: {},
-      });
-      navigate(`/admin/editar/${novoId}`);
-    } catch (e) { alert("Erro ao duplicar: " + e.message); }
+    setShare(false);
   };
 
   const row = (label, val) => val ? (
-    <div style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 14 }}>
-      <span style={{ color: "var(--text-muted)", minWidth: 140 }}>{label}</span>
-      <span style={{ color: "var(--text)", fontWeight: 500 }}>{val}</span>
+    <div style={{ display: "flex", gap: 8, marginBottom: 8, fontSize: 14, flexWrap: "wrap" }}>
+      <span style={{ color: "var(--text-muted)", minWidth: 150 }}>{label}</span>
+      <span style={{ color: "var(--text)", fontWeight: 600 }}>{val}</span>
     </div>
   ) : null;
 
-  const section = (title, children) => (
-    <div style={sectionBox}>
-      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "var(--primary-dark)" }}>{title}</p>
+  const section = (titulo, children) => (
+    <div className="card-soft" style={{ padding: "1.25rem 1.4rem", marginBottom: "1rem" }}>
+      <p style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 12.5, color: "var(--primary)", letterSpacing: 0.6, textTransform: "uppercase" }}>{titulo}</p>
       {children}
     </div>
   );
 
-  const status = statusDoImovel(im);
-
   return (
-    <div style={pageWrap(680)}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
+      <Header />
       <Lightbox idx={lb} fotos={im.fotos || []} onClose={() => setLb(null)} onChange={setLb} />
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
-        <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--text)" }}>{im.titulo || "Ficha do imóvel"}</h2>
-        {podeEditar && <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13 }}>Editar</button>}
-        <button onClick={duplicar} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13 }}>📋 Duplicar</button>
-        <button onClick={del} style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid var(--primary-border)", background: "var(--primary-light)", color: "var(--primary-dark)", cursor: "pointer", fontSize: 13 }}>🗑️</button>
+
+      {/* HERO */}
+      <div style={{
+        position: "relative",
+        background: "radial-gradient(120% 130% at 50% -12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 42%), linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)",
+        color: "#fff", padding: "1.4rem 1.5rem 2rem", borderRadius: "0 0 30px 30px"
+      }}>
+        <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center" }}>
+          <button onClick={() => navigate("/")} style={{
+            display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.28)", color: "#fff", fontSize: 13, fontWeight: 600,
+            padding: "7px 14px", borderRadius: 999, cursor: "pointer", backdropFilter: "blur(6px)"
+          }}>← Voltar</button>
+
+          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap", justifyContent: "center" }}>
+            {ehLancamento && <span style={chipHero}>✨ Lançamento</span>}
+            {im.tipo && <span style={chipHero}>{im.tipo}</span>}
+            {im.transacao && <span style={chipHero}>{im.transacao}</span>}
+            {im.condominio && <span style={chipHero}>Em condomínio</span>}
+          </div>
+
+          <h1 className="display" style={{ margin: "10px 0 4px", fontSize: "clamp(26px, 4.2vw, 38px)", fontWeight: 800, lineHeight: 1.1 }}>{im.titulo}</h1>
+          {(im.bairro || im.cidade) && (
+            <p style={{ margin: 0, fontSize: 14, opacity: 0.92, fontWeight: 600, letterSpacing: 0.2 }}>
+              {[im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase()}
+            </p>
+          )}
+
+          {/* atalhos rápidos: salvar + atributos principais */}
+          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
+            <button onClick={toggleFavorito}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                background: ehFavorito ? "#fff" : "rgba(255,255,255,0.16)",
+                color: ehFavorito ? "var(--primary-dark)" : "#fff",
+                border: "1px solid " + (ehFavorito ? "#fff" : "rgba(255,255,255,0.32)"),
+                padding: "8px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer",
+                backdropFilter: "blur(6px)"
+              }}>
+              {ehFavorito ? "♥ Salvo" : "♡ Salvar"}
+            </button>
+            {parseInt(im.quartos) > 0 && <span style={chipAttr}>🛏️ {im.quartos} qto{parseInt(im.quartos) > 1 ? "s" : ""}</span>}
+            {parseInt(im.suites) > 0 && <span style={chipAttr}>🚿 {im.suites} suíte{parseInt(im.suites) > 1 ? "s" : ""}</span>}
+            {parseInt(im.banheiros) > 0 && <span style={chipAttr}>🛁 {im.banheiros} banh.</span>}
+            {parseInt(im.garagens) > 0 && <span style={chipAttr}>🚗 {im.garagens} vaga{parseInt(im.garagens) > 1 ? "s" : ""}</span>}
+            {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)) > 0 && (
+              <span style={chipAttr}>📐 {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)).toLocaleString("pt-BR")} m²</span>
+            )}
+            {im.asfalto && <span style={chipAttr}>≡ Asfalto</span>}
+            {im.agua && <span style={chipAttr}>💧 Água</span>}
+            {im.esgoto && <span style={chipAttr}>◎ Esgoto</span>}
+          </div>
+        </div>
       </div>
 
-      {im.status === "Aguardando finalização" && (
-        <div style={{ background: "var(--primary-light)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "12px 16px", marginBottom: "1rem", color: "var(--primary-dark)", fontSize: 13.5 }}>
-          <b>⚠️ Aguardando finalização</b> — este imóvel ainda não está publicado.
-          {Array.isArray(im.faltandoFinalizar) && im.faltandoFinalizar.length > 0 && (
-            <> Falta preencher: <b>{im.faltandoFinalizar.join(", ")}</b>.</>
+      {/* CONTEÚDO */}
+      <div style={{ maxWidth: 880, margin: "-22px auto 0", padding: "0 1.25rem", position: "relative", zIndex: 2 }}>
+        {/* Galeria */}
+        {im.fotos?.length > 0 ? (
+          <div className="card-soft" style={{ padding: 10, marginBottom: "1rem" }}>
+            <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)}
+              style={{ width: "100%", maxHeight: 520, objectFit: "contain", borderRadius: 14, cursor: "zoom-in", background: "var(--bg-muted)" }} />
+            {im.fotos.length > 1 && (
+              <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+                {im.fotos.map((f, i) => (
+                  <img key={i} src={f} onClick={() => setFotoIdx(i)} alt=""
+                    style={{ width: 76, height: 76, objectFit: "cover", borderRadius: 12, cursor: "pointer", flexShrink: 0, border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="card-soft" style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1rem" }}>🏠</div>
+        )}
+
+        {/* Preço destaque */}
+        <div className="card-soft" style={{ padding: "1.3rem 1.5rem", marginBottom: "0.8rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)", border: "1px solid var(--primary-border)" }}>
+          {isVen && im.preco && (
+            <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "var(--primary-dark)", letterSpacing: -0.5 }}>
+              {formatBRL(im.preco)}
+              <span style={{ fontSize: 13.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>à venda</span>
+            </p>
+          )}
+          {isLoc && im.valorFinal && (
+            <p style={{ margin: isVen ? "10px 0 0" : 0, fontSize: 24, fontWeight: 800, color: "var(--primary-dark)" }}>
+              {formatBRL(im.valorFinal)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
+              <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>(aluguel + condomínio + IPTU)</span>
+            </p>
           )}
         </div>
-      )}
 
-      <div style={{ display: "flex", gap: 6, marginBottom: "1rem", flexWrap: "wrap" }}>
-        {im.tipo && <span style={tag("primary")}>{im.tipo}</span>}
-        {im.transacao && <span style={tag()}>{im.transacao}</span>}
-        {im.estadoImovel && <span style={tag()}>{im.estadoImovel}</span>}
-        <span style={{ ...tag(), background: STATUS_BG[status] || "var(--bg-muted)", color: STATUS_FG[status] || "var(--text-soft)", fontWeight: 600 }}>{status}</span>
-        {im.condominio && <span style={tag()}>Condomínio{im.nomeCondominio ? `: ${im.nomeCondominio}` : ""}</span>}
-        {im.condicoes?.map(c => <span key={c} style={tag("primary")}>{c}</span>)}
-      </div>
+        {/* CÓD entre o preço e os botões */}
+        {im.codigo && (
+          <p style={{ margin: "0 0 0.9rem", textAlign: "center", fontSize: 13, fontWeight: 800, color: "var(--primary)", letterSpacing: 0.5 }}>
+            CÓD: {String(im.codigo).toUpperCase()}
+          </p>
+        )}
 
-      {im.fotos?.length > 0 ? (
-        <div style={{ marginBottom: "1.2rem" }}>
-          <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)}
-            style={{ width: "100%", maxHeight: 400, objectFit: "contain", borderRadius: 12, border: "1px solid var(--border)", cursor: "zoom-in", background: "var(--bg-muted)" }} />
-          {im.fotos.length > 1 && (
-            <div style={{ display: "flex", gap: 8, marginTop: 8, overflowX: "auto" }}>
-              {im.fotos.map((f, i) => (
-                <img key={i} src={f} onClick={() => setFotoIdx(i)} alt=""
-                  style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, cursor: "pointer", flexShrink: 0, border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
+        {/* CTAs: WhatsApp + Compartilhar */}
+        <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexWrap: "wrap" }}>
+          <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
+            flex: "2 1 240px", textAlign: "center", padding: "14px 0",
+            borderRadius: 14, fontWeight: 800, fontSize: 16,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+          }}>
+            💬 Tenho interesse — falar no WhatsApp
+          </a>
+          <div style={{ position: "relative", flex: "1 1 160px" }}>
+            <button onClick={() => setShare(s => !s)} className="btn-grad" style={{ width: "100%", padding: "14px 0", borderRadius: 14, fontWeight: 800, fontSize: 15 }}>
+              ↗ Compartilhar
+            </button>
+            {share && <CompartilharPopup im={im} onCopiarTexto={copiarDescricao} copiado={copiado} onClose={() => setShare(false)} />}
+          </div>
+        </div>
+
+        {(() => {
+          // Bloco financeiro: só mostra se houver ao menos um item relevante (além do preço já em cima).
+          const m2 = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+          const preco = parseFloat(im.preco) || 0;
+          const precoM2 = (isVen && preco > 0 && m2 > 0) ? preco / m2 : 0;
+          const agio = parseFloat(im.valorAgio) || 0;
+          const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
+          const iptu = parseFloat(im.valorIPTU) || 0;
+          const linhas = [];
+          if (agio > 0) linhas.push(["Ágio", formatBRL(agio)]);
+          if (cond > 0) linhas.push(["Condomínio", formatBRL(cond) + "/mês"]);
+          if (iptu > 0) linhas.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
+          if (precoM2 > 0) linhas.push(["Preço por m²", formatBRL(precoM2)]);
+          if (!linhas.length) return null;
+          return section("Valor do imóvel", (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+              {linhas.map(([k, v]) => (
+                <div key={k} style={{
+                  background: "var(--bg-muted)", borderRadius: 12, padding: "12px 14px",
+                  border: "1px solid var(--border)"
+                }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: "var(--text)" }}>{v}</p>
+                </div>
               ))}
             </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ height: 180, background: "var(--bg-muted)", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1.2rem" }}>🏠</div>
-      )}
+          ));
+        })()}
 
-      {isVen && im.preco && <p style={{ fontSize: 24, fontWeight: 500, color: "var(--primary)", margin: "0 0 8px" }}>Venda: {formatBRL(im.preco)}</p>}
-      {isLoc && (
-        <div style={{ marginBottom: "1rem" }}>
+        {section("Características", <>
+          {im.estadoImovel && row("Estado", im.estadoImovel)}
+          {im.metragem && row("Metragem construída", im.metragem + " m²")}
+          {im.metragemTotal && row("Metragem do terreno", im.metragemTotal + " m²")}
+          {!isLot && parseInt(im.quartos) > 0 && row("Quartos", im.quartos)}
+          {!isLot && parseInt(im.suites) > 0 && row("Suítes", im.suites)}
+          {!isLot && parseInt(im.banheiros) > 0 && row("Banheiros", im.banheiros)}
+          {parseInt(im.garagens) > 0 && row("Garagens", im.garagens)}
+          {im.tipo === "Apartamento" && parseFloat(im.valorCondominio) > 0 && row("Condomínio", formatBRL(im.valorCondominio))}
+          {isLot && <>
+            {row("Asfalto", im.asfalto ? "Sim" : null)}
+            {row("Água", im.agua ? "Sim" : null)}
+            {row("Esgoto", im.esgoto ? "Sim" : null)}
+            {row("Murado", im.muro ? "Sim" : null)}
+            {row("Esquina", im.esquina ? "Sim" : null)}
+            {row("Declive", im.declive)}
+            {im.retangular && im.frente && im.laterais
+              ? row("Medidas", `${im.frente} x ${im.laterais} m`)
+              : row("Medidas", im.medidas)}
+          </>}
+          {im.condominio && im.nomeCondominio && row("Condomínio", im.nomeCondominio)}
+        </>)}
+
+        {isLoc && section("Detalhamento da locação", <>
           {row("Aluguel", formatBRL(im.valorAluguel))}
           {row("Condomínio", formatBRL(im.valorCondominio))}
           {row("IPTU", formatBRL(im.valorIPTU))}
-          {im.valorFinal && <p style={{ fontSize: 20, fontWeight: 500, color: "var(--primary)", margin: "8px 0" }}>Total locação: {formatBRL(im.valorFinal)}/mês</p>}
-        </div>
-      )}
+          {im.valorFinal && (
+            <p style={{ margin: "8px 0 0", fontSize: 16, color: "var(--primary)", fontWeight: 700 }}>
+              Total mensal: {formatBRL(im.valorFinal)}
+            </p>
+          )}
+        </>)}
 
-      {(im.cidade || im.bairro) && section("Localização", <>
-        {row("Cidade", im.cidade)}
-        {row("Bairro", im.bairro)}
-        {row("Endereço", im.endereco)}
-        {isLot && <>
-          {row("Asfalto", im.asfalto ? "Sim" : null)}
-          {row("Água", im.agua ? "Sim" : null)}
-          {row("Esgoto", im.esgoto ? "Sim" : null)}
-        </>}
-        {im.mapsLink && (
-          <a href={im.mapsLink} target="_blank" rel="noreferrer"
-            style={{ display: "inline-block", marginTop: 8, padding: "8px 18px", background: "var(--primary)", color: "#fff", borderRadius: 8, fontSize: 14, textDecoration: "none", fontWeight: 500 }}>
-            Ver no Google Maps
-          </a>
-        )}
-      </>)}
-
-      {section("Características", <>
-        {row("Estado", im.estadoImovel)}
-        {row("Metragem", im.metragem ? im.metragem + " m²" : null)}
-        {row("Metragem total", im.metragemTotal ? im.metragemTotal + " m²" : null)}
-        {im.condominio && row("Condomínio mensal", formatBRL(im.valorCondominioMensal))}
-        {isLot && <>
-          {row("Declive", im.declive)}
-          {row("Muro", im.muro ? "Sim" : "Não")}
-          {row("Esquina", im.esquina ? "Sim" : "Não")}
-          {row("Retangular", im.retangular ? "Sim" : "Não")}
-          {im.retangular
-            ? <>{row("Frente", im.frente ? im.frente + " m" : null)}{row("Laterais", im.laterais ? im.laterais + " m" : null)}</>
-            : row("Medidas", im.medidas)}
-        </>}
-        {(im.tipo === "Casa" || im.tipo === "Apartamento") && <>
-          {row("Quartos", im.quartos)}
-          {row("Suítes", im.suites)}
-          {row("Garagens", im.garagens)}
-          {row("Valor de avaliação", formatBRL(im.valorAvaliacao))}
-          {row("Valor de entrada", formatBRL(im.valorEntrada))}
-          {im.tipo === "Apartamento" && row("Condomínio", formatBRL(im.valorCondominio))}
-        </>}
-      </>)}
-
-      {im.condicoes?.length > 0 && section("Condições comerciais",
-        im.condicoes.map(c => <div key={c} style={{ fontSize: 14, marginBottom: 4, color: "var(--text)" }}>{c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}</div>)
-      )}
-
-      {im.descricao && section("Descrição", <>
-        <p style={{ fontSize: 14, color: "var(--text-soft)", lineHeight: 1.75, margin: "0 0 12px", whiteSpace: "pre-wrap" }}>{im.descricao}</p>
-        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: 0 }}>{RODAPE}</p>}
-      </>)}
-
-      {/* Captador: visível para todos no sistema */}
-      {temCaptador && section("Captador", <>
-        <LinhaContato label="Nome" nome={nomeCaptador} telefone={telCaptador} mostrarTelefone={true} />
-      </>)}
-
-      {/* Proprietário + captador (sensíveis): escondidos por padrão */}
-      {temProprietario && (
-        !mostrarSensiveis ? (
-          <button onClick={() => setMostrarSensiveis(true)}
-            style={{ width: "100%", padding: "11px 0", borderRadius: 8, border: "1px dashed var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 14, marginBottom: "1rem" }}>
-            👁️ Ver dados do proprietário
-          </button>
-        ) : (
-          <>
-            <button onClick={() => setMostrarSensiveis(false)}
-              style={{ width: "100%", padding: "9px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13, marginBottom: 10 }}>
-              🙈 Ocultar dados do proprietário
-            </button>
-            {section("Proprietário", <>
-              <LinhaContato label="Nome" nome={im.nomeProprietario} telefone={im.telefoneProprietario} mostrarTelefone={true} />
-            </>)}
-          </>
-        )
-      )}
-
-      {podeVerAnuncios && Object.values(im.anuncios || {}).some(a => a?.ativo) && section("Anúncios",
-        CANAIS.filter(c => im.anuncios?.[c]?.ativo).map(c => (
-          <div key={c} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-            <span>{c}</span><span style={{ color: "var(--text-muted)" }}>{im.anuncios[c].data}</span>
+        {im.condicoes?.length > 0 && section("Condições comerciais", (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {im.condicoes.map(c => (
+              <span key={c} style={{ background: "var(--primary-light)", color: "var(--primary-dark)", padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>
+                {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
+              </span>
+            ))}
           </div>
-        ))
-      )}
+        ))}
 
-      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text-soft)", margin: "1.5rem 0 8px" }}>Divulgação</p>
+        {im.descricao && section("Descrição", (
+          <p style={{ fontSize: 14.5, color: "var(--text-soft)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>
+            {im.descricao}
+          </p>
+        ))}
 
-      <button onClick={copiarDescricao} style={{ ...btnPrimary, width: "100%", padding: "13px 0", fontSize: 15, fontWeight: 700, marginBottom: 10, background: copiado ? "#25884f" : "var(--primary)" }}>
-        {copiado ? "✓ Copiado! Cole no WhatsApp" : "📋 Criar descrição pronta (copiar tudo)"}
-      </button>
+        {(im.mapsLink || (im.latitude && im.longitude)) && (() => {
+          // Gera a URL embed do Google Maps. Se tiver lat/lng usa coordenadas (mais preciso),
+          // senão usa o endereço/bairro/cidade. Sem chave do Google = usa o mode embed simples.
+          const consulta = (im.latitude && im.longitude)
+            ? `${im.latitude},${im.longitude}`
+            : [im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ");
+          const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=15&output=embed`;
+          return section("Localização", (
+            <div>
+              {(im.endereco || im.bairro || im.cidade) && (
+                <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>
+                  📍 {[im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ")}
+                </p>
+              )}
+              <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
+                <iframe
+                  src={embedSrc}
+                  title="Mapa"
+                  loading="lazy"
+                  style={{ width: "100%", height: 320, border: 0, display: "block" }}
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+              {im.mapsLink && (
+                <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
+                  padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)",
+                  borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 700
+                }}>↗ Abrir no Google Maps</a>
+              )}
+            </div>
+          ));
+        })()}
 
-      {galeriaLink && (
-        <div style={{ marginBottom: 8 }}>
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 4px" }}>Link das fotos (galeria):</p>
-          <a href={galeriaLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", wordBreak: "break-all" }}>{galeriaLink}</a>
+        <div className="card-soft" style={{
+          background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)",
+          border: "1px solid var(--primary-border)", padding: "1.4rem 1rem", textAlign: "center", margin: "1rem 0"
+        }}>
+          <p style={{ margin: "0 0 6px", fontSize: 16, color: "var(--primary-dark)", fontWeight: 800 }}>
+            Quer saber mais sobre esse imóvel?
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-soft)" }}>
+            Fale agora com um dos nossos corretores. Atendimento rápido e sem compromisso.
+          </p>
         </div>
-      )}
 
-      {im.mapsLink && (
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 4px" }}>Localização:</p>
-          <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", wordBreak: "break-all" }}>{im.mapsLink}</a>
-        </div>
-      )}
+        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem", textAlign: "center" }}>{RODAPE}</p>}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button onClick={pdfImovel} style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
-          📄 Gerar PDF
-        </button>
-        <button onClick={() => downloadFotos(im)} style={{ flex: 1, minWidth: 140, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
-          ⬇️ Baixar todas as fotos
-        </button>
+        {/* Captador: visível para todos no site público */}
+        {(im.nomeCaptador || im.telefoneCaptador) && (
+          <div className="card-soft" style={{ padding: "1.25rem 1.4rem", marginBottom: "1rem" }}>
+            <p style={{ margin: "0 0 12px", fontWeight: 800, fontSize: 12.5, color: "var(--primary)", letterSpacing: 0.6, textTransform: "uppercase" }}>Captador</p>
+            {im.nomeCaptador && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 14, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--text-muted)", minWidth: 150 }}>Nome</span>
+                <span style={{ color: "var(--text)", fontWeight: 600 }}>{im.nomeCaptador}</span>
+              </div>
+            )}
+            {im.telefoneCaptador && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14, flexWrap: "wrap" }}>
+                <span style={{ color: "var(--text-muted)", minWidth: 150 }}>Telefone</span>
+                <span style={{ color: "var(--text)", fontWeight: 600 }}>{im.telefoneCaptador}</span>
+                <a href={`https://wa.me/55${im.telefoneCaptador.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 12px", background: "#25D366", color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+                  💬 WhatsApp
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Imóveis relacionados */}
+        {relacionados.length > 0 && (
+          <div style={{ margin: "2rem 0 1rem" }}>
+            <h2 className="display" style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 800, color: "var(--text)" }}>Imóveis relacionados</h2>
+            <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "var(--text-muted)" }}>Outras opções que podem te interessar</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+              {relacionados.map(r => (
+                <ImovelCard key={r.id} im={r} onClick={() => navigate(`/imovel/${r.id}`)} showStatus={false} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          padding: "14px 0", borderRadius: 14, fontWeight: 800, fontSize: 16,
+          marginTop: "0.5rem", marginBottom: "2.5rem"
+        }}>
+          💬 Falar com a {EMPRESA.nome} no WhatsApp
+        </a>
       </div>
     </div>
   );
 }
 
-const tag = (variant) => ({
-  fontSize: 12,
-  background: variant === "primary" ? "var(--primary-light)" : "var(--bg-muted)",
-  color: variant === "primary" ? "var(--primary-dark)" : "var(--text-soft)",
-  borderRadius: 6, padding: "3px 10px"
-});
-
-const STATUS_BG = { "Disponível": "#d4edda", "Reservado": "#fff3cd", "Vendido": "#f8d7da", "Alugado": "#d1ecf1" };
-const STATUS_FG = { "Disponível": "#155724", "Reservado": "#856404", "Vendido": "#721c24", "Alugado": "#0c5460" };
-const backBtn = { display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 };
+const chipHero = {
+  background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.28)",
+  color: "#fff", fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999,
+  backdropFilter: "blur(4px)"
+};
+const chipAttr = {
+  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.24)",
+  color: "#fff", fontSize: 13, fontWeight: 700, padding: "6px 14px", borderRadius: 999,
+  display: "inline-flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)"
+};
+const popItem = { display: "block", padding: "10px 14px", fontSize: 13.5, color: "var(--text)", textDecoration: "none", borderRadius: 10, cursor: "pointer" };
