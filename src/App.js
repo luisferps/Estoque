@@ -139,7 +139,7 @@ export default function App() {
 }
 
 // ─── Guard de rotas do admin ───
-function AdminRoute({ element: Component, requireDiretor = false, onLogout }) {
+function AdminRoute({ element: Component, requireDiretor = false }) {
   const [isAuth, setIsAuth] = useState(null);
   const { isAdmin, loading: loadingRole } = useUserRole();
 
