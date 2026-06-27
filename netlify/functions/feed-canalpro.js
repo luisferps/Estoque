@@ -11,7 +11,7 @@ const {
   carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
 } = require("./_helpers");
 
-const BASE_URL = "https://imoveisdisponiveis.netlify.app";
+const BASE_URL = "https://inerente.com.br";
 
 // Mínimo de fotos para boa pontuação no Canal Pro/ZAP. Quando o imóvel tem
 // menos que isso, repetimos o conjunto original (sempre a mesma quantidade
