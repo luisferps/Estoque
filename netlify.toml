@@ -24,6 +24,15 @@
   to = "/.netlify/functions/sitemap"
   status = 200
 
+# Bloqueia acesso pelo domínio Netlify — redireciona para o domínio oficial.
+# Qualquer acesso por *.netlify.app vai para inerente.com.br.
+[[redirects]]
+  from = "/*"
+  to = "https://inerente.com.br/:splat"
+  status = 301
+  force = true
+  conditions = {Host = ["imoveisdisponiveis.netlify.app"]}
+
 # SPA: qualquer outra rota cai no index.html (React Router resolve).
 [[redirects]]
   from = "/*"
