@@ -57,7 +57,7 @@ export default function ImovelCard({ im, onClick, actions, showStatus = true }) 
               style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           : <span style={{ fontSize: 52, opacity: 0.5 }}>🏠</span>}
 
-        {/* Status (se for diferente de Disponível) */
+        {/* Status (se for diferente de Disponível) */}
         {showStatus && status !== "Disponível" && (
           <span style={{
             position: "absolute", top: 10, right: 10,
