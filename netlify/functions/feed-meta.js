@@ -14,7 +14,7 @@ const {
   carregarTiposCentral, acharTipoCentral,
 } = require("./_helpers");
 
-const BASE_URL = "https://imoveisdisponiveis.netlify.app";
+const BASE_URL = "https://inerente.com.br";
 
 // Identificador do anúncio (home_listing_id) — usa o código legível do Estoque
 // (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
