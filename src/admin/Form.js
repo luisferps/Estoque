@@ -92,6 +92,8 @@ export default function Form() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [organizando, setOrganizando] = useState(false);
+  const [importandoDrive, setImportandoDrive] = useState(false);
+  const [urlDrive, setUrlDrive] = useState('');
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
   // Lista de captadores cadastrados no Supabase (via backend)
   const [listaCaptadores, setListaCaptadores] = useState([]);
@@ -308,6 +310,31 @@ export default function Form() {
     setOrganizando(false);
   };
 
+  const importarDrive = async () => {
+    const link = urlDrive.trim();
+    if (!link) return alert("Cole o link da pasta do Google Drive.");
+    if (!link.includes("drive.google.com")) return alert("O link deve ser do Google Drive.");
+    setImportandoDrive(true);
+    try {
+      const r = await fetch(BACKEND_URL + "/estoque/importar-drive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + tokenSessaoSSO() },
+        body: JSON.stringify({ url: link }),
+      });
+      const d = await r.json();
+      if (d && d.ok && Array.isArray(d.fotos) && d.fotos.length) {
+        setForm(p => ({ ...p, fotos: [...(p.fotos || []), ...d.fotos] }));
+        setUrlDrive("");
+        alert(`✅ ${d.total} foto(s) importada(s) do Drive!${d.erros ? ` (${d.erros} não importada(s))` : ""}`);
+      } else {
+        alert("Erro: " + (d && d.error ? d.error : "Não consegui importar as fotos."));
+      }
+    } catch (e) {
+      alert("Erro ao importar: " + e.message);
+    }
+    setImportandoDrive(false);
+  };
+
   const inp = (label, key, opts = {}) => (
     <div style={{ marginBottom: "1rem" }}>
       <label style={labelStyle}>{label}</label>
@@ -462,6 +489,30 @@ export default function Form() {
           </button>
         )}
         {organizando && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>A IA está olhando as fotos e definindo a melhor ordem (capa + passeio lógico)...</p>}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+          <input
+            type="text"
+            value={urlDrive}
+            onChange={e => setUrlDrive(e.target.value)}
+            placeholder="🔗 Cole o link da pasta do Google Drive..."
+            style={{ ...inputBase, flex: "1 1 260px", fontSize: 13 }}
+            disabled={importandoDrive}
+          />
+          <button
+            onClick={importarDrive}
+            disabled={importandoDrive || !urlDrive.trim()}
+            style={{
+              padding: "9px 16px", borderRadius: 8,
+              border: "1px solid #4285f4",
+              background: importandoDrive || !urlDrive.trim() ? "var(--bg-muted)" : "rgba(66,133,244,0.12)",
+              color: importandoDrive || !urlDrive.trim() ? "var(--text-muted)" : "#4285f4",
+              cursor: importandoDrive || !urlDrive.trim() ? "default" : "pointer",
+              fontSize: 13, fontWeight: 600, whiteSpace: "nowrap"
+            }}>
+            {importandoDrive ? "Importando..." : "📥 Importar do Drive"}
+          </button>
+        </div>
+        {importandoDrive && <p style={{ margin: "0 0 12px", fontSize: 11, color: "var(--text-muted)" }}>Baixando as fotos do Drive e enviando ao Cloudinary... aguarde.</p>}
         <FotosGrid fotos={form.fotos || []} onChange={fs => sf("fotos", fs)} onRemove={i => sf("fotos", form.fotos.filter((_, idx) => idx !== i))} />
       </>)}
 
