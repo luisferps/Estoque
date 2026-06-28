@@ -274,6 +274,25 @@ export default function ImovelPublico() {
               <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>de aluguel</span>
             </p>
           )}
+          {/* Condomínio e IPTU logo abaixo do preço */}
+          {(() => {
+            const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
+            const iptu = parseFloat(im.valorIPTU) || 0;
+            const extras = [];
+            if (cond > 0) extras.push(["Condomínio", formatBRL(cond) + "/mês"]);
+            if (iptu > 0) extras.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
+            if (!extras.length) return null;
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginTop: 14 }}>
+                {extras.map(([k, v]) => (
+                  <div key={k} style={{ background: "var(--bg-muted)", borderRadius: 12, padding: "10px 14px", border: "1px solid var(--border)" }}>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
+                    <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: "var(--text)" }}>{v}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* CÓD entre o preço e os botões */}
@@ -301,18 +320,13 @@ export default function ImovelPublico() {
         </div>
 
         {(() => {
-          // Bloco financeiro: só mostra se houver ao menos um item relevante (além do preço já em cima).
+          // Bloco financeiro extra: só Ágio e Preço por m² (condomínio/IPTU já aparecem no destaque).
           const m2 = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
           const preco = parseFloat(im.preco) || 0;
           const precoM2 = (isVen && preco > 0 && m2 > 0) ? preco / m2 : 0;
           const agio = parseFloat(im.valorAgio) || 0;
-          const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
-          const iptu = parseFloat(im.valorIPTU) || 0;
           const linhas = [];
           if (agio > 0) linhas.push(["Ágio", formatBRL(agio)]);
-          // Condomínio e IPTU aparecem abaixo do preço destaque (sem repetir o aluguel nem a soma)
-          if (cond > 0) linhas.push(["Condomínio", formatBRL(cond) + "/mês"]);
-          if (iptu > 0) linhas.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
           if (precoM2 > 0) linhas.push(["Preço por m²", formatBRL(precoM2)]);
           if (!linhas.length) return null;
           return section("Valor do imóvel", (
@@ -338,7 +352,6 @@ export default function ImovelPublico() {
           {!isLot && parseInt(im.suites) > 0 && row("Suítes", im.suites)}
           {!isLot && parseInt(im.banheiros) > 0 && row("Banheiros", im.banheiros)}
           {parseInt(im.garagens) > 0 && row("Garagens", im.garagens)}
-          {im.tipo === "Apartamento" && parseFloat(im.valorCondominio) > 0 && row("Condomínio", formatBRL(im.valorCondominio))}
           {isLot && <>
             {row("Asfalto", im.asfalto ? "Sim" : null)}
             {row("Água", im.agua ? "Sim" : null)}
