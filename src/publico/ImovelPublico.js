@@ -268,10 +268,10 @@ export default function ImovelPublico() {
               <span style={{ fontSize: 13.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>à venda</span>
             </p>
           )}
-          {isLoc && im.valorFinal && (
+          {isLoc && parseFloat(im.valorAluguel) > 0 && (
             <p style={{ margin: isVen ? "10px 0 0" : 0, fontSize: 24, fontWeight: 800, color: "var(--primary-dark)" }}>
-              {formatBRL(im.valorFinal)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
-              <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>(aluguel + condomínio + IPTU)</span>
+              {formatBRL(im.valorAluguel)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
+              <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>de aluguel</span>
             </p>
           )}
         </div>
@@ -310,6 +310,7 @@ export default function ImovelPublico() {
           const iptu = parseFloat(im.valorIPTU) || 0;
           const linhas = [];
           if (agio > 0) linhas.push(["Ágio", formatBRL(agio)]);
+          // Condomínio e IPTU aparecem abaixo do preço destaque (sem repetir o aluguel nem a soma)
           if (cond > 0) linhas.push(["Condomínio", formatBRL(cond) + "/mês"]);
           if (iptu > 0) linhas.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
           if (precoM2 > 0) linhas.push(["Preço por m²", formatBRL(precoM2)]);
@@ -350,17 +351,6 @@ export default function ImovelPublico() {
               : row("Medidas", im.medidas)}
           </>}
           {im.condominio && im.nomeCondominio && row("Condomínio", im.nomeCondominio)}
-        </>)}
-
-        {isLoc && section("Detalhamento da locação", <>
-          {row("Aluguel", formatBRL(im.valorAluguel))}
-          {row("Condomínio", formatBRL(im.valorCondominio))}
-          {row("IPTU", formatBRL(im.valorIPTU))}
-          {im.valorFinal && (
-            <p style={{ margin: "8px 0 0", fontSize: 16, color: "var(--primary)", fontWeight: 700 }}>
-              Total mensal: {formatBRL(im.valorFinal)}
-            </p>
-          )}
         </>)}
 
         {im.condicoes?.length > 0 && section("Condições comerciais", (
@@ -436,9 +426,9 @@ export default function ImovelPublico() {
 
         <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "16px 0", borderRadius: 14, fontWeight: 800, fontSize: 16,
-          marginTop: "0.5rem", marginBottom: "2.5rem",
-          textDecoration: "none", width: "100%", boxSizing: "border-box"
+          padding: "16px 12px", borderRadius: 14, fontWeight: 800, fontSize: 16,
+          marginTop: "0.5rem", marginBottom: "2.5rem", textAlign: "center", lineHeight: 1.3,
+          textDecoration: "none", width: "100%", boxSizing: "border-box", flexWrap: "wrap"
         }}>
           💬 Falar com a {EMPRESA.nome} no WhatsApp
         </a>
