@@ -6,13 +6,16 @@ export default function Filtros({
   transacao, setTransacao,
   estado, setEstado,
   cidade, setCidade,
+  bairro, setBairro,
   status, setStatus,
   ordem, setOrdem,
   cidades = [],
+  bairros = [],
   tipos = [],
   showEstado = true,
   showStatus = false,
   showOrdem = true,
+  showBairro = false,
 }) {
   return (
     <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap" }}>
@@ -45,6 +48,11 @@ export default function Filtros({
       <select value={cidade} onChange={e => setCidade(e.target.value)} style={selectStyle}>
         {cidades.map(c => <option key={c}>{c}</option>)}
       </select>
+      {showBairro && (
+        <select value={bairro} onChange={e => setBairro(e.target.value)} style={selectStyle}>
+          {bairros.map(b => <option key={b}>{b}</option>)}
+        </select>
+      )}
       {showOrdem && (
         <select value={ordem} onChange={e => setOrdem(e.target.value)} style={selectStyle}>
           {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
