@@ -23,16 +23,14 @@ export default function PreviaQualidade({ form, isLote }) {
   if (!temPreco) bloqueios.push(isVenda ? "Sem preço de venda" : "Sem valor de aluguel");
   if (!(form.cidade || "").trim()) bloqueios.push("Sem cidade — o portal recusa");
   if (!(form.bairro || "").trim()) bloqueios.push("Sem bairro — o portal recusa");
-  if (!cepLimpo) bloqueios.push("CEP vazio — o ZAP+ recusa sem CEP");
-  else if (cepLimpo.length !== 8) bloqueios.push("CEP inválido — precisa ter 8 dígitos");
-  if (!isLote) {
-    if (!parseInt(form.quartos)) bloqueios.push("Sem quartos — residencial exige ao menos 1");
-    if (!parseInt(form.banheiros)) bloqueios.push("Sem banheiros — residencial exige ao menos 1");
-  }
   if (descLen < 50) bloqueios.push("Descrição curta — mínimo 50 caracteres");
 
   // AVISOS = publica, mas pode melhorar (não bloqueia). Mantido curto e discreto.
   const avisos = [];
+  if (!cepLimpo) avisos.push("CEP vazio — o feed usa o CEP da cidade, mas o ideal é o exato");
+  else if (cepLimpo.length !== 8) avisos.push("CEP inválido — precisa ter 8 dígitos");
+  if (!isLote && !parseInt(form.quartos)) avisos.push("Sem quartos informados");
+  if (!isLote && !parseInt(form.banheiros)) avisos.push("Sem banheiros informados");
   if (nFotos > 0 && nFotos < 5) avisos.push(`${nFotos} foto(s) — ideal 5 ou mais`);
   if (descLen >= 50 && descLen < 500) avisos.push("Descrição pode ser mais completa (500+)");
   if (!temArea) avisos.push("Sem metragem informada");
