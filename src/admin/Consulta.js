@@ -23,7 +23,6 @@ export default function Consulta() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
   const [search, setSearch] = useState(salvos.search || "");
-  const [hoverFoto, setHoverFoto] = useState(null);
   const [tipo, setTipo] = useState(salvos.tipo || "Todos");
   const [transacao, setTransacao] = useState(salvos.transacao || "Todos");
   const [estado, setEstado] = useState(salvos.estado || "Todos");
@@ -112,20 +111,8 @@ export default function Consulta() {
       {filtered.length === 0
         ? <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "3rem 0" }}>Nenhum imóvel encontrado.</div>
         : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {/* Prévia flutuante de foto ao passar o mouse */}
-            {hoverFoto && (
-              <div style={{ position: "fixed", left: hoverFoto.x + 16, top: Math.max(10, hoverFoto.y - 120), zIndex: 999, pointerEvents: "none" }}>
-                <img src={hoverFoto.src} alt="" style={{ width: 220, height: 160, objectFit: "cover", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.3)", border: "2px solid var(--primary)", display: "block" }} />
-                <div style={{ background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "3px 8px", borderRadius: "0 0 8px 8px", textAlign: "center" }}>{hoverFoto.total} foto(s)</div>
-              </div>
-            )}
             {filtered.map(im => (
-              <div key={im.id}
-                onMouseEnter={e => im.fotos?.[0] && setHoverFoto({ src: im.fotos[0], total: im.fotos.length, x: e.clientX, y: e.clientY })}
-                onMouseMove={e => hoverFoto && setHoverFoto(h => h ? { ...h, x: e.clientX, y: e.clientY } : null)}
-                onMouseLeave={() => setHoverFoto(null)}>
-                <Linha im={im} onClick={() => navigate(`/admin/imovel/${im.id}`)} />
-              </div>
+              <Linha key={im.id} im={im} onClick={() => navigate(`/admin/imovel/${im.id}`)} />
             ))}
           </div>}
     </div>
@@ -138,7 +125,14 @@ function Linha({ im, onClick }) {
   const loc = isLocacao(im);
   const ven = isVenda(im);
   return (
-    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem", boxShadow: "var(--shadow)" }}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow)", display: "flex" }}>
+      {/* Foto da capa */}
+      <div style={{ flexShrink: 0, width: 110, background: "var(--bg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {im.fotos?.[0]
+          ? <img src={im.fotos[0]} alt="" style={{ width: 110, height: "100%", minHeight: 90, objectFit: "cover" }} />
+          : <span style={{ fontSize: 28 }}>🏠</span>}
+      </div>
+      <div style={{ flex: 1, padding: "0.8rem 1rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
@@ -174,6 +168,7 @@ function Linha({ im, onClick }) {
         {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", textDecoration: "none" }}>Ver mapa</a>}
       </div>
       <button onClick={onClick} style={{ marginTop: 10, fontSize: 12, padding: "5px 14px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer" }}>Ver ficha completa</button>
+      </div>
     </div>
   );
 }
