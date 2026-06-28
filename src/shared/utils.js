@@ -575,16 +575,30 @@ export function validarParaCanal(im, canal) {
     if (area === 0) problemas.push("Preencha a metragem");
     if (!cidade) problemas.push("Preencha a cidade");
     if (!bairro) problemas.push("Preencha o bairro");
+    // CEP: o ZAP+ rejeita CEP vazio ou inválido (precisa ter 8 dígitos)
+    const cepLimpo = String(im.cep || "").replace(/\D/g, "");
+    if (!cepLimpo) problemas.push("CEP vazio — o ZAP+ recusa anúncios sem CEP");
+    else if (cepLimpo.length !== 8) problemas.push("CEP inválido — precisa ter 8 dígitos");
+    // Quartos e banheiros: residencial (não-terreno) precisa ter ao menos 1 de cada
+    if (!isLote) {
+      if (!parseInt(im.quartos)) problemas.push("Informe a quantidade de quartos (residencial exige ao menos 1)");
+      if (!parseInt(im.banheiros)) problemas.push("Informe a quantidade de banheiros (residencial exige ao menos 1)");
+    }
     if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
     if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
     if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
   }
 
   if (canal === "Chaves na Mão") {
-    if (!cidade) problemas.push("Preencha a cidade");
-    if (!bairro) problemas.push("Preencha o bairro");
+    if (!cidade) problemas.push("Preencha a cidade (o Chaves recusa sem cidade)");
+    if (!bairro) problemas.push("Preencha o bairro (o Chaves recusa sem bairro)");
     if (!estado) problemas.push("Preencha o estado (UF)");
     if (!desc) problemas.push("Preencha a descrição");
+    // Quartos e banheiros para residencial (mesma exigência do ZAP)
+    if (!isLote) {
+      if (!parseInt(im.quartos)) problemas.push("Informe a quantidade de quartos");
+      if (!parseInt(im.banheiros)) problemas.push("Informe a quantidade de banheiros");
+    }
     if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
     if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
     if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
