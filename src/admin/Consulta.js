@@ -23,10 +23,12 @@ export default function Consulta() {
   const navigate = useNavigate();
   const { imoveis } = useImoveis();
   const [search, setSearch] = useState(salvos.search || "");
+  const [hoverFoto, setHoverFoto] = useState(null);
   const [tipo, setTipo] = useState(salvos.tipo || "Todos");
   const [transacao, setTransacao] = useState(salvos.transacao || "Todos");
   const [estado, setEstado] = useState(salvos.estado || "Todos");
   const [cidade, setCidade] = useState(salvos.cidade || "Todas");
+  const [bairro, setBairro] = useState(salvos.bairro || "Todos");
   const [status, setStatus] = useState(salvos.status || "Todos");
   const [ordem, setOrdem] = useState(salvos.ordem || "recente");
   const [precoMin, setPrecoMin] = useState(salvos.precoMin || "");
@@ -36,10 +38,21 @@ export default function Consulta() {
 
   // Salva os filtros sempre que mudam (sessionStorage = vale só enquanto a aba está aberta).
   useEffect(() => {
-    sessionStorage.setItem(FILTROS_KEY, JSON.stringify({ search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax }));
-  }, [search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax]);
+    sessionStorage.setItem(FILTROS_KEY, JSON.stringify({ search, tipo, transacao, estado, cidade, bairro, status, ordem, precoMin, precoMax }));
+  }, [search, tipo, transacao, estado, cidade, bairro, status, ordem, precoMin, precoMax]);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
+
+  // Bairros disponíveis — se uma cidade está selecionada, mostra só os bairros dela.
+  const bairros = useMemo(() => {
+    const base = cidade === "Todas" ? imoveis : imoveis.filter(im => im.cidade === cidade);
+    return ["Todos", ...Array.from(new Set(base.map(im => im.bairro).filter(Boolean))).sort()];
+  }, [imoveis, cidade]);
+
+  // Se trocar de cidade e o bairro atual não existir mais, volta para "Todos".
+  useEffect(() => {
+    if (bairro !== "Todos" && !bairros.includes(bairro)) setBairro("Todos");
+  }, [bairros, bairro]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -57,11 +70,12 @@ export default function Consulta() {
       && matchTransacao(im, transacao)
       && (estado === "Todos" || im.estadoImovel === estado)
       && (cidade === "Todas" || im.cidade === cidade)
+      && (bairro === "Todos" || im.bairro === bairro)
       && (status === "Todos" || statusDoImovel(im) === status)
       && (() => { const p = precoDe(im); return p >= min && p <= max; })()
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, precoMin, precoMax]);
+  }, [imoveis, search, tipo, transacao, estado, cidade, bairro, status, ordem, precoMin, precoMax]);
 
   return (
     <div style={pageWrap(960)}>
@@ -79,10 +93,13 @@ export default function Consulta() {
         transacao={transacao} setTransacao={setTransacao}
         estado={estado} setEstado={setEstado}
         cidade={cidade} setCidade={setCidade}
+        bairro={bairro} setBairro={setBairro}
         status={status} setStatus={setStatus}
         ordem={ordem} setOrdem={setOrdem}
         cidades={cidades}
+        bairros={bairros}
         showStatus={true}
+        showBairro={true}
       />
 
       {/* Faixa de preço (venda ou aluguel) */}
@@ -111,8 +128,20 @@ export default function Consulta() {
       {filtered.length === 0
         ? <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "3rem 0" }}>Nenhum imóvel encontrado.</div>
         : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* Prévia flutuante de foto ao passar o mouse */}
+            {hoverFoto && (
+              <div style={{ position: "fixed", left: hoverFoto.x + 16, top: Math.max(10, hoverFoto.y - 120), zIndex: 999, pointerEvents: "none" }}>
+                <img src={hoverFoto.src} alt="" style={{ width: 220, height: 160, objectFit: "cover", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.3)", border: "2px solid var(--primary)", display: "block" }} />
+                <div style={{ background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "3px 8px", borderRadius: "0 0 8px 8px", textAlign: "center" }}>{hoverFoto.total} foto(s)</div>
+              </div>
+            )}
             {filtered.map(im => (
-              <Linha key={im.id} im={im} onClick={() => navigate(`/admin/imovel/${im.id}`)} />
+              <div key={im.id}
+                onMouseEnter={e => im.fotos?.[0] && setHoverFoto({ src: im.fotos[0], total: im.fotos.length, x: e.clientX, y: e.clientY })}
+                onMouseMove={e => hoverFoto && setHoverFoto(h => h ? { ...h, x: e.clientX, y: e.clientY } : null)}
+                onMouseLeave={() => setHoverFoto(null)}>
+                <Linha im={im} onClick={() => navigate(`/admin/imovel/${im.id}`)} />
+              </div>
             ))}
           </div>}
     </div>
@@ -125,14 +154,7 @@ function Linha({ im, onClick }) {
   const loc = isLocacao(im);
   const ven = isVenda(im);
   return (
-    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow)", display: "flex" }}>
-      {/* Foto da capa */}
-      <div style={{ flexShrink: 0, width: 110, background: "var(--bg-muted)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {im.fotos?.[0]
-          ? <img src={im.fotos[0]} alt="" style={{ width: 110, height: "100%", minHeight: 90, objectFit: "cover" }} />
-          : <span style={{ fontSize: 28 }}>🏠</span>}
-      </div>
-      <div style={{ flex: 1, padding: "0.8rem 1rem" }}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "1rem", boxShadow: "var(--shadow)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
@@ -168,7 +190,6 @@ function Linha({ im, onClick }) {
         {im.mapsLink && <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{ color: "var(--primary)", textDecoration: "none" }}>Ver mapa</a>}
       </div>
       <button onClick={onClick} style={{ marginTop: 10, fontSize: 12, padding: "5px 14px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: "pointer" }}>Ver ficha completa</button>
-      </div>
     </div>
   );
 }
