@@ -233,8 +233,7 @@ export function descricaoCompleta(im) {
 export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
-    const ref = encodeURIComponent((im.codigo || "").trim() || String(im.id));
-    const galeria = `https://inerente.com.br/fotos/${ref}`;
+    const galeria = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
     txt += `\n\nFotos:\n${galeria}`;
   }
 
@@ -490,8 +489,7 @@ export async function downloadFotos(im) {
 
 // ─── WhatsApp ───
 export function whatsappTudo(im) {
-  const ref = encodeURIComponent((im.codigo || "").trim() || String(im.id));
-  const galeriaLink = `https://inerente.com.br/fotos/${ref}`;
+  const galeriaLink = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
   const txt = descricaoCompleta(im) +
     (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
     (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "");
