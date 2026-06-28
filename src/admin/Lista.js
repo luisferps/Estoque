@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
-import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF } from "../shared/utils";
+import { PDF_CAMPOS } from "../constants";
 import ImovelCard from "../shared/ImovelCard";
 import Filtros from "../shared/Filtros";
 
@@ -24,30 +25,53 @@ export default function Lista({ onLogout }) {
   const [transacao, setTransacao] = useState("Todos");
   const [estado, setEstado] = useState("Todos");
   const [cidade, setCidade] = useState("Todas");
+  const [bairro, setBairro] = useState("Todos");
   const [status, setStatus] = useState("Todos");
   const [ordem, setOrdem] = useState("recente");
+  const [precoMin, setPrecoMin] = useState("");
+  const [precoMax, setPrecoMax] = useState("");
+  const [showPDF, setShowPDF] = useState(false);
+  const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
   const [migrando, setMigrando] = useState(false);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
+
+  const bairros = useMemo(() => {
+    const base = cidade === "Todas" ? imoveis : imoveis.filter(im => im.cidade === cidade);
+    return ["Todos", ...Array.from(new Set(base.map(im => im.bairro).filter(Boolean))).sort()];
+  }, [imoveis, cidade]);
+
+  useEffect(() => {
+    if (bairro !== "Todos" && !bairros.includes(bairro)) setBairro("Todos");
+  }, [bairros, bairro]);
 
   const semCodigo = useMemo(() => imoveis.filter(im => !(im.codigo || "").trim()).length, [imoveis]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    const min = parseFloat(String(precoMin).replace(/[^\d]/g, "")) || 0;
+    const max = parseFloat(String(precoMax).replace(/[^\d]/g, "")) || Infinity;
+    const precoOk = (im) => {
+      if (!precoMin && !precoMax) return true;
+      const v = parseFloat(im.preco) || parseFloat(im.valorAluguel) || parseFloat(im.valorFinal) || 0;
+      return v >= min && v <= max;
+    };
     const base = imoveis.filter(im =>
       (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
       && matchTransacao(im, transacao)
       && (estado === "Todos" || im.estadoImovel === estado)
       && (cidade === "Todas" || im.cidade === cidade)
+      && (bairro === "Todos" || im.bairro === bairro)
       && (status === "Todos" || statusDoImovel(im) === status)
+      && precoOk(im)
       // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
       && (im.status !== "Aguardando finalização" || ehDiretor
           || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
           || (user && im.captadorUid && im.captadorUid === user.uid))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, estado, cidade, status, ordem, ehDiretor, meuEmail, user]);
+  }, [imoveis, search, tipo, transacao, estado, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
@@ -136,9 +160,17 @@ export default function Lista({ onLogout }) {
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
-      <h2 style={{ margin: "0 0 1rem", fontSize: 18, fontWeight: 600, color: "var(--primary-dark)" }}>
-        Imóveis ({filtered.length})
-      </h2>
+      {showPDF && <PDFModal imoveis={filtered} pdfCampos={pdfCampos} setPdfCampos={setPdfCampos} onClose={() => setShowPDF(false)} />}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--primary-dark)", flex: 1 }}>
+          Imóveis ({filtered.length})
+        </h2>
+        {filtered.length > 0 && (
+          <button onClick={() => setShowPDF(true)} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
+            Gerar PDF ({filtered.length})
+          </button>
+        )}
+      </div>
 
       {/* Migração de códigos faltantes — aparece só se houver imóveis sem código */}
       {semCodigo > 0 && (
@@ -159,12 +191,30 @@ export default function Lista({ onLogout }) {
         transacao={transacao} setTransacao={setTransacao}
         estado={estado} setEstado={setEstado}
         cidade={cidade} setCidade={setCidade}
+        bairro={bairro} setBairro={setBairro}
         status={status} setStatus={setStatus}
         ordem={ordem} setOrdem={setOrdem}
         cidades={cidades}
+        bairros={bairros}
         tipos={tipos}
         showStatus={true}
+        showBairro={true}
       />
+
+      {/* Faixa de preço (venda ou aluguel) */}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "0 0 1rem" }}>
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>💰 Preço de</span>
+        <input type="text" inputMode="numeric" placeholder="mínimo" value={precoMin}
+          onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))}
+          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }} />
+        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>até</span>
+        <input type="text" inputMode="numeric" placeholder="máximo" value={precoMax}
+          onChange={e => setPrecoMax(e.target.value.replace(/[^\d]/g, ""))}
+          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }} />
+        {(precoMin || precoMax) && (
+          <button onClick={() => { setPrecoMin(""); setPrecoMax(""); }} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>limpar preço</button>
+        )}
+      </div>
 
       {loading && <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Carregando...</div>}
       {!loading && filtered.length === 0 && (
@@ -192,6 +242,34 @@ export default function Lista({ onLogout }) {
             }
           />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function PDFModal({ imoveis, pdfCampos, setPdfCampos, onClose }) {
+  const todos = pdfCampos.length === PDF_CAMPOS.length;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+      <div style={{ background: "var(--bg-card)", color: "var(--text)", borderRadius: 12, padding: "1.5rem", width: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", maxHeight: "80vh", overflowY: "auto" }}>
+        <h3 style={{ margin: "0 0 1rem", fontSize: 17, color: "var(--primary-dark)" }}>Escolha os campos do PDF</h3>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 12, fontWeight: 500, color: "var(--primary)" }}>
+          <input type="checkbox" checked={todos} onChange={() => setPdfCampos(todos ? [] : PDF_CAMPOS.map(c => c.key))} style={{ width: 15, height: 15, accentColor: "var(--primary)" }} />
+          Selecionar todos
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
+          {PDF_CAMPOS.map(c => (
+            <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={pdfCampos.includes(c.key)} onChange={() => setPdfCampos(p => p.includes(c.key) ? p.filter(x => x !== c.key) : [...p, c.key])} style={{ width: 15, height: 15, accentColor: "var(--primary)" }} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Cancelar</button>
+          <button onClick={() => { onClose(); gerarPDF(imoveis, pdfCampos); }}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 500 }}>Gerar PDF</button>
+        </div>
       </div>
     </div>
   );
