@@ -12,7 +12,6 @@ import ImovelPublico from "./publico/ImovelPublico";
 import AdminLista from "./admin/Lista";
 import AdminForm from "./admin/Form";
 import AdminDetalhe from "./admin/Detalhe";
-import AdminConsulta from "./admin/Consulta";
 import AdminAnuncios from "./admin/Anuncios";
 import AdminCorretores from "./admin/Corretores";
 import AdminImportar from "./admin/Importar";
@@ -54,7 +53,6 @@ function AdminHeader({ onLogout }) {
 
   const abas = [
     { label: "🏠 Imóveis", path: "/admin" },
-    { label: "🔍 Consulta", path: "/admin/consulta" },
     ...(ehDiretor ? [
       { label: "📢 Anúncios", path: "/admin/anuncios" },
       { label: "🏠 Rotação", path: "/admin/rotacao" },
@@ -114,7 +112,7 @@ export default function App() {
             <Route path="/admin/novo" element={<AdminRoute element={AdminForm} />} />
             <Route path="/admin/editar/:id" element={<AdminRoute element={AdminForm} />} />
             <Route path="/admin/imovel/:id" element={<AdminRoute element={AdminDetalhe} />} />
-            <Route path="/admin/consulta" element={<AdminRoute element={AdminConsulta} />} />
+            <Route path="/admin/consulta" element={<Navigate to="/admin" replace />} />
 
             {/* Admin — SÓ DIRETOR (rotas restritas por papel) */}
             <Route path="/admin/anuncios" element={<AdminRoute element={AdminAnuncios} requireDiretor />} />
