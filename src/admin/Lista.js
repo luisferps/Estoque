@@ -62,7 +62,6 @@ export default function Lista({ onLogout }) {
 
   // Copia a descrição pronta (mesma função da ficha) pro WhatsApp.
   const [copiadoId, setCopiadoId] = useState(null);
-  const [hoverFoto, setHoverFoto] = useState(null); // {id, x, y} para prévia de foto
   const copiarDescricao = async (im) => {
     const txt = descricaoPronta(im);
     try {
@@ -174,20 +173,10 @@ export default function Lista({ onLogout }) {
         </div>
       )}
 
-      {/* Prévia flutuante de foto ao passar o mouse */}
-      {hoverFoto && (
-        <div style={{ position: "fixed", left: hoverFoto.x + 16, top: hoverFoto.y - 80, zIndex: 999, pointerEvents: "none", transition: "opacity 0.15s" }}>
-          <img src={hoverFoto.src} alt="" style={{ width: 200, height: 150, objectFit: "cover", borderRadius: 10, boxShadow: "0 8px 30px rgba(0,0,0,0.3)", border: "2px solid var(--primary)" }} />
-          <div style={{ background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: 11, padding: "3px 8px", borderRadius: "0 0 8px 8px", textAlign: "center" }}>{hoverFoto.total} foto(s)</div>
-        </div>
-      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
         {filtered.map(im => (
-          <div key={im.id}
-            onMouseEnter={e => im.fotos?.[0] && setHoverFoto({ src: im.fotos[0], total: im.fotos.length, x: e.clientX, y: e.clientY })}
-            onMouseMove={e => hoverFoto && setHoverFoto(h => ({ ...h, x: e.clientX, y: e.clientY }))}
-            onMouseLeave={() => setHoverFoto(null)}>
           <ImovelCard
+            key={im.id}
             im={im}
             onClick={() => navigate(`/admin/imovel/${im.id}`)}
             actions={
@@ -202,7 +191,6 @@ export default function Lista({ onLogout }) {
               </>
             }
           />
-          </div>
         ))}
       </div>
     </div>
