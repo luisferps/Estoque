@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { editarImovelBackend } from "../shared/estoqueApi";
-import { CANAIS, TRANSACOES } from "../constants";
+import { TRANSACOES } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { formatBRL, matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO, geocodificarEndereco } from "../shared/utils";
+import { matchTransacao, statusDoImovel, validarParaCanal, CANAIS_AUTO, geocodificarEndereco } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 
 export default function Anuncios() {
@@ -14,7 +14,6 @@ export default function Anuncios() {
   const [fTipo, setFTipo] = useState("Todos");
   const [fTransacao, setFTransacao] = useState("Todos");
   const [fCidade, setFCidade] = useState("Todas");
-  const [fCanal, setFCanal] = useState("Todos");
   const [soPendencias, setSoPendencias] = useState(false);
   const [sortCol, setSortCol] = useState("");
   const [sortDir, setSortDir] = useState("asc");
@@ -24,7 +23,6 @@ export default function Anuncios() {
   const [migracaoAtual, setMigracaoAtual] = useState(0);
   const [migracaoNome, setMigracaoNome] = useState("");
   const [migracaoLog, setMigracaoLog] = useState({ uf: 0, coords: 0, erros: 0 });
-  // Modo fila: resolver imóveis com problema um por um
   const [modoFila, setModoFila] = useState(false);
   const [filaIdx, setFilaIdx] = useState(0);
 
@@ -35,7 +33,6 @@ export default function Anuncios() {
     [imoveis]
   );
 
-  // Imóveis com problemas no feed (fora do Canal Pro ou Chaves na Mão)
   const comProblema = useMemo(() =>
     imoveis.filter(im => CANAIS_AUTO.some(c => validarParaCanal(im, c).length > 0)),
     [imoveis]
@@ -43,21 +40,10 @@ export default function Anuncios() {
   const imovelFila = modoFila ? comProblema[filaIdx] : null;
 
   const filtered = useMemo(() => imoveis.filter(im => {
-    let matchCanal = true;
-    if (fCanal === "Todos") matchCanal = true;
-    else if (fCanal === "Anunciado") matchCanal = CANAIS.some(c => im.anuncios?.[c]?.ativo);
-    else if (fCanal === "Não anunciado") matchCanal = !CANAIS.some(c => im.anuncios?.[c]?.ativo);
-    else if (fCanal.startsWith("nao_")) matchCanal = !im.anuncios?.[fCanal.replace("nao_", "")]?.ativo;
-    else if (fCanal.startsWith("sim_")) matchCanal = !!im.anuncios?.[fCanal.replace("sim_", "")]?.ativo;
-
-    // "Só os que não sobem": imóvel que está FORA de algum feed automático por
-    // requisito faltando — independe da marcação manual (o que vale é o feed real).
     let matchPendencia = true;
     if (soPendencias) {
       matchPendencia = CANAIS_AUTO.some(c => validarParaCanal(im, c).length > 0);
     }
-
-    // Busca livre: procura o texto digitado em código, título, tipo, cidade, bairro e proprietário.
     const q = busca.trim().toLowerCase();
     const matchBusca = !q || [im.codigo, im.titulo, im.tipo, im.cidade, im.bairro, im.nomeProprietario, im.descricao]
       .some(v => (v || "").toString().toLowerCase().includes(q));
@@ -65,12 +51,10 @@ export default function Anuncios() {
     return (fTipo === "Todos" || im.tipo === fTipo)
       && matchTransacao(im, fTransacao)
       && (fCidade === "Todas" || im.cidade === fCidade)
-      && matchCanal
       && matchPendencia
       && matchBusca;
-  }), [imoveis, fTipo, fTransacao, fCidade, fCanal, soPendencias, busca]);
+  }), [imoveis, fTipo, fTransacao, fCidade, soPendencias, busca]);
 
-  // Ordenação tipo Excel: clica no cabeçalho → ordena por aquela coluna (alterna A→Z / Z→A).
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
     const arr = [...filtered];
@@ -93,13 +77,6 @@ export default function Anuncios() {
   const setaDe = (col) => {
     if (sortCol !== col) return <span style={{ opacity: 0.35, fontSize: 9 }}> ↕</span>;
     return <span style={{ fontSize: 10 }}>{sortDir === "asc" ? " ▲" : " ▼"}</span>;
-  };
-
-  const toggle = async (im, canal) => {
-    const atual = im.anuncios?.[canal];
-    const novo = { ...(im.anuncios || {}), [canal]: atual ? null : { ativo: true, data: new Date().toLocaleDateString("pt-BR") } };
-    try { await editarImovelBackend(im.id, { anuncios: novo }); }
-    catch (e) { alert("Erro: " + e.message); }
   };
 
   const iniciarMigracao = async () => {
@@ -185,12 +162,10 @@ export default function Anuncios() {
           <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{filaIdx + 1} de {comProblema.length} com problema</span>
         </div>
 
-        {/* Barra de progresso */}
         <div style={{ height: 6, background: "var(--bg-muted)", borderRadius: 4, marginBottom: "1.2rem" }}>
           <div style={{ height: "100%", width: `${((filaIdx) / comProblema.length) * 100}%`, background: "var(--primary)", borderRadius: 4, transition: "width 0.3s" }} />
         </div>
 
-        {/* Card do imóvel */}
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: "1rem" }}>
           {imovelFila.fotos?.[0] && (
             <img src={imovelFila.fotos[0]} alt="" style={{ width: "100%", height: 200, objectFit: "cover" }} />
@@ -210,29 +185,27 @@ export default function Anuncios() {
           </div>
         </div>
 
-        {/* Problemas */}
         <div style={{ background: "#fee2e2", border: "1px solid #dc2626", borderRadius: 10, padding: "1rem 1.2rem", marginBottom: "1.2rem" }}>
-          <p style={{ margin: "0 0 10px", fontWeight: 700, color: "#991b1b", fontSize: 14 }}>❌ Motivos para não subir ao feed:</p>
+          <p style={{ margin: "0 0 10px", fontWeight: 700, color: "#991b1b", fontSize: 14 }}>Motivos para não subir ao feed:</p>
           {problemas.map((p, i) => (
             <div key={i} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6, fontSize: 13, color: "#7f1d1d" }}>
-              <span style={{ fontWeight: 700, minWidth: 80 }}>{p.canal}:</span>
+              <span style={{ fontWeight: 700, minWidth: 100 }}>{p.canal}:</span>
               <span>{p.problema}</span>
             </div>
           ))}
         </div>
 
-        {/* Botões de navegação */}
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={() => setFilaIdx(i => Math.max(0, i - 1))} disabled={filaIdx === 0}
             style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text)", cursor: filaIdx === 0 ? "default" : "pointer", fontWeight: 600, fontSize: 14 }}>
-            ← Anterior
+            Anterior
           </button>
           <button onClick={() => {
             if (filaIdx < comProblema.length - 1) setFilaIdx(i => i + 1);
             else { setModoFila(false); alert("Você chegou ao fim da fila!"); }
           }}
             style={{ flex: 1, padding: "12px 0", borderRadius: 10, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: 14 }}>
-            {filaIdx < comProblema.length - 1 ? "Próximo →" : "✅ Concluir"}
+            {filaIdx < comProblema.length - 1 ? "Próximo" : "Concluir"}
           </button>
         </div>
       </div>
@@ -240,14 +213,14 @@ export default function Anuncios() {
   }
 
   return (
-    <div style={pageWrap(1300)}>
+    <div style={pageWrap(1000)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
         <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Controle de Anúncios</h2>
         {comProblema.length > 0 && (
           <button onClick={() => { setModoFila(true); setFilaIdx(0); }}
             style={{ padding: "8px 16px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-            🔧 Resolver {comProblema.length} com problema (um por um)
+            Resolver {comProblema.length} com problema (um por um)
           </button>
         )}
       </div>
@@ -255,12 +228,12 @@ export default function Anuncios() {
       {incompletos.length > 0 && !migrando && (
         <div style={{ marginBottom: "1rem", padding: "12px 16px", background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
           <div style={{ fontSize: 13, color: "#78350f" }}>
-            <strong>⚠️ {incompletos.length} imóveis estão sem UF ou sem coordenadas.</strong>{" "}
-            Isso impede que apareçam corretamente nos feeds dos portais.
+            <strong>{incompletos.length} imóveis sem UF ou sem coordenadas.</strong>{" "}
+            Isso impede que apareçam corretamente nos feeds.
           </div>
           <button onClick={iniciarMigracao}
             style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#d97706", color: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" }}>
-            🚀 Atualizar todos automaticamente
+            Atualizar todos automaticamente
           </button>
         </div>
       )}
@@ -268,7 +241,7 @@ export default function Anuncios() {
       {migrando && (
         <div style={{ marginBottom: "1rem", padding: "16px 20px", background: "var(--primary-light)", border: "1px solid var(--primary)", borderRadius: 8 }}>
           <div style={{ marginBottom: 10 }}>
-            <strong style={{ color: "var(--primary-dark)" }}>🔄 Atualizando imóveis...</strong>
+            <strong style={{ color: "var(--primary-dark)" }}>Atualizando imóveis...</strong>
           </div>
           <div style={{ marginBottom: 8, fontSize: 12, color: "var(--text-soft)" }}>
             {migracaoAtual} de {migracaoTotal} — {migracaoNome}
@@ -277,18 +250,19 @@ export default function Anuncios() {
             <div style={{ height: "100%", width: `${(migracaoAtual / migracaoTotal) * 100}%`, background: "var(--primary)", transition: "width 0.3s" }} />
           </div>
           <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)" }}>
-            UF preenchidas: {migracaoLog.uf} • Coordenadas encontradas: {migracaoLog.coords} • Erros: {migracaoLog.erros}
+            UF preenchidas: {migracaoLog.uf} — Coordenadas: {migracaoLog.coords} — Erros: {migracaoLog.erros}
           </div>
         </div>
       )}
 
+      {/* Filtros */}
       <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           type="text"
           value={busca}
           onChange={e => setBusca(e.target.value)}
-          placeholder="🔎 Buscar (código, título, bairro, proprietário...)"
-          style={{ ...selectStyle, minWidth: 280, flex: "1 1 280px" }}
+          placeholder="Buscar (código, título, bairro...)"
+          style={{ ...selectStyle, minWidth: 220, flex: "1 1 220px" }}
         />
         <select value={fTipo} onChange={e => setFTipo(e.target.value)} style={selectStyle}>
           <option value="Todos">Todos os tipos</option>{tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
@@ -299,37 +273,29 @@ export default function Anuncios() {
         <select value={fCidade} onChange={e => setFCidade(e.target.value)} style={selectStyle}>
           {cidades.map(c => <option key={c}>{c}</option>)}
         </select>
-        <select value={fCanal} onChange={e => setFCanal(e.target.value)} style={selectStyle}>
-          <option value="Todos">Todos os canais</option>
-          <option value="Anunciado">Com anúncio ativo</option>
-          <option value="Não anunciado">Sem anúncio em nenhum canal</option>
-          <optgroup label="— Não anunciado em:">
-            {CANAIS.map(c => <option key={`nao_${c}`} value={`nao_${c}`}>Falta: {c}</option>)}
-          </optgroup>
-          <optgroup label="— Anunciado em:">
-            {CANAIS.map(c => <option key={`sim_${c}`} value={`sim_${c}`}>Ativo: {c}</option>)}
-          </optgroup>
-        </select>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: soPendencias ? "var(--primary-light)" : "var(--bg-input)", color: soPendencias ? "var(--primary-dark)" : "var(--text)" }}>
           <input type="checkbox" checked={soPendencias} onChange={e => setSoPendencias(e.target.checked)} style={{ width: 14, height: 14, accentColor: "var(--primary)" }} />
-          ❌ Só os que não sobem
+          Só os que não sobem
         </label>
         <span style={{ fontSize: 13, color: "var(--text-muted)", alignSelf: "center" }}>{filtered.length} imóvel(is)</span>
       </div>
 
-      <div style={{ overflow: "auto", maxHeight: "calc(100vh - 280px)", border: "1px solid var(--border-soft)", borderRadius: 8 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, color: "var(--text)" }}>
+      {/* Tabela — só canais automáticos, sem scroll horizontal */}
+      <div style={{ border: "1px solid var(--border-soft)", borderRadius: 8, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, color: "var(--text)", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "40%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "15%" }} />
+          </colgroup>
           <thead>
             <tr>
-              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("tipo")} title="Clique para ordenar">Tipo{setaDe("tipo")}</th>
-              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("status")} title="Clique para ordenar">Status{setaDe("status")}</th>
-              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("cidade")} title="Clique para ordenar">Cidade{setaDe("cidade")}</th>
-              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("bairro")} title="Clique para ordenar">Bairro{setaDe("bairro")}</th>
-              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("preco")} title="Clique para ordenar">Preço{setaDe("preco")}</th>
-              <th style={{ ...th, whiteSpace: "nowrap", cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("proprietario")} title="Clique para ordenar">Proprietário{setaDe("proprietario")}</th>
-              {CANAIS.map(c => (
-                <th key={c} style={{ ...thCanal, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor(c)} title="Clique para ordenar por status no feed">
-                  {CANAIS_AUTO.includes(c) && <span title="Integração automática via feed XML">⚙ </span>}
+              <th style={{ ...th, cursor: "pointer", userSelect: "none", textAlign: "left" }} onClick={() => ordenarPor("tipo")}>Imóvel{setaDe("tipo")}</th>
+              <th style={{ ...th, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor("status")}>Status{setaDe("status")}</th>
+              {CANAIS_AUTO.map(c => (
+                <th key={c} style={{ ...thCanal, cursor: "pointer", userSelect: "none" }} onClick={() => ordenarPor(c)}>
                   {c}{setaDe(c)}
                 </th>
               ))}
@@ -337,114 +303,75 @@ export default function Anuncios() {
           </thead>
           <tbody>
             {sorted.length === 0 && (
-              <tr><td colSpan={6 + CANAIS.length} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Nenhum imóvel encontrado.</td></tr>
+              <tr><td colSpan={2 + CANAIS_AUTO.length} style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Nenhum imóvel encontrado.</td></tr>
             )}
-            {sorted.map((im, idx) => {
-              const preco = im.transacao === "Locação" ? (im.valorFinal ? formatBRL(im.valorFinal) + "/mês" : "") : formatBRL(im.preco);
-              return (
-                <tr key={im.id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--bg-section)" }}>
-                  <td style={td}>
-                    <button onClick={() => navigate(`/admin/editar/${im.id}`)} title="Clique para abrir a edição deste imóvel"
-                      style={{ background: "none", border: "none", padding: 0, margin: 0, cursor: "pointer", textAlign: "left", display: "inline-flex", flexDirection: "column", gap: 3, font: "inherit", color: "var(--text)" }}>
-                      {im.codigo && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)", textDecoration: "underline" }}>{im.codigo}</span>}
-                      <span>
-                        <span style={tag("primary")}>{im.tipo}</span>
-                        {im.transacao && <span style={{ ...tag(), marginLeft: 4 }}>{im.transacao}</span>}
-                      </span>
-                    </button>
-                  </td>
-                  <td style={td}>{statusDoImovel(im)}</td>
-                  <td style={td}>{im.cidade || "—"}</td>
-                  <td style={td}>{im.bairro || "—"}</td>
-                  <td style={{ ...td, color: "var(--primary)", fontWeight: 500, whiteSpace: "nowrap" }}>{preco || "—"}</td>
-                  <td style={{ ...td, whiteSpace: "nowrap" }}>{im.nomeProprietario || "—"}</td>
-                  {CANAIS.map(canal => {
-                    const isAuto = CANAIS_AUTO.includes(canal);
-
-                    // CANAIS AUTOMÁTICOS (feed XML): mostram o status REAL do feed,
-                    // não a marcação manual. ✅ no feed (sem pendências) / ❌ fora (com o motivo).
-                    if (isAuto) {
-                      const problemas = validarParaCanal(im, canal);
-                      const noFeed = problemas.length === 0;
-                      const corBorda = noFeed ? "var(--primary)" : "#dc2626";
-                      const corFundo = noFeed ? "var(--primary-light)" : "#fee2e2";
-                      const icone = noFeed ? "✅" : "❌";
-                      const motivos = `${canal} — fora do feed:\n\n• ${problemas.join("\n• ")}`;
-                      const tooltipTitle = noFeed ? `${canal} — no feed` : `${canal} — fora do feed:\n• ${problemas.join("\n• ")}`;
-                      return (
-                        <td key={canal} style={{ padding: 5, textAlign: "center" }}>
-                          <button
-                            onClick={() => { if (!noFeed) alert(motivos); }}
-                            title={tooltipTitle}
-                            style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: corFundo, border: `1px solid ${corBorda}`, borderRadius: 8, padding: "4px 6px", cursor: noFeed ? "default" : "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
-                            <span style={{ fontSize: 14 }}>{icone}</span>
-                            <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{noFeed ? "no feed" : "fora"}</span>
-                          </button>
-                        </td>
-                      );
-                    }
-
-                    // CANAIS MANUAIS: marcação manual mesmo (clique pra ligar/desligar).
-                    const info = im.anuncios?.[canal];
-                    const ativo = !!info?.ativo;
-                    const corBorda = ativo ? "var(--primary)" : "var(--border-soft)";
-                    const corFundo = ativo ? "var(--primary-light)" : "var(--bg-muted)";
-                    const icone = ativo ? "✅" : "⬜";
-                    return (
-                      <td key={canal} style={{ padding: 5, textAlign: "center" }}>
-                        <button onClick={() => toggle(im, canal)} title={ativo ? `Marcado em ${info.data}` : "Clique para marcar como anunciado à mão"}
-                          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, background: corFundo, border: `1px solid ${corBorda}`, borderRadius: 8, padding: "4px 6px", cursor: "pointer", width: "100%", minWidth: 56, color: "var(--text)" }}>
-                          <span style={{ fontSize: 14 }}>{icone}</span>
-                          {ativo && <span style={{ fontSize: 9, color: "var(--text-muted)" }}>{info.data}</span>}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+            {sorted.map((im, idx) => (
+              <tr key={im.id} style={{ background: idx % 2 === 0 ? "var(--bg-card)" : "var(--bg-section)" }}>
+                <td style={{ padding: "10px 12px" }}>
+                  <button onClick={() => navigate(`/admin/editar/${im.id}`)}
+                    style={{ background: "none", border: "none", padding: 0, margin: 0, cursor: "pointer", textAlign: "left", font: "inherit", color: "var(--text)", width: "100%" }}>
+                    {im.codigo && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--primary)" }}>{im.codigo}</div>}
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 2 }}>
+                      <span style={tagStyle("primary")}>{im.tipo}</span>
+                      {im.transacao && <span style={tagStyle()}>{im.transacao}</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--text-soft)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {im.titulo || [im.bairro, im.cidade].filter(Boolean).join(", ")}
+                    </div>
+                  </button>
+                </td>
+                <td style={{ padding: "10px 8px", textAlign: "center", fontSize: 12 }}>{statusDoImovel(im)}</td>
+                {CANAIS_AUTO.map(canal => {
+                  const problemas = validarParaCanal(im, canal);
+                  const noFeed = problemas.length === 0;
+                  return (
+                    <td key={canal} style={{ padding: "6px 8px", textAlign: "center" }}>
+                      <button
+                        onClick={() => { if (!noFeed) alert(`${canal} — fora do feed:\n\n• ${problemas.join("\n• ")}`); }}
+                        title={noFeed ? `${canal} — no feed` : `${canal}:\n• ${problemas.join("\n• ")}`}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                          background: noFeed ? "var(--primary-light)" : "#fee2e2",
+                          border: `1px solid ${noFeed ? "var(--primary)" : "#dc2626"}`,
+                          borderRadius: 8, padding: "6px 8px", cursor: noFeed ? "default" : "pointer",
+                          width: "100%", color: "var(--text)"
+                        }}>
+                        <span style={{ fontSize: 15 }}>{noFeed ? "✅" : "❌"}</span>
+                        <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{noFeed ? "no feed" : "fora"}</span>
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
 
-      <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--bg-section)", borderRadius: 8, fontSize: 12, color: "var(--text-muted)" }}>
-        <strong style={{ color: "var(--text)" }}>Legenda:</strong>{" "}
-        <span style={{ marginRight: 14 }}>⚙ = canal de feed automático → ✅ no feed</span>
-        <span style={{ marginRight: 14, color: "#dc2626" }}>❌ fora do feed (clique no ❌ pra ver o motivo)</span>
-        <span>Demais canais = marcação manual: ⬜ não marcado / ✅ marcado à mão</span>
+      <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-muted)" }}>
+        ✅ no feed — imóvel publicado no portal | ❌ fora — clique para ver o motivo
       </div>
     </div>
   );
 }
 
-// Extrai o valor comparável de cada coluna para a ordenação (texto minúsculo ou número).
 function valorOrdenacao(im, col) {
   switch (col) {
     case "tipo": return (im.tipo || "").toLowerCase();
     case "status": return (statusDoImovel(im) || "").toLowerCase();
-    case "cidade": return (im.cidade || "").toLowerCase();
-    case "bairro": return (im.bairro || "").toLowerCase();
-    case "preco": {
-      const v = im.transacao === "Locação" ? im.valorFinal : im.preco;
-      return parseFloat(v) || 0;
-    }
-    case "proprietario": return (im.nomeProprietario || "").toLowerCase();
     default:
-      // Canais automáticos: 0 = no feed, 1 = fora (desc joga os "fora" pro topo).
       if (CANAIS_AUTO.includes(col)) return validarParaCanal(im, col).length > 0 ? 1 : 0;
-      // Canais manuais: 0 = marcado, 1 = não marcado.
-      return im.anuncios?.[col]?.ativo ? 0 : 1;
+      return 0;
   }
 }
 
-const th = { padding: "8px 10px", textAlign: "left", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
-const thCanal = { padding: "8px 6px", textAlign: "center", fontSize: 10, whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
-const td = { padding: "8px 10px" };
+const th = { padding: "10px 12px", textAlign: "center", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff", fontSize: 13 };
+const thCanal = { padding: "10px 8px", textAlign: "center", fontSize: 12, whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
 const selectStyle = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 13, background: "var(--bg-input)", color: "var(--text)" };
-const tag = (variant) => ({
+const tagStyle = (variant) => ({
   fontSize: 11,
   background: variant === "primary" ? "var(--primary-light)" : "var(--bg-muted)",
   color: variant === "primary" ? "var(--primary-dark)" : "var(--text-soft)",
-  borderRadius: 6, padding: "2px 8px"
+  borderRadius: 6, padding: "2px 6px"
 });
 const backBtn = { display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 };
