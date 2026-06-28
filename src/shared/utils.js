@@ -543,11 +543,7 @@ export function validarParaCanal(im, canal) {
     problemas.push("Visibilidade está ocultando dos portais");
   }
 
-  // Canal desligado de propósito: na tela "Onde foi anunciado", os canais
-  // automáticos vêm LIGADOS por padrão. Se a caixinha foi DESMARCADA (opt-out
-  // explícito, ativo:false), o feed tira o imóvel daquele portal — mesmo com
-  // todos os campos completos. Espelha o temFlagAnuncio() dos feeds XML, que
-  // antes não era checado aqui (a tela mostrava ✅ "no feed" indevidamente).
+  // Canal desligado de propósito (opt-out explícito ativo:false).
   if (im.anuncios && im.anuncios[canal] && im.anuncios[canal].ativo === false) {
     problemas.push('Canal desligado à mão em "Onde foi anunciado" (remarque para voltar ao feed)');
   }
@@ -565,25 +561,18 @@ export function validarParaCanal(im, canal) {
   const metragemTotal = parseFloat(im.metragemTotal) || 0;
   const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
 
-  // Tipo: qualquer tipo do cadastro publica (o feed mapeia por comportamento).
-  // Só é problema se estiver vazio.
   if (!im.tipo) problemas.push("Defina o tipo do imóvel");
 
+  // BLOQUEIOS REAIS: o que de fato IMPEDE o anúncio de subir no portal.
+  // (CEP e quartos/banheiros NÃO entram aqui — o feed XML os preenche
+  //  automaticamente, então não impedem a publicação. Viram aviso de qualidade
+  //  em avisosDoCanal().)
   if (canal === "Canal Pro") {
     if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
     if (desc.length < 50) problemas.push("Descrição precisa ter no mínimo 50 caracteres");
     if (area === 0) problemas.push("Preencha a metragem");
     if (!cidade) problemas.push("Preencha a cidade");
     if (!bairro) problemas.push("Preencha o bairro");
-    // CEP: o ZAP+ rejeita CEP vazio ou inválido (precisa ter 8 dígitos)
-    const cepLimpo = String(im.cep || "").replace(/\D/g, "");
-    if (!cepLimpo) problemas.push("CEP vazio — o ZAP+ recusa anúncios sem CEP");
-    else if (cepLimpo.length !== 8) problemas.push("CEP inválido — precisa ter 8 dígitos");
-    // Quartos e banheiros: residencial (não-terreno) precisa ter ao menos 1 de cada
-    if (!isLote) {
-      if (!parseInt(im.quartos)) problemas.push("Informe a quantidade de quartos (residencial exige ao menos 1)");
-      if (!parseInt(im.banheiros)) problemas.push("Informe a quantidade de banheiros (residencial exige ao menos 1)");
-    }
     if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
     if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
     if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
@@ -594,11 +583,6 @@ export function validarParaCanal(im, canal) {
     if (!bairro) problemas.push("Preencha o bairro (o Chaves recusa sem bairro)");
     if (!estado) problemas.push("Preencha o estado (UF)");
     if (!desc) problemas.push("Preencha a descrição");
-    // Quartos e banheiros para residencial (mesma exigência do ZAP)
-    if (!isLote) {
-      if (!parseInt(im.quartos)) problemas.push("Informe a quantidade de quartos");
-      if (!parseInt(im.banheiros)) problemas.push("Informe a quantidade de banheiros");
-    }
     if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
     if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
     if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
@@ -615,4 +599,26 @@ export function validarParaCanal(im, canal) {
   }
 
   return problemas;
+}
+
+// Avisos de QUALIDADE — não impedem o anúncio de subir (o feed conserta sozinho),
+// mas o portal reclama e baixa a nota. Aparecem na fila como campos pra preencher.
+export function avisosDoCanal(im, canal) {
+  if (!CANAIS_AUTO.includes(canal)) return [];
+  const avisos = [];
+  const isLote = TIPOS_TERRENO_VALIDACAO.includes(im.tipo);
+
+  // CEP: o feed preenche com o CEP da cidade quando vazio/inválido, mas o ZAP+
+  // dá nota menor. Avisar para melhorar (não bloqueia).
+  if (canal === "Canal Pro" || canal === "Chaves na Mão") {
+    const cepLimpo = String(im.cep || "").replace(/\D/g, "");
+    if (!cepLimpo) avisos.push("CEP vazio — o feed usa o CEP da cidade, mas o ideal é preencher o exato");
+    else if (cepLimpo.length !== 8) avisos.push("CEP inválido — precisa ter 8 dígitos");
+    // Quartos e banheiros para residencial — o feed força o mínimo 1, mas é melhor informar
+    if (!isLote) {
+      if (!parseInt(im.quartos)) avisos.push("Informe a quantidade de quartos");
+      if (!parseInt(im.banheiros)) avisos.push("Informe a quantidade de banheiros");
+    }
+  }
+  return avisos;
 }
