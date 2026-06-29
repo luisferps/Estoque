@@ -50,6 +50,10 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
+  // Localização em SATÉLITE (não Street View). Aparece se houver coordenada ou mapsLink salvo.
+  const mapsLink = (im.latitude && im.longitude)
+    ? `https://www.google.com/maps/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
+    : (im.mapsLink || null);
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
@@ -60,6 +64,7 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
       }}>
         <a href={wa} target="_blank" rel="noreferrer" onClick={e => { e.stopPropagation(); onClose(); }} style={popItem}>💬 WhatsApp</a>
         <a href={mail} onClick={e => { e.stopPropagation(); onClose(); }} style={popItem}>✉️ Email</a>
+        {mapsLink && <a href={mapsLink} target="_blank" rel="noreferrer" onClick={e => { e.stopPropagation(); onClose(); }} style={popItem}>📍 Localização no mapa</a>}
         <button onClick={e => { e.stopPropagation(); copiarLink(); }} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>🔗 Copiar link</button>
         <button onClick={e => { e.stopPropagation(); onCopiarTexto(); }} style={{ ...popItem, width: "100%", border: "none", background: "transparent", textAlign: "left" }}>
           {copiado ? "✓ Copiado!" : "📋 Copiar descrição"}
