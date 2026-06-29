@@ -5,7 +5,7 @@
 // O Chaves na Mão lê este feed automaticamente uma vez por dia após a
 // ativação por e-mail (atendimento@chavesnamao.com.br).
 
-const { getDb } = require("./_firebase");
+const { getDb, registrarPull } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toFloat, toInt, toMetros, isDisponivelEstrito, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
@@ -262,6 +262,7 @@ ${fotosXml}
 
 exports.handler = async () => {
   try {
+    registrarPull("chavesnamao");
     const db = getDb();
     const [snap, tiposCentral] = await Promise.all([
       db.collection("imoveis").get(),
