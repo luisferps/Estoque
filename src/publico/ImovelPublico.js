@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta, linkLocalizacao
 } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
@@ -33,12 +33,8 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
-  // Link de localização PINO + SATÉLITE: /place/ marca o pino, data=!3m1!1e3 = satélite.
-  // Com coordenada → link com pino+satélite. Sem coordenada → mapsLink salvo.
-  const temCoord = im.latitude && im.longitude;
-  const mapsLink = temCoord
-    ? `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
-    : (im.mapsLink || null);
+  // Link de localização (pino + satélite), sempre a partir da coordenada atual.
+  const mapsLink = linkLocalizacao(im);
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
@@ -415,8 +411,8 @@ export default function ImovelPublico() {
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
-              {im.mapsLink && (
-                <a href={im.mapsLink} target="_blank" rel="noreferrer" style={{
+              {mapsLink && (
+                <a href={mapsLink} target="_blank" rel="noreferrer" style={{
                   display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
                   padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)",
                   borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 700
