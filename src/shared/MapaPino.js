@@ -36,17 +36,22 @@ function carregarLeaflet() {
 function coordDoLinkDireto(url) {
   if (!url) return null;
   try {
-    // padrão @-16.18,-47.94,15z
-    const at = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
-    // padrão q=-16.18,-47.94 ou query=-16.18,-47.94 ou ll=-16.18,-47.94
-    const q = url.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/);
-    if (q) return { lat: parseFloat(q[1]), lng: parseFloat(q[2]) };
-    // padrão !3d-16.18!4d-47.94 (place URLs)
+    // PRIORIDADE: !3d!4d = coordenada REAL do lugar (não a câmera).
     const d3 = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
     if (d3) return { lat: parseFloat(d3[1]), lng: parseFloat(d3[2]) };
+    // q= / query= / ll= / destination= (busca explícita)
+    const q = url.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (q) return { lat: parseFloat(q[1]), lng: parseFloat(q[2]) };
+    // @lat,lng = posição da câmera (último recurso)
+    const at = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
   } catch { /* ignora */ }
   return null;
+}
+
+// Coordenada dentro do Brasil? (trava: nunca aceita pino no exterior)
+function noBrasil(lat, lng) {
+  return !isNaN(lat) && !isNaN(lng) && lat >= -34 && lat <= 6 && lng >= -74 && lng <= -34;
 }
 
 export default function MapaPino({ latitude, longitude, onChange }) {
@@ -128,9 +133,9 @@ export default function MapaPino({ latitude, longitude, onChange }) {
     const url = link.trim();
     if (!url) return;
 
-    // 1) Tenta extrair direto da URL
+    // 1) Tenta extrair direto da URL (só aceita se cair no Brasil)
     const direto = coordDoLinkDireto(url);
-    if (direto) {
+    if (direto && noBrasil(direto.lat, direto.lng)) {
       moverPino(direto.lat, direto.lng);
       setMsg("Pino posicionado pelo link ✓");
       return;
@@ -145,9 +150,11 @@ export default function MapaPino({ latitude, longitude, onChange }) {
         body: JSON.stringify({ url }),
       });
       const d = await r.json();
-      if (d.ok && d.latitude && d.longitude) {
+      if (d.ok && noBrasil(parseFloat(d.latitude), parseFloat(d.longitude))) {
         moverPino(parseFloat(d.latitude), parseFloat(d.longitude));
         setMsg("Pino posicionado pelo link ✓");
+      } else if (d.ok) {
+        setMsg("Esse link aponta para fora do Brasil — confira o link ou arraste o pino.");
       } else {
         setMsg(d.error || "Não consegui ler a coordenada desse link. Tente arrastar o pino.");
       }
