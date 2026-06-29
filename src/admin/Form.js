@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase";
 import {
-  TRANSACOES, ESTADOS_IMOVEL, STATUS_IMOVEL, VISIBILIDADE_IMOVEL, CONDICOES, CANAIS, emptyForm
+  TRANSACOES, ESTADOS_IMOVEL, CONDICOES, CANAIS, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, usuarioSSO, ehDiretorEfetivo } from "../shared/userRole";
@@ -97,6 +97,8 @@ export default function Form() {
   const [urlDrive, setUrlDrive] = useState('');
   const [previaFoto, setPreviaFoto] = useState(null);
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
+  const [mostrarCanais, setMostrarCanais] = useState(false);
+  const [modalPublicar, setModalPublicar] = useState(false);
   // Lista de captadores cadastrados no Supabase (via backend)
   const [listaCaptadores, setListaCaptadores] = useState([]);
   const fileRef = useRef();
@@ -200,7 +202,7 @@ export default function Form() {
     if (coords) setForm(p => ({ ...p, latitude: coords.latitude, longitude: coords.longitude }));
   };
 
-  const save = async () => {
+  const save = async (overrides = {}) => {
     if (!form.titulo) return alert("Preencha o título.");
     if (!telefoneValido(form.telefoneProprietario, telProprietarioIntl))
       return alert("Informe o telefone do proprietário: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
@@ -208,7 +210,7 @@ export default function Form() {
       return alert("Selecione pelo menos um captador.");
     setSaving(true);
     try {
-      const { id: _id, ...data } = form;
+      const { id: _id, ...data } = { ...form, ...overrides };
       data.condominio = ehEmCondominio(data.tipo) || data.tipo === "Apartamento";
       if (!data.condominio) data.nomeCondominio = "";
       if (isLocacao) data.valorFinal = valorFinalLoc();
@@ -393,12 +395,119 @@ export default function Form() {
       </select>
     </div>
   );
-  const section = (title, children) => (
-    <div style={sectionBox}>
-      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "var(--primary-dark)" }}>{title}</p>
-      {children}
+  // ── Publicação (status + onde aparece) ──────────────────────────────────
+  // O campo "visibilidade" guarda 1 de 4 textos. Aqui traduzimos para 2 flags
+  // simples (site / portais) que viram cards "ligados por padrão".
+  const vis = form.visibilidade || "Site e portais";
+  const noSite = vis !== "Ocultar do site" && vis !== "Ocultar de tudo";
+  const noPortais = vis !== "Ocultar dos portais" && vis !== "Ocultar de tudo";
+  const setVisibilidade = (site, portais) => {
+    let v = "Site e portais";
+    if (site && portais) v = "Site e portais";
+    else if (site && !portais) v = "Ocultar dos portais";
+    else if (!site && portais) v = "Ocultar do site";
+    else v = "Ocultar de tudo";
+    sf("visibilidade", v);
+  };
+
+  const STATUS_BOTOES = [
+    ["✅ Disponível", "Disponível", "#059669"],
+    ["⏳ Aguardando", "Aguardando finalização", "#0891b2"],
+    ["⏸️ Reservado", "Reservado", "#d97706"],
+    ["🏷️ Vendido", "Vendido", "#dc2626"],
+    ["🔑 Alugado", "Alugado", "#7c3aed"],
+  ];
+
+  // Card "onde aparece" — verde quando ligado, cinza quando desligado.
+  const cardAparece = (titulo, sub, ligado, onToggle) => (
+    <button type="button" onClick={onToggle}
+      style={{ flex: "1 1 150px", textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
+        border: `2px solid ${ligado ? "#059669" : "#d1d5db"}`,
+        background: ligado ? "rgba(5,150,105,0.08)" : "var(--bg-muted)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: ligado ? "#059669" : "var(--text-muted)" }}>{titulo}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: ligado ? "#059669" : "#9ca3af" }}>{ligado ? "ON" : "OFF"}</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.4 }}>{sub}</div>
+    </button>
+  );
+
+  // Bloco de publicação no rodapé (sempre visível, inclusive na edição).
+  const blocoPublicacao = () => (
+    <div style={{ ...sectionBox, marginBottom: "1.5rem", border: "1px solid var(--primary)", background: "var(--primary-light)" }}>
+      <p style={{ margin: "0 0 4px", fontWeight: 600, fontSize: 16, color: "var(--primary-dark)" }}>Publicação</p>
+      <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "var(--text-soft)" }}>Defina a situação do imóvel e onde ele deve aparecer.</p>
+
+      <label style={labelStyle}>Situação</label>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+        {STATUS_BOTOES.map(([rotulo, valor, cor]) => {
+          const ativo = form.status === valor;
+          return (
+            <button key={valor} type="button" onClick={() => sf("status", valor)}
+              style={{ padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                border: `1.5px solid ${ativo ? cor : "#d1d5db"}`,
+                background: ativo ? cor : "transparent",
+                color: ativo ? "#fff" : "var(--text-muted)" }}>
+              {rotulo}
+            </button>
+          );
+        })}
+      </div>
+
+      <label style={labelStyle}>Onde este imóvel aparece <span style={{ fontSize: 11, color: "var(--text-muted)" }}>(clique para ligar/desligar)</span></label>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {cardAparece("🌐 Site", "Site inerente.com.br", noSite, () => setVisibilidade(!noSite, noPortais))}
+        {cardAparece("🏢 Portais", "Canal Pro, Chaves, ZAP, Viva, OLX", noPortais, () => setVisibilidade(noSite, !noPortais))}
+        {cardAparece("📱 Divulgação automática", "Grupos de WhatsApp e Instagram", !form.foraRodizio, () => sf("foraRodizio", !form.foraRodizio))}
+      </div>
     </div>
   );
+
+  // Ao clicar em Salvar: cadastro NOVO abre a janela de publicação; edição salva direto.
+  const onClickSalvar = () => {
+    if (!id) { setModalPublicar(true); return; }
+    save();
+  };
+
+  // Janela de publicação (só no cadastro novo) — atalho da primeira decisão.
+  const modalPublicacao = () => {
+    const publicarAgora = () => { setModalPublicar(false); save({ status: "Disponível" }); };
+    const deixarAguardando = () => { setModalPublicar(false); save({ status: "Aguardando finalização" }); };
+    return (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
+        <div style={{ background: "var(--bg-card)", borderRadius: 14, padding: "24px 22px", maxWidth: 440, width: "100%", boxShadow: "0 10px 40px rgba(0,0,0,0.25)" }}>
+          <h3 style={{ margin: "0 0 6px", fontSize: 18, color: "var(--primary-dark)" }}>Publicar este imóvel?</h3>
+          <p style={{ margin: "0 0 18px", fontSize: 13.5, color: "var(--text-soft)", lineHeight: 1.5 }}>
+            Você pode publicar agora (fica <b>Disponível</b> e aparece nos canais ligados) ou deixar <b>Aguardando</b> para revisar depois.
+          </p>
+
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>Onde vai aparecer</label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {cardAparece("🌐 Site", "Site inerente.com.br", noSite, () => setVisibilidade(!noSite, noPortais))}
+              {cardAparece("🏢 Portais", "Canal Pro, ZAP, Viva, OLX", noPortais, () => setVisibilidade(noSite, !noPortais))}
+              {cardAparece("📱 Divulgação", "WhatsApp e Instagram", !form.foraRodizio, () => sf("foraRodizio", !form.foraRodizio))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexDirection: "column" }}>
+            <button onClick={publicarAgora} disabled={saving || uploading}
+              style={{ ...btnPrimary, padding: "12px 0", fontSize: 15, fontWeight: 600 }}>
+              {saving ? "Salvando..." : "✅ Publicar agora"}
+            </button>
+            <button onClick={deixarAguardando} disabled={saving || uploading}
+              style={{ padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>
+              ⏳ Deixar aguardando (não publicar ainda)
+            </button>
+            <button onClick={() => setModalPublicar(false)} disabled={saving || uploading}
+              style={{ padding: "8px 0", border: "none", background: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>
+              Voltar e revisar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={pageWrap(1040)}>
@@ -440,39 +549,6 @@ export default function Form() {
           </div>
           {sel("Tipo de transação", "transacao", TRANSACOES)}
           {sel("Estado do imóvel", "estadoImovel", ESTADOS_IMOVEL)}
-          {sel("Status", "status", STATUS_IMOVEL)}
-          {sel("Visibilidade", "visibilidade", VISIBILIDADE_IMOVEL)}
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 1rem" }}>
-          {[
-            ["✅ Disponível", "Disponível", "#059669"],
-            ["🏷️ Vendido", "Vendido", "#dc2626"],
-            ["🔑 Alugado", "Alugado", "#7c3aed"],
-            ["⏸️ Reservado", "Reservado", "#d97706"],
-            ["⏳ Aguardando", "Aguardando finalização", "#0891b2"],
-          ].map(([rotulo, valor, cor]) => {
-            const ativo = form.status === valor;
-            return (
-              <button key={valor} type="button" onClick={() => sf("status", valor)}
-                style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  border: `1.5px solid ${ativo ? cor : "#d1d5db"}`,
-                  background: ativo ? cor : "transparent",
-                  color: ativo ? "#fff" : "var(--text-muted)" }}>
-                {rotulo}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ margin: "0 0 1rem", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-muted)" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", color: "var(--text)" }}>
-            <input type="checkbox" checked={!!form.foraRodizio} onChange={e => sf("foraRodizio", e.target.checked)} style={cbStyle} />
-            {"🚫"} Não incluir no rodízio automático
-          </label>
-          <p style={{ margin: "6px 0 0 24px", fontSize: 11, color: "var(--text-muted)" }}>
-            O imóvel continua disponível e visível normalmente, mas fica de fora dos disparos automáticos para os grupos de corretores e das publicações automáticas no Instagram.
-          </p>
         </div>
 
         {(!isLote || isRural) && inp("Metragem de construção (m²)", "metragem", { type: "number" })}
@@ -582,11 +658,6 @@ export default function Form() {
           }} placeholder="Ex: Setor Sul" style={inputBase} />
         </div>
         {inp("Endereço (visível só para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
-        <div style={{ marginBottom: "1rem" }}>
-          <label style={labelStyle}>Link do Google Maps</label>
-          <input value={form.mapsLink || ""} onChange={e => sf("mapsLink", e.target.value)} placeholder="Cole aqui o link do Google Maps" style={inputBase} />
-          {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none" }}>Verificar link {"→"}</a>}
-        </div>
 
         {/* Mapa interativo — arraste o pino para marcar o local exato */}
         <div style={{ marginBottom: "1rem", padding: "12px 14px", background: form.coordManual ? "var(--primary-light)" : "var(--bg-muted)", borderRadius: 10, border: `1px solid ${form.coordManual ? "var(--primary)" : "var(--border-soft)"}` }}>
@@ -791,36 +862,51 @@ export default function Form() {
         </div>
       </>)}
 
-      {section("Onde foi anunciado (visível só para admin)", <>
-        <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px" }}>
-          {"⚙"} = integração automática via feed XML
-        </p>
-        {CANAIS.map(canal => {
-          const info = form.anuncios?.[canal];
-          const isAuto = CANAIS_AUTO.includes(canal);
-          const ligado = isAuto ? (info ? info.ativo !== false : true) : !!(info && info.ativo);
-          return (
-            <div key={canal} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
-                <input type="checkbox" checked={ligado} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
-                <span style={{ fontSize: 14 }}>
-                  {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>{"⚙"}</span>}
-                  {canal}
-                </span>
-              </label>
-              {ligado && info?.data && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{info.data}</span>}
-            </div>
-          );
-        })}
-      </>)}
+      {/* ONDE FOI ANUNCIADO — acordeão, começa recolhido */}
+      <div style={{ ...sectionBox, marginBottom: "1.5rem" }}>
+        <button type="button" onClick={() => setMostrarCanais(v => !v)}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          <span style={{ fontSize: 16, fontWeight: 600, color: "var(--primary-dark)" }}>Onde foi anunciado <span style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>(opcional)</span></span>
+          <span style={{ fontSize: 18, color: "var(--text-muted)" }}>{mostrarCanais ? "▲" : "▼"}</span>
+        </button>
+        {mostrarCanais && (
+          <div style={{ marginTop: 14 }}>
+            <p style={{ fontSize: 11, color: "var(--text-muted)", margin: "0 0 10px" }}>
+              Marcação de controle interno — onde este imóvel já foi divulgado. {"⚙"} = integração automática via feed XML.
+            </p>
+            {CANAIS.map(canal => {
+              const info = form.anuncios?.[canal];
+              const isAuto = CANAIS_AUTO.includes(canal);
+              const ligado = isAuto ? (info ? info.ativo !== false : true) : !!(info && info.ativo);
+              return (
+                <div key={canal} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
+                    <input type="checkbox" checked={ligado} onChange={() => toggleAnuncio(canal)} style={cbStyle} />
+                    <span style={{ fontSize: 14 }}>
+                      {isAuto && <span style={{ fontSize: 11, color: "var(--primary)", marginRight: 4 }}>{"⚙"}</span>}
+                      {canal}
+                    </span>
+                  </label>
+                  {ligado && info?.data && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{info.data}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* PUBLICAÇÃO — última decisão: status + onde o imóvel aparece */}
+      {blocoPublicacao()}
 
       <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         <button onClick={() => navigate(-1)} style={{ flex: 1, padding: "11px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 14 }}>Cancelar</button>
-        <button onClick={save} disabled={saving || uploading}
+        <button onClick={onClickSalvar} disabled={saving || uploading}
           style={{ ...btnPrimary, flex: 2, padding: "11px 0", background: (saving || uploading) ? "#aaa" : "var(--primary)", cursor: (saving || uploading) ? "default" : "pointer", fontSize: 14, fontWeight: 500 }}>
           {saving ? "Salvando..." : uploading ? "Aguarde o upload..." : "Salvar imóvel"}
         </button>
       </div>
+
+      {modalPublicar && modalPublicacao()}
       </div>
       <div className="previa-col" style={{ flex: "0 0 320px", position: "sticky", top: 16, alignSelf: "flex-start", maxWidth: "100%" }}>
         <PreviaQualidade form={form} isLote={isLote} />
