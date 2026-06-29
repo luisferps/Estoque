@@ -63,7 +63,7 @@ function fmtDataCurta(v) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
-export default function Destaques({ onLogout }) {
+export default function Destaques({ onLogout, embutido = false }) {
   const navigate = useNavigate();
   const { imoveis, loading } = useImoveis();
 
@@ -327,16 +327,17 @@ export default function Destaques({ onLogout }) {
   }, [relatorio]);
 
   return (
-    <div style={pageWrap(1000)}>
+    <div style={embutido ? { maxWidth: 1000, margin: "0 auto" } : pageWrap(1000)}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", flexWrap: "wrap", gap: 8 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: "var(--primary-dark)" }}>
-          ⭐ Destaques — Canal Pro
-        </h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <button onClick={() => navigate("/admin")} style={btnOutline}>← Voltar</button>
-          <button onClick={() => navigate("/admin/anuncios")} style={btnOutline}>Anúncios</button>
+        {!embutido && (
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: "var(--primary-dark)" }}>
+            ⭐ Destaques — Canal Pro
+          </h2>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginLeft: "auto" }}>
+          {!embutido && <button onClick={() => navigate("/admin")} style={btnOutline}>← Voltar</button>}
           <button onClick={() => { carregarRelatorio(); }} style={btnOutline}>🔄 Atualizar</button>
-          {onLogout && (
+          {!embutido && onLogout && (
             <button onClick={onLogout} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Sair</button>
           )}
         </div>
