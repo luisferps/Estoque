@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao } from "../shared/utils";
-import { pageWrap } from "../shared/styles";
 import { EMPRESA, ORDENACOES } from "../constants";
 import Header from "./Header";
 import ImovelCard from "../shared/ImovelCard";
@@ -134,7 +133,6 @@ export default function Home() {
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [tipos, contagemPorTipo]);
 
-  const subtituloModo = transacao === "Venda" ? "à venda" : transacao === "Locação" ? "para locação" : "para venda e locação";
   const faixas = transacao === "Locação" ? FAIXAS_LOCACAO : FAIXAS_VENDA;
   const sufixoFaixa = transacao === "Locação" ? "/mês" : "";
 
@@ -162,154 +160,138 @@ export default function Home() {
     </>
   );
 
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <style>{`
-        .reveal { opacity: 0; transform: translateY(50px); transition: opacity .8s cubic-bezier(.22,.61,.36,1), transform .8s cubic-bezier(.22,.61,.36,1); will-change: opacity, transform; }
+        .reveal { opacity: 0; transform: translateY(40px); transition: opacity .7s cubic-bezier(.22,.61,.36,1), transform .7s cubic-bezier(.22,.61,.36,1); will-change: opacity, transform; }
         .reveal.on { opacity: 1; transform: translateY(0); }
         @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
-        .modo-btn { transition: background .18s ease, color .18s ease, box-shadow .2s ease, transform .12s ease; }
-        .modo-btn:not(.on):hover { background: rgba(255,255,255,0.10); }
-        .tipo-card { transition: background .18s ease, color .18s ease, border-color .18s ease, transform .12s ease, box-shadow .18s ease; }
-        .tipo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.10); }
-        .tipos-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-        .tipos-grid > * { flex: 0 0 120px; }
-        @media (max-width: 700px) { .tipos-grid > * { flex: 0 0 110px; } }
-        @media (max-width: 540px) { .tipos-grid > * { flex: 0 0 calc(25% - 8px); } }
-        @media (max-width: 400px) { .tipos-grid > * { flex: 0 0 calc(33.33% - 8px); } }
-        .chip { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; font-size: 12.5px; font-weight: 600; }
-        .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .num-input { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
+        .h-tab { transition: all .25s ease; }
+        .h-tab:not(.on):hover { background: rgba(255,255,255,0.12); }
+        .h-tipo { transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+        .h-tipo:hover { transform: translateY(-4px); box-shadow: 0 12px 26px rgba(0,0,0,0.09); border-color: var(--primary-border); }
+        .h-tipo.on { border-color: var(--primary); box-shadow: 0 8px 22px rgba(192,57,43,0.18); }
+        .num-input { padding: 11px 13px; border-radius: 12px; border: 1px solid var(--border-soft); background: var(--bg-input); color: var(--text); font-size: 14px; outline: none; width: 100%; box-sizing: border-box; }
         .num-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .chip { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; font-size: 12.5px; font-weight: 500; transition: all .2s; }
+        .chip:hover { border-color: var(--primary-border); color: var(--primary); }
+        .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+        .wa-float { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; align-items: center; gap: 9px; background: #25D366; color: #fff; border-radius: 999px; padding: 13px 22px 13px 18px; box-shadow: 0 6px 22px rgba(37,211,102,0.45); text-decoration: none; transition: transform .2s, box-shadow .2s; white-space: nowrap; }
+        .wa-float:hover { transform: scale(1.04); box-shadow: 0 8px 28px rgba(37,211,102,0.55); }
+        @media (max-width: 540px) { .wa-float { bottom: 18px; right: 18px; padding: 13px 18px; } .wa-float .wa-txt { display: none; } }
       `}</style>
+
       <Header corretorNovaAba />
 
-      {/* HERO */}
+      {/* HERO vermelho: abas + busca */}
       <div style={{
-        position: "relative",
-        background: "radial-gradient(120% 130% at 50% -12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 42%), linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)",
-        color: "#fff", padding: "3.5rem 1.5rem 2.5rem", textAlign: "center", borderRadius: "0 0 36px 36px", overflow: "hidden"
+        background: "linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 60%, #cf4636 100%)",
+        color: "#fff", padding: "44px 1.5rem 52px", textAlign: "center"
       }}>
-        <h1 className="display" style={{ margin: "0 0 6px", fontSize: "clamp(32px, 5.4vw, 52px)", fontWeight: 800 }}>Seu imóvel está aqui</h1>
-        <p style={{ margin: "0 0 1.4rem", fontSize: 15.5, opacity: 0.92 }}>
-          {noModo.length} {noModo.length === 1 ? "imóvel disponível" : "imóveis disponíveis"} {subtituloModo}
-        </p>
-
-        {/* Comprar / Alugar / Todos — em destaque */}
-        <div style={{ maxWidth: "100%", overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
-          <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.14)", border: "1px solid rgba(255,255,255,0.28)", borderRadius: 999, padding: 5, gap: 4, backdropFilter: "blur(6px)", whiteSpace: "nowrap" }}>
+        {/* Abas Todos / Comprar / Alugar */}
+        <div style={{ maxWidth: "100%", overflowX: "auto", scrollbarWidth: "none" }}>
+          <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.26)", borderRadius: 999, padding: 5, gap: 4, backdropFilter: "blur(8px)", whiteSpace: "nowrap" }}>
             {MODOS.map(m => {
               const on = transacao === m.key;
               return (
-                <button key={m.key} className={"modo-btn " + (on ? "on" : "")} onClick={() => { setTransacao(m.key); setTipo("Todos"); setValorMin(""); setValorMax(""); }}
+                <button key={m.key} className={"h-tab " + (on ? "on" : "")} onClick={() => { setTransacao(m.key); setTipo("Todos"); setValorMin(""); setValorMax(""); }}
                   style={{
-                    border: "none", cursor: "pointer", borderRadius: 999, padding: "10px clamp(14px, 4vw, 28px)", fontSize: "clamp(13px, 3.5vw, 15.5px)", fontWeight: 800,
+                    border: "none", cursor: "pointer", borderRadius: 999, padding: "10px clamp(16px, 4vw, 26px)", fontSize: "clamp(13px, 3.5vw, 15px)", fontWeight: 600,
                     display: "inline-flex", alignItems: "center", gap: 6,
-                    background: on ? "#fff" : "transparent", color: on ? "var(--primary-dark)" : "rgba(255,255,255,0.94)",
-                    boxShadow: on ? "0 8px 22px rgba(0,0,0,0.22)" : "none", flexShrink: 0
+                    background: on ? "#fff" : "transparent", color: on ? "var(--primary-dark)" : "rgba(255,255,255,0.92)",
+                    boxShadow: on ? "0 2px 8px rgba(0,0,0,0.14)" : "none", flexShrink: 0
                   }}>
-                  <span style={{ fontSize: "clamp(14px, 4vw, 17px)" }}>{m.icon}</span>{m.label}
+                  <span style={{ fontSize: "clamp(14px, 4vw, 16px)" }}>{m.icon}</span>{m.label}
                 </button>
               );
             })}
           </div>
         </div>
-      </div>
 
-      {/* BUSCA + FILTROS (sai do hero) */}
-      <div style={{ maxWidth: 1100, margin: "-28px auto 0", padding: "0 1.5rem", position: "relative", zIndex: 2 }}>
-        <div className="reveal" style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 22, padding: 10, display: "flex", gap: 8, flexWrap: "wrap", boxShadow: "0 18px 44px rgba(0,0,0,0.10)" }}>
-          <div style={{ flex: "2 1 240px", display: "flex", alignItems: "center", gap: 8, padding: "0 14px" }}>
-            <span style={{ fontSize: 16, opacity: 0.55 }}>🔍</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Bairro, cidade ou palavra-chave"
-              style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: 15, color: "var(--text)", padding: "13px 0" }} />
-          </div>
-          <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch", margin: "6px 0" }} />
-          <select value={tipo} onChange={e => setTipo(e.target.value)} style={heroSelectStyle}>
+        {/* Barra de busca */}
+        <div style={{ maxWidth: 860, margin: "26px auto 0", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", background: "#fff", border: "1px solid var(--border)", borderRadius: 999, padding: "7px 7px 7px 22px", boxShadow: "0 8px 30px rgba(0,0,0,0.16)" }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Bairro, cidade ou palavra-chave"
+            style={{ flex: "1 1 180px", border: "none", outline: "none", fontSize: 15, color: "var(--text)", background: "transparent", minWidth: 80 }} />
+          <select value={tipo} onChange={e => setTipo(e.target.value)}
+            style={{ border: "none", outline: "none", background: "var(--bg-muted)", borderRadius: 999, padding: "11px 16px", fontSize: 14, color: "var(--text-soft)", cursor: "pointer", fontFamily: "inherit" }}>
             <option value="Todos">Tipo de imóvel</option>
             {tiposVisiveis.map(t => <option key={t.nome} value={t.nome}>{t.nome}</option>)}
           </select>
-          <button onClick={() => setFiltroAberto(o => !o)} style={{ ...heroSelectStyle, flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
-            💰 Valor {(valorMin || valorMax) ? "•" : ""}
+          <button onClick={() => setFiltroAberto(o => !o)}
+            style={{ border: "none", background: filtroAberto ? "var(--primary-light)" : "var(--bg-muted)", color: filtroAberto ? "var(--primary-dark)" : "var(--text-soft)", borderRadius: 999, padding: "11px 18px", fontSize: 14, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", fontWeight: 500 }}>
+            💰 Valor
           </button>
-          <button className="btn-grad" onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })}
-            style={{ flex: "0 0 auto", padding: "0 26px", borderRadius: 16, fontSize: 18, fontWeight: 700 }}>🔍</button>
+          <button onClick={() => document.getElementById("lista-imoveis")?.scrollIntoView({ behavior: "smooth" })}
+            style={{ background: "var(--primary)", color: "#fff", border: "none", borderRadius: 999, padding: "11px 22px", fontSize: 16, fontWeight: 500, cursor: "pointer" }}>🔍</button>
         </div>
 
-        {/* Painel de faixa de valor */}
+        {/* Painel de faixa de valor (abre ao clicar em Valor) */}
         {filtroAberto && (
-          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 18, padding: 14, marginTop: 10, boxShadow: "0 10px 28px rgba(0,0,0,0.08)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-              <strong style={{ fontSize: 13, color: "var(--text)" }}>Faixa de valor {transacao === "Locação" ? "(aluguel/mês)" : "(venda)"}</strong>
-              {(valorMin || valorMax) && <button onClick={() => { setValorMin(""); setValorMax(""); }} style={{ background: "transparent", border: "none", color: "var(--primary)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✕ limpar</button>}
+          <div style={{ maxWidth: 860, margin: "10px auto 0", background: "#fff", borderRadius: 18, padding: 16, boxShadow: "0 10px 28px rgba(0,0,0,0.12)", textAlign: "left", color: "var(--text)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Faixa de preço{sufixoFaixa ? " (mensal)" : ""}</span>
+              {(valorMin || valorMax) && <button onClick={() => { setValorMin(""); setValorMax(""); }} style={{ background: "transparent", border: "none", color: "var(--primary)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>✕ limpar</button>}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               <div>
-                <label style={lbl}>De (R$)</label>
+                <span style={lbl}>Mínimo (R$)</span>
                 <input className="num-input" type="number" inputMode="numeric" placeholder="0" value={valorMin} onChange={e => setValorMin(e.target.value)} />
               </div>
               <div>
-                <label style={lbl}>Até (R$)</label>
+                <span style={lbl}>Máximo (R$)</span>
                 <input className="num-input" type="number" inputMode="numeric" placeholder="sem limite" value={valorMax} onChange={e => setValorMax(e.target.value)} />
               </div>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              <span style={{ fontSize: 11.5, color: "var(--text-muted)", alignSelf: "center", marginRight: 6 }}>Até:</span>
               {faixas.map(v => {
-                const on = String(valorMax) === String(v);
+                const on = v === 0 ? (!valorMax) : (String(v) === valorMax);
                 return (
                   <button key={v} className={"chip " + (on ? "on" : "")} onClick={() => { setValorMin(""); setValorMax(v === 0 ? "" : String(v)); }}>
-                    {v === 0 ? "Qualquer" : `R$ ${FAIXAS_FMT(v)}${sufixoFaixa}`}
+                    {v === 0 ? "Qualquer" : `até R$ ${FAIXAS_FMT(v)}${sufixoFaixa}`}
                   </button>
                 );
               })}
             </div>
           </div>
         )}
+      </div>
 
-        {/* Tipos (quadradinhos pequenos, embaixo da busca) */}
-        {tiposVisiveis.length > 0 && (
-          <div className="tipos-grid reveal" style={{ marginTop: 14 }}>
+      {/* GRADE DE TIPOS (atalhos) */}
+      {tiposVisiveis.length > 0 && (
+        <div style={{ maxWidth: 1024, margin: "40px auto 0", padding: "0 1.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(116px, 1fr))", gap: 12 }}>
             {tiposVisiveis.map(t => {
               const ativo = tipo === t.nome;
-              const qtd = contagemPorTipo[t.nome] || 0;
               return (
-                <button key={t.nome} className="tipo-card" onClick={() => setTipo(ativo ? "Todos" : t.nome)}
-                  style={{
-                    background: ativo ? "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)" : "var(--bg-card)",
-                    color: ativo ? "#fff" : "var(--text)",
-                    border: `1px solid ${ativo ? "var(--primary)" : "var(--border)"}`,
-                    borderRadius: 14, padding: "10px 6px", cursor: "pointer",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                    fontWeight: 600, boxShadow: ativo ? "0 6px 16px rgba(192,57,43,0.25)" : "var(--shadow)"
-                  }}>
-                  <span style={{ fontSize: 22 }}>{emojiTipo(t.nome)}</span>
-                  <span style={{ fontSize: 11.5, textAlign: "center", lineHeight: 1.15, marginTop: 2 }}>{t.nome}</span>
-                  <span style={{ fontSize: 10.5, opacity: ativo ? 0.85 : 0.65, fontWeight: 600 }}>{qtd} {qtd === 1 ? "imóvel" : "imóveis"}</span>
+                <button key={t.nome} className={"h-tipo " + (ativo ? "on" : "")} onClick={() => setTipo(ativo ? "Todos" : t.nome)}
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "18px 10px 14px", textAlign: "center", cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+                  <div style={{ fontSize: 30, lineHeight: 1, marginBottom: 10 }}>{emojiTipo(t.nome)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: ativo ? "var(--primary)" : "var(--text)", lineHeight: 1.25 }}>{t.nome}</div>
                 </button>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* LISTA */}
-      <div style={pageWrap(1100)} id="lista-imoveis">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, margin: "1.5rem 0 1.25rem" }}>
+      {/* LISTA DE IMÓVEIS */}
+      <div style={{ maxWidth: 1024, margin: "0 auto", padding: "56px 1.5rem 0" }} id="lista-imoveis">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 24 }}>
           <p style={{ fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
-            <b style={{ color: "var(--text)" }}>{filtered.length}</b> {filtered.length === 1 ? "imóvel encontrado" : "imóveis encontrados"}
+            <b style={{ color: "var(--text)", fontWeight: 600 }}>{filtered.length}</b> {filtered.length === 1 ? "imóvel encontrado" : "imóveis encontrados"}
             {transacao !== "Todos" ? ` · ${transacao === "Venda" ? "Comprar" : "Alugar"}` : ""}
             {tipo !== "Todos" ? ` · ${tipo}` : ""}
-            {(valorMin || valorMax) ? ` · R$ ${valorMin || 0} – ${valorMax || "∞"}` : ""}
           </p>
-          <select value={ordem} onChange={e => setOrdem(e.target.value)} style={{ padding: "10px 14px", borderRadius: 14, border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)", cursor: "pointer" }}>
+          <select value={ordem} onChange={e => setOrdem(e.target.value)}
+            style={{ padding: "10px 18px", borderRadius: 999, border: "1px solid var(--border)", fontSize: 14, background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontFamily: "inherit" }}>
             {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
 
         {(tipo !== "Todos" || transacao !== "Todos" || search || valorMin || valorMax) && (
           <button onClick={() => { setTipo("Todos"); setTransacao("Todos"); setSearch(""); setValorMin(""); setValorMax(""); }}
-            style={{ marginBottom: "1.25rem", padding: "7px 16px", borderRadius: 999, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✕ Limpar filtros</button>
+            style={{ marginBottom: 24, padding: "8px 16px", borderRadius: 999, border: "1px solid var(--border-soft)", background: "var(--bg-muted)", color: "var(--text-soft)", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>✕ Limpar filtros</button>
         )}
 
         {loading && <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Carregando...</div>}
@@ -317,28 +299,59 @@ export default function Home() {
           <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Nenhum imóvel encontrado com esses filtros.</div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
           {filtered.map((im, i) => (
             <div key={im.id} className="reveal" style={{ transitionDelay: `${Math.min((i % 6) * 70, 350)}ms` }}>
               <ImovelCard im={im} onClick={() => navigate(`/imovel/${im.id}`)} showStatus={false} actions={cardActions(im)} />
             </div>
           ))}
         </div>
-
-        <footer style={{ textAlign: "center", padding: "3rem 1rem 1.5rem", color: "var(--text-muted)", fontSize: 12, borderTop: "1px solid var(--border)", marginTop: "2rem" }}>
-          <p style={{ margin: "0 0 8px", fontWeight: 600, color: "var(--text-soft)", fontSize: 13 }}>{EMPRESA.nome}</p>
-          {EMPRESA.creci && <p style={{ margin: "0 0 4px" }}>{EMPRESA.creci}</p>}
-          {EMPRESA.endereco && <p style={{ margin: "0 0 4px" }}>📍 {EMPRESA.endereco}</p>}
-          {EMPRESA.telefone && <p style={{ margin: "0 0 4px" }}>📞 {EMPRESA.telefone}</p>}
-          <p style={{ margin: "0 0 4px" }}>{EMPRESA.email}{EMPRESA.instagram ? ` • ${EMPRESA.instagram}` : ""}</p>
-          <p style={{ margin: "8px 0 0", opacity: 0.7 }}>© {new Date().getFullYear()} {EMPRESA.nome}</p>
-        </footer>
       </div>
+
+      {/* BANNER captação */}
+      <div style={{ background: "var(--bg-section)", textAlign: "center", padding: "72px 1.5rem", marginTop: 72 }}>
+        <h2 style={{ fontSize: "clamp(26px, 4vw, 36px)", fontWeight: 600, letterSpacing: "-0.02em", marginBottom: 12, color: "var(--text)" }}>Quer anunciar seu imóvel?</h2>
+        <p style={{ color: "var(--text-soft)", fontSize: 17, maxWidth: 520, margin: "0 auto 26px" }}>A Inerente cuida de tudo: fotos, anúncios nos portais, divulgação e negociação.</p>
+        <a href={`https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent("Olá! Quero anunciar meu imóvel com a Inerente.")}`} target="_blank" rel="noreferrer"
+          style={{ display: "inline-block", background: "var(--primary)", color: "#fff", padding: "14px 34px", borderRadius: 999, fontSize: 15, fontWeight: 500, textDecoration: "none" }}>Falar com um corretor</a>
+      </div>
+
+      {/* RODAPÉ */}
+      <footer style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border)", padding: "48px 1.5rem 36px" }}>
+        <div style={{ maxWidth: 1024, margin: "0 auto" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "20px 56px", justifyContent: "center", marginBottom: 28, textAlign: "center" }}>
+            <div>
+              <h4 style={footColH}>Contato</h4>
+              {EMPRESA.telefone && <a href={`https://wa.me/${EMPRESA.whatsapp}`} target="_blank" rel="noreferrer" style={footLink}>{EMPRESA.telefone} · WhatsApp</a>}
+              {EMPRESA.email && <a href={`mailto:${EMPRESA.email}`} style={footLink}>{EMPRESA.email}</a>}
+              {EMPRESA.instagram && <a href={`https://instagram.com/${EMPRESA.instagram.replace("@", "")}`} target="_blank" rel="noreferrer" style={footLink}>{EMPRESA.instagram}</a>}
+            </div>
+            {EMPRESA.endereco && (
+              <div>
+                <h4 style={footColH}>Endereço</h4>
+                <p style={footLink}>📍 {EMPRESA.endereco}</p>
+              </div>
+            )}
+          </div>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 22, display: "flex", justifyContent: "center", alignItems: "center", gap: 14, flexWrap: "wrap", textAlign: "center" }}>
+            {EMPRESA.creci && <span style={{ fontSize: 13, fontWeight: 600, color: "var(--primary-dark)", background: "var(--bg-card)", border: "1px solid var(--primary-border)", padding: "6px 14px", borderRadius: 8 }}>{EMPRESA.creci}</span>}
+            <p style={{ fontSize: 11, color: "var(--text-muted)", margin: 0 }}>© {new Date().getFullYear()} {EMPRESA.nome}</p>
+          </div>
+        </div>
+      </footer>
+
+      {/* WHATSAPP FLUTUANTE */}
+      <a href={`https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent("Olá! Vi um imóvel no site e gostaria de mais informações.")}`} target="_blank" rel="noreferrer" className="wa-float" aria-label="Falar no WhatsApp">
+        <span style={{ fontSize: 22, lineHeight: 1 }}>💬</span>
+        <span className="wa-txt" style={{ fontSize: 14, fontWeight: 600 }}>Fale conosco no WhatsApp</span>
+      </a>
     </div>
   );
 }
 
-const heroSelectStyle = { flex: "1 1 160px", padding: "13px 14px", borderRadius: 14, border: "none", outline: "none", background: "var(--bg-muted)", fontSize: 14.5, color: "var(--text)", cursor: "pointer", fontWeight: 500 };
+const footColH = { fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 };
+const footLink = { display: "block", fontSize: 13, color: "var(--text-soft)", textDecoration: "none", marginBottom: 5, lineHeight: 1.5 };
+
 const waBtnStyle = { flex: 1, padding: "11px 0", fontSize: 13.5, borderRadius: 12, border: "none", background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)", color: "#fff", cursor: "pointer", fontWeight: 700, textAlign: "center", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 };
 const compartilharBtnStyle = { width: "100%", padding: "11px 0", fontSize: 13.5, borderRadius: 12, border: "none", background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)", color: "#fff", cursor: "pointer", fontWeight: 700 };
 const popItem = { display: "block", padding: "10px 14px", fontSize: 13.5, color: "var(--text)", textDecoration: "none", borderRadius: 10, cursor: "pointer" };
