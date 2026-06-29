@@ -234,7 +234,7 @@ export default function OndeAnunciado({ embutido = false }) {
           {PORTAIS_PULL.map((p) => {
             const t = tempoAtras(feedPulls[p.chave]);
             return (
-              <div key={p.chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: "1px solid var(--border-soft)", background: "var(--bg-card)" }}>
+              <div key={p.chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--bg-card)" }}>
                 <span style={{ width: 9, height: 9, borderRadius: "50%", background: t.cor, flexShrink: 0 }} />
                 <span style={{ fontSize: 12.5, color: "var(--text)" }}>
                   <strong>{p.nome}</strong>: <span style={{ color: t.cor }}>{t.txt === "sem leitura ainda" ? t.txt : "última leitura " + t.txt}</span>
@@ -276,7 +276,7 @@ export default function OndeAnunciado({ embutido = false }) {
       )}
 
       {/* Filtros */}
-      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: "1rem", flexWrap: "wrap", alignItems: "center", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 14 }}>
         <input
           type="text"
           value={busca}
@@ -305,7 +305,7 @@ export default function OndeAnunciado({ embutido = false }) {
       </div>
 
       {/* Tabela — coluna Imóvel enxuta + 7 canais abreviados, tudo numa tela */}
-      <div style={{ border: "1px solid var(--border-soft)", borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", background: "var(--bg-card)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, color: "var(--text)", tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "20%" }} />
@@ -690,7 +690,7 @@ function valorOrdenacao(im, col) {
 
 const th = { padding: "10px 8px", textAlign: "center", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff", fontSize: 12.5 };
 const thCanal = { padding: "10px 4px", textAlign: "center", fontSize: 11, whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 2, background: "var(--primary)", color: "#fff" };
-const selectStyle = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 13, background: "var(--bg-input)", color: "var(--text)" };
+const selectStyle = { padding: "9px 13px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 13.5, background: "var(--bg-card)", color: "var(--text)", outline: "none", fontFamily: "inherit", cursor: "pointer" };
 const inputFila = { padding: "9px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 14, background: "var(--bg-card)", color: "var(--text)", width: "100%", boxSizing: "border-box" };
 const tagStyle = (variant) => ({
   fontSize: 11,
