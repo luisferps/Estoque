@@ -65,7 +65,10 @@ function AdminHeader({ onLogout }) {
     <div style={{ position: "sticky", top: 0, zIndex: 100, background: "var(--bg-card)", borderBottom: "1px solid var(--border-soft)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
       <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 1rem" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", gap: 6 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: "var(--primary-dark)" }}>Inerente</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png" alt="Inerente" style={{ height: 26, width: "auto", display: "block" }} />
+            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--primary-dark)" }}>Inerente</span>
+          </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <DarkModeToggle />
             <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{ehDiretor ? "Diretor" : "Corretor"}</span>
