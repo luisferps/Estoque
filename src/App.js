@@ -57,7 +57,6 @@ function AdminHeader({ onLogout }) {
       { label: "📢 Anúncios", path: "/admin/anuncios" },
       { label: "🏠 Rotação", path: "/admin/rotacao" },
       { label: "⭐ Destaques", path: "/admin/destaques" },
-      { label: "👥 Corretores", path: "/admin/corretores" },
       { label: "📥 Importar", path: "/admin/importar" },
       { label: "🏷️ Tipos", path: "/admin/tipos" },
     ] : []),
