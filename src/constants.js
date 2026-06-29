@@ -9,6 +9,21 @@ export const STATUS_IMOVEL = ["Disponível", "Reservado", "Vendido", "Alugado", 
 // do site público e/ou dos feeds XML (Canal Pro, Chaves na Mão, Meta).
 export const VISIBILIDADE_IMOVEL = ["Site e portais", "Ocultar do site", "Ocultar dos portais", "Ocultar de tudo"];
 
+// ─── Canais por onde o imóvel foi vendido/alugado (origem do negócio) ───
+// Lista pré-definida por enquanto. No futuro, vira tela editável no menu Ajustes
+// (igual aos Tipos de imóvel).
+export const CANAIS_VENDA = [
+  "Canal Pro / ZAP / Viva Real",
+  "OLX",
+  "Chaves na Mão",
+  "Site Inerente",
+  "Indicação",
+  "Grupos de WhatsApp",
+  "Instagram / Redes sociais",
+  "Captação própria",
+  "Outro",
+];
+
 // ─── Canais de anúncio ───
 // Os canais marcados com ⚙ são integrados automaticamente via XML feed.
 // Os demais são marcação manual (para controle interno do que foi divulgado).
@@ -86,7 +101,7 @@ export const PDF_CAMPOS = [
 // ─── Formulário vazio ───
 export const emptyForm = {
   id: null, titulo: "", tipo: "Casa", transacao: "Venda", estadoImovel: "Imóvel Novo",
-  status: "Aguardando finalização", visibilidade: "Site e portais", foraRodizio: false,
+  status: "Aguardando finalização", visibilidade: "Site e portais", foraRodizio: false, canalVenda: "",
   preco: "", descricao: "", extras: "", mapsLink: "",
   cep: "", cidade: "", bairro: "", endereco: "", estado: "", asfalto: false, agua: false, esgoto: false,
   latitude: "", longitude: "",
