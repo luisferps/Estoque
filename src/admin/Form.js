@@ -12,6 +12,7 @@ import {
 } from "../shared/utils";
 import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
 import FotosGrid from "../shared/FotosGrid";
+import MapaPino from "../shared/MapaPino";
 import PreviaQualidade from "./PreviaQualidade";
 
 const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
@@ -587,51 +588,26 @@ export default function Form() {
           {form.mapsLink && <a href={form.mapsLink} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none" }}>Verificar link {"→"}</a>}
         </div>
 
-        {/* Coordenada manual — corrige o pino do mapa sem mexer no endereço */}
+        {/* Mapa interativo — arraste o pino para marcar o local exato */}
         <div style={{ marginBottom: "1rem", padding: "12px 14px", background: form.coordManual ? "var(--primary-light)" : "var(--bg-muted)", borderRadius: 10, border: `1px solid ${form.coordManual ? "var(--primary)" : "var(--border-soft)"}` }}>
-          <label style={labelStyle}>📍 Coordenada do mapa (latitude, longitude)</label>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <input
-              value={form.latitude && form.longitude ? `${form.latitude}, ${form.longitude}` : ""}
-              onChange={e => {
-                const partes = e.target.value.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-                if (partes.length >= 2) {
-                  const la = parseFloat(partes[0].replace(",", "."));
-                  const lo = parseFloat(partes[1].replace(",", "."));
-                  if (!isNaN(la) && !isNaN(lo)) {
-                    setForm(p => ({ ...p, latitude: String(la), longitude: String(lo), coordManual: true }));
-                    return;
-                  }
-                }
-                if (!e.target.value.trim()) {
-                  setForm(p => ({ ...p, latitude: "", longitude: "", coordManual: false }));
-                }
-              }}
-              placeholder="Ex: -16.6869, -49.2648"
-              style={{ ...inputBase, flex: "1 1 240px", margin: 0 }}
-            />
-            {form.latitude && form.longitude && (
-              <a href={`https://www.google.com/maps?q=${form.latitude},${form.longitude}`} target="_blank" rel="noreferrer"
-                style={{ fontSize: 13, color: "var(--primary)", textDecoration: "none", whiteSpace: "nowrap" }}>
-                Ver no mapa →
-              </a>
-            )}
-          </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 8, cursor: "pointer", color: "var(--text-soft)" }}>
+          <label style={labelStyle}>📍 Localização no mapa</label>
+          <MapaPino
+            latitude={form.latitude}
+            longitude={form.longitude}
+            onChange={(lat, lon) => setForm(p => ({ ...p, latitude: String(lat), longitude: String(lon), coordManual: true }))}
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 10, cursor: "pointer", color: "var(--text-soft)" }}>
             <input type="checkbox" checked={!!form.coordManual}
               onChange={e => setForm(p => ({ ...p, coordManual: e.target.checked }))}
               style={{ width: 14, height: 14, accentColor: "var(--primary)" }} />
             Coordenada ajustada à mão (trava o geocoder — não recalcula ao salvar)
           </label>
-          <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
-            Se o pino aparecer no lugar errado: abra o Google Maps, clique com o botão direito no local certo, copie os números (latitude, longitude) e cole aqui. Isso corrige o mapa no site e nos portais (Canal Pro / Chaves na Mão) sem mexer no endereço.
-          </p>
         </div>
-        {(isLote || isRural) && <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>{tog("Asfalto", "asfalto")}{tog("Água", "agua")}{tog("Esgoto", "esgoto")}</div>}
       </>)}
 
       {(isLote || isRural) && section("Detalhes do terreno", <>
         {sel("Declive", "declive", ["Plano", "Lateral", "Fundo", "Frente"])}
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>{tog("Asfalto", "asfalto")}{tog("Água", "agua")}{tog("Esgoto", "esgoto")}</div>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 8 }}>{tog("Muro", "muro")}{tog("Esquina", "esquina")}{tog("Retangular", "retangular")}</div>
         {form.retangular
           ? <div style={grid2}>{inp("Frente (m)", "frente", { type: "number" })}{inp("Laterais (m)", "laterais", { type: "number" })}</div>
