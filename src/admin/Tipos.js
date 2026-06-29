@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { addDoc, collection, deleteDoc, doc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { useTipos } from "../shared/hooks";
-import { pageWrap, btnPrimary } from "../shared/styles";
+import { btnPrimary } from "../shared/styles";
+import { LOGO_URL } from "../constants";
 
 const EMOJIS = ["🏠","🏢","📐","🌳","🏭","🏘️","🏡","🏬","🏗️","🌆","🏞️","🏖️","🚜","🏚️","🛖","🏟️","🏨","🏪","🌅","🗺️"];
 const COMPORTAMENTOS = [
@@ -70,10 +71,23 @@ export default function Tipos() {
   };
 
   return (
-    <div style={pageWrap(680)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
-        <button onClick={() => navigate("/admin")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 }}>← Voltar</button>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Tipos de imóvel</h2>
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      <style>{`
+        .tp-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+        .tp-nav-inner { max-width: 680px; margin: 0 auto; height: 54px; padding: 0 20px; display: flex; align-items: center; gap: 14px; }
+      `}</style>
+      <nav className="tp-nav">
+        <div className="tp-nav-inner">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => navigate("/admin")}>
+            <img src={LOGO_URL} alt="Inerente" style={{ height: 24 }} />
+            <b style={{ fontSize: 16, fontWeight: 600, color: "var(--primary-dark)" }}>Inerente</b>
+          </div>
+        </div>
+      </nav>
+      <div style={{ maxWidth: 680, margin: "0 auto", padding: "22px 20px 60px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.25rem" }}>
+        <button onClick={() => navigate("/admin")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 14, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 }}>← Voltar</button>
+        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", flex: 1, color: "var(--text)" }}>Tipos de imóvel</h2>
       </div>
 
       {!doBanco && (
@@ -82,7 +96,7 @@ export default function Tipos() {
         </div>
       )}
 
-      <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: "1rem", marginBottom: "1.5rem" }}>
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "18px 20px", marginBottom: "1.5rem" }}>
         <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "var(--text)" }}>➕ Adicionar tipo</p>
         <div style={{ marginBottom: 10 }}>
           <label style={lbl}>Nome do tipo</label>
@@ -110,7 +124,7 @@ export default function Tipos() {
       <p style={{ fontWeight: 500, fontSize: 14, color: "var(--text)", marginBottom: 10 }}>Tipos atuais ({tipos.length})</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {[...tipos].sort((a, b) => (a.nome || "").localeCompare(b.nome || "", "pt-BR")).map((t, i) => (
-          <div key={t.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10 }}>
+          <div key={t.id || i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12 }}>
             <span style={{ fontSize: 26 }}>{t.icone || "🏘️"}</span>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontWeight: 500, color: "var(--text)" }}>{t.nome}</p>
@@ -128,9 +142,10 @@ export default function Tipos() {
           Criar os 5 tipos padrão no banco (pra poder editar)
         </button>
       )}
+      </div>
     </div>
   );
 }
 
-const lbl = { display: "block", fontSize: 13, color: "var(--text-soft)", marginBottom: 4 };
-const inp = { width: "100%", padding: "10px 12px", borderRadius: 8, boxSizing: "border-box", border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)" };
+const lbl = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-soft)", marginBottom: 5 };
+const inp = { width: "100%", padding: "10px 12px", borderRadius: 10, boxSizing: "border-box", border: "1px solid var(--border)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)", outline: "none", fontFamily: "inherit" };
