@@ -391,6 +391,7 @@ export default function ImovelPublico() {
             : [im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ");
           // t=k força a camada de SATÉLITE (não Street View / mapa normal).
           const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=17&t=k&output=embed`;
+          const linkMapa = linkLocalizacao(im); // link pino+satélite (escopo local do IIFE)
           return section("Localização", (
             <div>
               {(im.endereco || im.bairro || im.cidade) && (
@@ -411,8 +412,8 @@ export default function ImovelPublico() {
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
-              {mapsLink && (
-                <a href={mapsLink} target="_blank" rel="noreferrer" style={{
+              {linkMapa && (
+                <a href={linkMapa} target="_blank" rel="noreferrer" style={{
                   display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
                   padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)",
                   borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 700
