@@ -26,4 +26,19 @@ function getDb() {
   return admin.firestore();
 }
 
-module.exports = { getDb };
+// Registra a hora em que um portal puxou o feed (last-pull por canal).
+// Grava em configuracoes/feedPulls -> { canalpro: ISO, chavesnamao: ISO, meta: ISO }.
+// Best-effort: nunca derruba o feed se falhar.
+async function registrarPull(canal) {
+  try {
+    const db = getDb();
+    await db.collection("configuracoes").doc("feedPulls").set(
+      { [canal]: new Date().toISOString() },
+      { merge: true }
+    );
+  } catch (e) {
+    console.error("registrarPull falhou:", e.message);
+  }
+}
+
+module.exports = { getDb, registrarPull };
