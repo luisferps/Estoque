@@ -50,9 +50,9 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
-  // Localização em SATÉLITE (não Street View). Aparece se houver coordenada ou mapsLink salvo.
+  // Localização PINO + SATÉLITE: /place/ põe o pino, data=!3m1!1e3 força satélite.
   const mapsLink = (im.latitude && im.longitude)
-    ? `https://www.google.com/maps/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
+    ? `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
     : (im.mapsLink || null);
   return (
     <>
