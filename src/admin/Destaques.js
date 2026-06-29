@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis } from "../shared/hooks";
+import { statusDoImovel } from "../shared/utils";
 import { btnOutline, btnPrimary, inputBase, pageWrap, sectionBox } from "../shared/styles";
 
 // Backend Railway (mesmo usado pelo CRM / WA Scheduler)
@@ -23,6 +24,11 @@ const COR_NIVEL = {
   SUPER_PREMIUM: { bg: "#f5f3ff", fg: "#7c3aed" },
   TRIPLE: { bg: "#fff7ed", fg: "#c2410c" },
 };
+
+// Hierarquia de níveis (do mais alto pro mais baixo) — usada pra rebaixar.
+const NIVEL_ABAIXO = { TRIPLE: "SUPER_PREMIUM", SUPER_PREMIUM: "PREMIUM", PREMIUM: "" };
+// Status que NÃO deveriam ocupar uma vaga de destaque paga.
+const STATUS_NAO_VENDAVEL = ["vendido", "reservado"];
 
 function fmtData(iso) {
   if (!iso) return "—";
@@ -47,6 +53,7 @@ export default function Destaques({ onLogout }) {
   const { imoveis, loading } = useImoveis();
 
   const [busca, setBusca] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [cota, setCota] = useState({ premium: 0, superPremium: 0, triple: 0, intervaloDias: 3 });
   const [cotaSalva, setCotaSalva] = useState({ premium: 0, superPremium: 0, triple: 0, intervaloDias: 3 });
   const [carregandoCota, setCarregandoCota] = useState(true);
@@ -145,9 +152,62 @@ export default function Destaques({ onLogout }) {
     return { premium, superPremium, triple };
   }, [noCanalPro]);
 
+  // ── Alertas de vaga (dinheiro/configuração) ──────────────────────────────
+  // 1) Vaga DESPERDIÇADA: imóvel destacado mas Vendido/Reservado (paga vaga à toa)
+  const vagasDesperdicadas = useMemo(() => {
+    return noCanalPro.filter((im) => {
+      const nivel = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
+      if (nivel === "STANDARD") return false;
+      const st = statusDoImovel(im).toLowerCase();
+      return STATUS_NAO_VENDAVEL.some((s) => st.includes(s));
+    });
+  }, [noCanalPro]);
+
+  // 2) Vaga VAZIA: cota paga maior que o uso atual (sobra vaga comprada)
+  const vagasVazias = useMemo(() => {
+    const itens = [];
+    const livresP = (Number(cota.premium) || 0) - usados.premium;
+    const livresSP = (Number(cota.superPremium) || 0) - usados.superPremium;
+    const livresT = (Number(cota.triple) || 0) - usados.triple;
+    if (livresP > 0) itens.push({ nivel: "Destaque", n: livresP });
+    if (livresSP > 0) itens.push({ nivel: "Super Destaque", n: livresSP });
+    if (livresT > 0) itens.push({ nivel: "Destaque Triplo", n: livresT });
+    return itens;
+  }, [cota, usados]);
+
+  // 3) Vaga ESTOURADA: imóvel FIXADO num nível acima da cota atual (cota encolheu)
+  const vagasEstouradas = useMemo(() => {
+    const out = [];
+    const niveis = [
+      { key: "TRIPLE", rotulo: "Destaque Triplo", cota: Number(cota.triple) || 0 },
+      { key: "SUPER_PREMIUM", rotulo: "Super Destaque", cota: Number(cota.superPremium) || 0 },
+      { key: "PREMIUM", rotulo: "Destaque", cota: Number(cota.premium) || 0 },
+    ];
+    niveis.forEach(({ key, rotulo, cota: ct }) => {
+      const fixadosNoNivel = noCanalPro.filter(
+        (im) => String(im.destaqueFixo || "").toUpperCase() === key
+      );
+      const excedente = fixadosNoNivel.length - ct;
+      if (excedente > 0) {
+        // Os "últimos" fixados são os excedentes (ordem por última vez em destaque)
+        const ordenados = fixadosNoNivel.slice().sort((a, b) => {
+          const da = new Date(a.ultimoDestaque || 0).getTime();
+          const db = new Date(b.ultimoDestaque || 0).getTime();
+          return db - da;
+        });
+        out.push({ key, rotulo, cota: ct, fixados: fixadosNoNivel.length, excedente, imoveis: ordenados });
+      }
+    });
+    return out;
+  }, [noCanalPro, cota]);
+
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    const base = noCanalPro;
+    const base = filtroEstado === "todos" ? noCanalPro
+      : filtroEstado === "destacados" ? noCanalPro.filter((im) => String(im.destaqueCanalPro || "STANDARD").toUpperCase() !== "STANDARD")
+      : filtroEstado === "fixados" ? noCanalPro.filter((im) => ["PREMIUM","SUPER_PREMIUM","TRIPLE"].includes(String(im.destaqueFixo || "").toUpperCase()))
+      : filtroEstado === "nunca" ? noCanalPro.filter((im) => !(im.ultimoDestaque || filaPorId.get(im.id)?.ultimoDestaque))
+      : noCanalPro;
     const arr = !t
       ? base
       : base.filter((im) =>
@@ -232,6 +292,14 @@ export default function Destaques({ onLogout }) {
     }
   };
 
+  // Rebaixa um imóvel fixado pro nível imediatamente abaixo (Triplo→Super→Destaque→Sem).
+  const rebaixar = async (id, nivelAtual) => {
+    const abaixo = NIVEL_ABAIXO[String(nivelAtual || "").toUpperCase()] ?? "";
+    const rotulo = abaixo ? (ROTULO_NIVEL[abaixo] || abaixo) : "Sem destaque (volta ao rodízio)";
+    if (!window.confirm(`Rebaixar este imóvel para "${rotulo}"?`)) return;
+    await fixar(id, abaixo);
+  };
+
   const cotaMudou = cota.premium !== cotaSalva.premium || cota.superPremium !== cotaSalva.superPremium || cota.triple !== cotaSalva.triple || cota.intervaloDias !== cotaSalva.intervaloDias;
 
   // Calcula a próxima rotação prevista (última + intervalo de dias)
@@ -263,6 +331,89 @@ export default function Destaques({ onLogout }) {
         destacado agora, quando cada imóvel foi destaque e a posição dele na fila. O portal relê o feed a
         cada 12h, então mudanças levam algumas horas pra aparecer no ZAP/Viva/OLX.
       </p>
+
+      {/* ── ALERTAS DE VAGA ───────────────────────────────────────────── */}
+      {/* Vaga estourada: imóvel fixado acima da cota atual */}
+      {vagasEstouradas.length > 0 && (
+        <div style={{ background: "#fef2f2", border: "1px solid #dc2626", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, color: "#991b1b", marginBottom: 8, fontSize: 14 }}>
+            ⚠️ Imóveis fixados acima da cota
+          </div>
+          <div style={{ fontSize: 12.5, color: "#7f1d1d", marginBottom: 10, lineHeight: 1.5 }}>
+            Sua cota mudou e alguns imóveis fixados não cabem mais no nível em que estão. Rebaixe-os para não ficar com configuração inválida.
+          </div>
+          {vagasEstouradas.map((v) => (
+            <div key={v.key} style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: "#991b1b", marginBottom: 6 }}>
+                {v.rotulo}: {v.fixados} fixado(s), cota {v.cota} → {v.excedente} excedente(s)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {v.imoveis.slice(0, v.excedente).map((im) => (
+                  <div key={im.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 8, padding: "7px 10px", flexWrap: "wrap" }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {im.titulo || im.bairro || im.id}
+                      {im.codigo ? ` · cód. ${im.codigo}` : ""}
+                    </span>
+                    <button onClick={() => rebaixar(im.id, v.key)}
+                      style={{ fontSize: 12, padding: "5px 12px", borderRadius: 7, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      Rebaixar para {NIVEL_ABAIXO[v.key] ? (ROTULO_NIVEL[NIVEL_ABAIXO[v.key]]) : "Sem destaque"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Vaga desperdiçada: imóvel vendido/reservado ainda destacado */}
+      {vagasDesperdicadas.length > 0 && (
+        <div style={{ background: "#fff7ed", border: "1px solid #ea580c", borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, color: "#9a3412", marginBottom: 8, fontSize: 14 }}>
+            💸 Vaga de destaque desperdiçada
+          </div>
+          <div style={{ fontSize: 12.5, color: "#7c2d12", marginBottom: 10, lineHeight: 1.5 }}>
+            {vagasDesperdicadas.length} imóvel(is) já vendido(s)/reservado(s) ainda ocupam uma vaga paga. Tire o destaque para liberar a vaga para outro imóvel.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {vagasDesperdicadas.map((im) => {
+              const nivel = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
+              const ehFixo = ["PREMIUM","SUPER_PREMIUM","TRIPLE"].includes(String(im.destaqueFixo || "").toUpperCase());
+              return (
+                <div key={im.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 8, padding: "7px 10px", flexWrap: "wrap" }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--text)" }}>
+                    {im.titulo || im.bairro || im.id}
+                    <span style={{ color: "#ea580c", fontWeight: 600 }}> · {statusDoImovel(im)}</span>
+                    <span style={{ color: "var(--text-muted)" }}> · {ROTULO_NIVEL[nivel] || nivel}</span>
+                  </span>
+                  {ehFixo && (
+                    <button onClick={() => fixar(im.id, "")}
+                      style={{ fontSize: 12, padding: "5px 12px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontWeight: 600 }}>
+                      Desfixar
+                    </button>
+                  )}
+                  <button onClick={() => navigate(`/admin/editar/${im.id}`)}
+                    style={{ fontSize: 12, padding: "5px 12px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>
+                    Ver ficha
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Vaga vazia: cota paga sobrando */}
+      {vagasVazias.length > 0 && (
+        <div style={{ background: "#eff6ff", border: "1px solid #2563eb", borderRadius: 12, padding: "12px 16px", marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, color: "#1e40af", marginBottom: 4, fontSize: 14 }}>
+            🎯 Vagas de destaque livres
+          </div>
+          <div style={{ fontSize: 12.5, color: "#1e3a8a", lineHeight: 1.5 }}>
+            Você tem vagas pagas sem uso: {vagasVazias.map((v) => `${v.n} ${v.nivel}`).join(", ")}. Fixe mais imóveis para aproveitar o que já contratou.
+          </div>
+        </div>
+      )}
 
       {/* Status da rotação */}
       <div style={sectionBox}>
@@ -302,10 +453,6 @@ export default function Destaques({ onLogout }) {
             <CampoCota rotulo="Destaques" valor={cota.premium} onChange={(v) => setCota((c) => ({ ...c, premium: v }))} usado={usados.premium} />
             <CampoCota rotulo="Super Destaques" valor={cota.superPremium} onChange={(v) => setCota((c) => ({ ...c, superPremium: v }))} usado={usados.superPremium} />
             <CampoCota rotulo="Destaques Triplos" valor={cota.triple} onChange={(v) => setCota((c) => ({ ...c, triple: v }))} usado={usados.triple} />
-            <button onClick={salvarCota} disabled={!cotaMudou || salvandoCota}
-              style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}>
-              {salvandoCota ? "Salvando…" : "Salvar"}
-            </button>
           </div>
         )}
       </div>
@@ -337,7 +484,7 @@ export default function Destaques({ onLogout }) {
           </div>
           <button onClick={salvarCota} disabled={!cotaMudou || salvandoCota}
             style={{ ...btnPrimary, opacity: !cotaMudou || salvandoCota ? 0.5 : 1, cursor: !cotaMudou || salvandoCota ? "default" : "pointer" }}>
-            {salvandoCota ? "Salvando…" : "Salvar"}
+            {salvandoCota ? "Salvando…" : "Salvar cota e frequência"}
           </button>
         </div>
       </div>
@@ -388,13 +535,22 @@ export default function Destaques({ onLogout }) {
         </div>
       )}
 
-      {/* Busca */}
-      <input
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        placeholder="Buscar por título, bairro, cidade, tipo ou código…"
-        style={{ ...inputBase, marginBottom: 12 }}
-      />
+      {/* Filtro de estado + Busca */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <select value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}
+          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", fontSize: 13 }}>
+          <option value="todos">Todos os imóveis</option>
+          <option value="destacados">Só destacados agora</option>
+          <option value="fixados">Só fixados</option>
+          <option value="nunca">Nunca foram destaque</option>
+        </select>
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por título, bairro, cidade, tipo ou código…"
+          style={{ ...inputBase, flex: "1 1 220px", marginBottom: 0 }}
+        />
+      </div>
 
       {loading ? (
         <div style={{ fontSize: 14, color: "var(--text-soft)" }}>Carregando imóveis…</div>
@@ -409,7 +565,7 @@ export default function Destaques({ onLogout }) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {filtrados.map((im) => (
-              <LinhaImovel key={im.id} im={im} info={filaPorId.get(im.id)} onFixar={fixar} />
+              <LinhaImovel key={im.id} im={im} info={filaPorId.get(im.id)} onFixar={fixar} navigate={navigate} />
             ))}
           </div>
         </>
@@ -439,7 +595,7 @@ function CampoCota({ rotulo, valor, onChange, usado }) {
   );
 }
 
-function LinhaImovel({ im, info, onFixar }) {
+function LinhaImovel({ im, info, onFixar, navigate }) {
   const [salvando, setSalvando] = useState(false);
   const nivelAtual = String(im.destaqueCanalPro || "STANDARD").toUpperCase();
   const fixo = String(im.destaqueFixo || (info && info.fixo) || "").toUpperCase();
@@ -468,6 +624,10 @@ function LinhaImovel({ im, info, onFixar }) {
         <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>
           Última vez em destaque: <strong>{fmtDataCurta(ultimo)}</strong>
         </div>
+        <button onClick={() => navigate(`/admin/editar/${im.id}`)}
+          style={{ marginTop: 5, fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>
+          Ver ficha
+        </button>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 150 }}>
