@@ -80,7 +80,16 @@ export default async (request, context) => {
     }
     descricao = descricao.trim() || "Imóvel disponível em nosso estoque.";
 
-    const imagem = fotos[0] || "";
+    // Otimiza a 1ª foto pro tamanho ideal de preview (1200x630). Fotos cruas do
+    // Cloudinary às vezes são grandes demais e o WhatsApp não baixa a tempo → preview sem imagem.
+    function imagemPreview(url) {
+      if (!url) return "";
+      if (url.includes("res.cloudinary.com") && url.includes("/upload/")) {
+        return url.replace("/upload/", "/upload/w_1200,h_630,c_fill,f_jpg,q_auto/");
+      }
+      return url;
+    }
+    const imagem = imagemPreview(fotos[0] || "");
     const urlAtual = request.url;
 
     // ── JSON-LD schema.org (RealEstateListing): dá pro Google preço, quartos, área e local ──
