@@ -33,11 +33,11 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
-  // Link de localização para compartilhar: abre em visão de SATÉLITE (não Street View).
-  // Com coordenada → link de satélite (data=!3m1!1e3). Sem coordenada → mapsLink salvo.
+  // Link de localização PINO + SATÉLITE: /place/ marca o pino, data=!3m1!1e3 = satélite.
+  // Com coordenada → link com pino+satélite. Sem coordenada → mapsLink salvo.
   const temCoord = im.latitude && im.longitude;
   const mapsLink = temCoord
-    ? `https://www.google.com/maps/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
+    ? `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
     : (im.mapsLink || null);
   return (
     <>
@@ -393,7 +393,8 @@ export default function ImovelPublico() {
           const consulta = (im.latitude && im.longitude)
             ? `${im.latitude},${im.longitude}`
             : [im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ");
-          const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=15&output=embed`;
+          // t=k força a camada de SATÉLITE (não Street View / mapa normal).
+          const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=17&t=k&output=embed`;
           return section("Localização", (
             <div>
               {(im.endereco || im.bairro || im.cidade) && (
