@@ -5,9 +5,7 @@ import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF } from "../shared/utils";
-import { PDF_CAMPOS } from "../constants";
-import ImovelCard from "../shared/ImovelCard";
-import Filtros from "../shared/Filtros";
+import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
 export default function Lista({ onLogout }) {
   const navigate = useNavigate();
@@ -23,7 +21,6 @@ export default function Lista({ onLogout }) {
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
-  const [estado, setEstado] = useState("Todos");
   const [cidade, setCidade] = useState("Todas");
   const [bairro, setBairro] = useState("Todos");
   const [status, setStatus] = useState("Todos");
@@ -60,7 +57,6 @@ export default function Lista({ onLogout }) {
       (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
       && matchTransacao(im, transacao)
-      && (estado === "Todos" || im.estadoImovel === estado)
       && (cidade === "Todas" || im.cidade === cidade)
       && (bairro === "Todos" || im.bairro === bairro)
       && (status === "Todos" || statusDoImovel(im) === status)
@@ -71,7 +67,7 @@ export default function Lista({ onLogout }) {
           || (user && im.captadorUid && im.captadorUid === user.uid))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, estado, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user]);
+  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
@@ -158,90 +154,179 @@ export default function Lista({ onLogout }) {
     alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
   };
 
+
+  const badgeStatus = (im) => {
+    const s = statusDoImovel(im);
+    if (s === "Disponível") return { txt: "Disponível", bg: "rgba(37,136,79,0.92)" };
+    if (s === "Reservado") return { txt: "Reservado", bg: "rgba(37,99,235,0.92)" };
+    if (s === "Vendido") return { txt: "Vendido", bg: "rgba(120,120,128,0.92)" };
+    if (s === "Alugado") return { txt: "Alugado", bg: "rgba(120,120,128,0.92)" };
+    if (im.status === "Aguardando finalização") return { txt: "Aguardando", bg: "rgba(217,119,6,0.92)" };
+    return { txt: s, bg: "rgba(120,120,128,0.92)" };
+  };
+
+  const cardDe = (im) => {
+    const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
+    const local = [im.bairro, im.cidade].filter(Boolean).join(", ");
+    const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
+    const titulo = tituloRaw || (im.tipo ? (im.bairro ? `${im.tipo} em ${im.bairro}` : im.tipo) : "Imóvel");
+    const c = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+    const m2 = c ? `${c.toLocaleString("pt-BR")}m²` : "";
+    const q = parseInt(im.quartos) || 0;
+    const su = parseInt(im.suites) || 0;
+    const va = parseInt(im.garagens) || 0;
+    const foto = im.fotos?.[0];
+    const fotoThumb = (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
+      ? foto.replace("/upload/", "/upload/w_500,h_300,c_fill,f_auto,q_auto/") : foto;
+    const ehLoc = im.transacao === "Locação";
+    const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
+    const bs = badgeStatus(im);
+    const podeEditar = ehDiretor || souDonoDe(im);
+
+    return (
+      <div className="al-card" key={im.id}>
+        <div className="al-card-img" onClick={() => navigate(`/admin/imovel/${im.id}`)}>
+          {fotoThumb
+            ? <img src={fotoThumb} alt="" loading="lazy" />
+            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.35 }}>🏠</div>}
+          <span className="al-badge" style={{ background: bs.bg }}>{bs.txt}</span>
+          {codigo && <span className="al-cod">{codigo}</span>}
+        </div>
+        <div className="al-card-body" onClick={() => navigate(`/admin/imovel/${im.id}`)}>
+          <div className="al-loc">{local || "—"}</div>
+          <div className="al-title">{titulo}</div>
+          <div className="al-specs">
+            {q > 0 && <span>🛏 {q}</span>}
+            {su > 0 && <span>🚿 {su}</span>}
+            {va > 0 && <span>🚗 {va}</span>}
+            {m2 && <span>📐 {m2}</span>}
+          </div>
+          <div className="al-price">
+            {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
+          </div>
+        </div>
+        <div className="al-actions">
+          <button className="al-mini al-ficha" onClick={() => navigate(`/admin/imovel/${im.id}`)}>Ficha</button>
+          <button className="al-mini" onClick={() => verNoSite(im)} title="Ver no site">🌐</button>
+          <button className="al-mini" onClick={() => copiarDescricao(im)} title="Copiar descrição"
+            style={copiadoId === im.id ? { background: "#25884f", color: "#fff", borderColor: "#25884f" } : null}>{copiadoId === im.id ? "✓" : "📝"}</button>
+          {podeEditar && <>
+            <button className="al-mini" onClick={() => navigate(`/admin/editar/${im.id}`)} title="Editar">✏️</button>
+            <button className="al-mini al-del" onClick={() => del(im.id)} title="Excluir">🗑️</button>
+          </>}
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
+    <div className="admin-lista">
+      <style>{`
+        .admin-lista { max-width: 1200px; margin: 0 auto; padding: 22px 20px 60px; }
+        .admin-lista * { box-sizing: border-box; }
+        .al-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .al-toolbar h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin: 0 auto 0 0; color: var(--text); }
+        .al-btn-soft { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 16px; font-size: 13.5px; color: var(--text); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+        .al-btn-soft:hover { border-color: var(--primary-border); }
+        .al-btn-soft:disabled { opacity: 0.5; cursor: default; }
+        .al-aviso { background: #fff8e1; border: 1px solid #f0d98c; color: #8a6d3b; border-radius: 12px; padding: 11px 16px; font-size: 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .al-aviso button { margin-left: auto; background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .al-aviso button:disabled { opacity: 0.6; cursor: default; }
+        .al-filtros { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin-bottom: 16px; }
+        .al-filtros-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .al-search { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--bg-muted); border-radius: 10px; padding: 9px 14px; }
+        .al-search input { border: none; outline: none; background: transparent; font-size: 14px; width: 100%; color: var(--text); }
+        .al-sel { border: 1px solid var(--border); background: var(--bg-card); border-radius: 10px; padding: 9px 13px; font-size: 13.5px; color: var(--text); cursor: pointer; font-family: inherit; outline: none; }
+        .al-price { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .al-price input { width: 120px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border); font-size: 13.5px; background: var(--bg-input); color: var(--text); outline: none; }
+        .al-price input:focus, .al-search input:focus { outline: none; }
+        .al-price span { color: var(--text-muted); font-size: 13px; }
+        .al-clearprice { font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; }
+        .al-count { font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px; }
+        .al-count b { color: var(--text); font-weight: 600; }
+        .al-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+        .al-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow .25s, transform .25s; }
+        .al-card:hover { box-shadow: 0 10px 26px rgba(0,0,0,0.08); transform: translateY(-3px); }
+        .al-card-img { position: relative; height: 150px; background: var(--bg-muted); overflow: hidden; cursor: pointer; }
+        .al-card-img img { width: 100%; height: 100%; object-fit: cover; }
+        .al-badge { position: absolute; top: 10px; left: 10px; font-size: 10.5px; font-weight: 600; padding: 4px 10px; border-radius: 980px; backdrop-filter: blur(6px); color: #fff; }
+        .al-cod { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.92); backdrop-filter: blur(6px); color: var(--primary-dark); font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 980px; }
+        .al-card-body { padding: 12px 14px 14px; cursor: pointer; }
+        .al-loc { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+        .al-title { font-size: 14.5px; font-weight: 600; line-height: 1.3; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 38px; }
+        .al-specs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; min-height: 18px; }
+        .al-specs span { font-size: 12px; color: var(--text-soft); }
+        .al-price-tag { }
+        .al-price { }
+        .al-card-body .al-price { font-size: 16px; font-weight: 700; color: var(--primary-dark); display: block; }
+        .al-card-body .al-price small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+        .al-actions { display: flex; gap: 5px; padding: 0 12px 12px; }
+        .al-mini { flex: 1; padding: 6px 4px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-muted); color: var(--text); cursor: pointer; transition: all .15s; }
+        .al-mini:hover { background: var(--primary-light); border-color: var(--primary-border); }
+        .al-ficha { flex: 1.6; font-weight: 600; }
+        .al-empty { text-align: center; color: var(--text-muted); padding: 4rem 0; }
+      `}</style>
+
       {showPDF && <PDFModal imoveis={filtered} pdfCampos={pdfCampos} setPdfCampos={setPdfCampos} onClose={() => setShowPDF(false)} />}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "var(--primary-dark)", flex: 1 }}>
-          Imóveis ({filtered.length})
-        </h2>
-        {filtered.length > 0 && (
-          <button onClick={() => setShowPDF(true)} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 600 }}>
-            Gerar PDF ({filtered.length})
-          </button>
-        )}
+
+      <div className="al-toolbar">
+        <h2>Imóveis</h2>
+        {filtered.length > 0 && <button className="al-btn-soft" onClick={() => setShowPDF(true)}>📄 Gerar PDF ({filtered.length})</button>}
+        <button className="al-btn-soft" onClick={() => navigate("/admin/novo")} style={{ background: "var(--primary)", color: "#fff", border: "none", fontWeight: 600 }}>+ Novo imóvel</button>
       </div>
 
-      {/* Migração de códigos faltantes — aparece só se houver imóveis sem código */}
       {semCodigo > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", background: "var(--bg-section)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "10px 14px", marginBottom: "1rem" }}>
-          <span style={{ fontSize: 13, color: "var(--text-soft)" }}>
-            🏷️ {semCodigo} imóvel(is) sem código. Gere os códigos pelo bairro de uma vez.
-          </span>
-          <button onClick={gerarCodigosFaltantes} disabled={migrando}
-            style={{ fontSize: 13, padding: "7px 16px", borderRadius: 8, border: "1px solid var(--primary)", background: migrando ? "var(--bg-muted)" : "var(--primary-light)", color: "var(--primary-dark)", cursor: migrando ? "default" : "pointer", fontWeight: 600 }}>
-            {migrando ? "Gerando..." : "Gerar códigos faltantes"}
-          </button>
+        <div className="al-aviso">
+          🏷️ <b>{semCodigo} imóvel(is)</b> sem código. Gere os códigos pelo bairro de uma vez.
+          <button onClick={gerarCodigosFaltantes} disabled={migrando}>{migrando ? "Gerando..." : "Gerar códigos"}</button>
         </div>
       )}
 
-      <Filtros
-        search={search} setSearch={setSearch}
-        tipo={tipo} setTipo={setTipo}
-        transacao={transacao} setTransacao={setTransacao}
-        estado={estado} setEstado={setEstado}
-        cidade={cidade} setCidade={setCidade}
-        bairro={bairro} setBairro={setBairro}
-        status={status} setStatus={setStatus}
-        ordem={ordem} setOrdem={setOrdem}
-        cidades={cidades}
-        bairros={bairros}
-        tipos={tipos}
-        showStatus={true}
-        showBairro={true}
-      />
-
-      {/* Faixa de preço (venda ou aluguel) */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "0 0 1rem" }}>
-        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>💰 Preço de</span>
-        <input type="text" inputMode="numeric" placeholder="mínimo" value={precoMin}
-          onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))}
-          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }} />
-        <span style={{ fontSize: 13, color: "var(--text-muted)" }}>até</span>
-        <input type="text" inputMode="numeric" placeholder="máximo" value={precoMax}
-          onChange={e => setPrecoMax(e.target.value.replace(/[^\d]/g, ""))}
-          style={{ width: 130, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", fontSize: 14 }} />
-        {(precoMin || precoMax) && (
-          <button onClick={() => { setPrecoMin(""); setPrecoMax(""); }} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 7, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>limpar preço</button>
-        )}
+      <div className="al-filtros">
+        <div className="al-filtros-row">
+          <div className="al-search">
+            🔍 <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por código, título, bairro, proprietário..." />
+          </div>
+          <select className="al-sel" value={tipo} onChange={e => setTipo(e.target.value)}>
+            <option value="Todos">Todos os tipos</option>
+            {tipos.map(t => <option key={t.nome} value={t.nome}>{t.nome}</option>)}
+          </select>
+          <select className="al-sel" value={transacao} onChange={e => setTransacao(e.target.value)}>
+            <option value="Todos">Todas as transações</option>
+            {TRANSACOES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select className="al-sel" value={cidade} onChange={e => setCidade(e.target.value)}>
+            {cidades.map(c => <option key={c} value={c}>{c === "Todas" ? "Todas as cidades" : c}</option>)}
+          </select>
+          <select className="al-sel" value={bairro} onChange={e => setBairro(e.target.value)}>
+            {bairros.map(b => <option key={b} value={b}>{b === "Todos" ? "Todos os bairros" : b}</option>)}
+          </select>
+          <select className="al-sel" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="Todos">Todos os status</option>
+            {STATUS_IMOVEL.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="al-sel" value={ordem} onChange={e => setOrdem(e.target.value)}>
+            {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <div className="al-price">
+            <span>💰</span>
+            <input type="text" inputMode="numeric" placeholder="R$ mín" value={precoMin} onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))} />
+            <span>até</span>
+            <input type="text" inputMode="numeric" placeholder="R$ máx" value={precoMax} onChange={e => setPrecoMax(e.target.value.replace(/[^\d]/g, ""))} />
+            {(precoMin || precoMax) && <button className="al-clearprice" onClick={() => { setPrecoMin(""); setPrecoMax(""); }}>limpar</button>}
+          </div>
+        </div>
       </div>
 
-      {loading && <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>Carregando...</div>}
+      <div className="al-count"><b>{filtered.length}</b> {filtered.length === 1 ? "imóvel encontrado" : "imóveis encontrados"}</div>
+
+      {loading && <div className="al-empty">Carregando...</div>}
       {!loading && filtered.length === 0 && (
-        <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "4rem 0" }}>
-          {imoveis.length === 0 ? "Nenhum imóvel cadastrado ainda." : "Nenhum imóvel encontrado."}
-        </div>
+        <div className="al-empty">{imoveis.length === 0 ? "Nenhum imóvel cadastrado ainda." : "Nenhum imóvel encontrado."}</div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
-        {filtered.map(im => (
-          <ImovelCard
-            key={im.id}
-            im={im}
-            onClick={() => navigate(`/admin/imovel/${im.id}`)}
-            actions={
-              <>
-                <button onClick={() => navigate(`/admin/imovel/${im.id}`)} style={miniBtn}>Ficha</button>
-                <button onClick={() => verNoSite(im)} style={miniBtn} title="Ver no site">🌐</button>
-                <button onClick={() => copiarDescricao(im)} style={{ ...miniBtn, background: copiadoId === im.id ? "#25884f" : undefined, color: copiadoId === im.id ? "#fff" : undefined }} title="Copiar descrição pronta">{copiadoId === im.id ? "✓" : "📝"}</button>
-                {(ehDiretor || souDonoDe(im)) && <>
-                  <button onClick={() => navigate(`/admin/editar/${im.id}`)} style={miniBtn} title="Editar">✏️</button>
-                  <button onClick={() => del(im.id)} style={{ ...miniBtn, border: "1px solid var(--primary-border)", background: "var(--primary-light)" }} title="Excluir">🗑️</button>
-                </>}
-              </>
-            }
-          />
-        ))}
+      <div className="al-grid">
+        {filtered.map(im => cardDe(im))}
       </div>
     </div>
   );
@@ -274,9 +359,3 @@ function PDFModal({ imoveis, pdfCampos, setPdfCampos, onClose }) {
     </div>
   );
 }
-
-const miniBtn = {
-  flex: 1, padding: "6px 8px", fontSize: 12, borderRadius: 7,
-  border: "1px solid var(--border-soft)", background: "var(--bg-muted)",
-  color: "var(--text)", cursor: "pointer"
-};
