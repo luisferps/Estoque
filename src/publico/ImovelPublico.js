@@ -331,8 +331,9 @@ export default function ImovelPublico() {
         <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexDirection: "column" }}>
           <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
             textAlign: "center", padding: "16px 0",
-            borderRadius: 14, fontWeight: 800, fontSize: 16,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+            borderRadius: 14, fontWeight: 700, fontSize: 16,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)", color: "#fff", textDecoration: "none"
           }}>
             💬 Tenho interesse — falar no WhatsApp
           </a>
@@ -466,9 +467,10 @@ export default function ImovelPublico() {
 
         <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "16px 12px", borderRadius: 14, fontWeight: 800, fontSize: 16,
+          padding: "16px 12px", borderRadius: 14, fontWeight: 700, fontSize: 16,
           marginTop: "0.5rem", marginBottom: "2.5rem", textAlign: "center", lineHeight: 1.3,
-          textDecoration: "none", width: "100%", boxSizing: "border-box", flexWrap: "wrap"
+          textDecoration: "none", width: "100%", boxSizing: "border-box", flexWrap: "wrap",
+          background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)", color: "#fff"
         }}>
           💬 Falar com a {EMPRESA.nome} no WhatsApp
         </a>
