@@ -33,7 +33,11 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
-  const mapsLink = im.mapsLink || (im.latitude && im.longitude ? `https://www.google.com/maps?q=${im.latitude},${im.longitude}` : null);
+  // Link de localização para compartilhar: abre em visão de SATÉLITE (não Street View).
+  // Formato com data=!3m1!1e3 = camada de satélite do Google Maps.
+  const mapsLink = (im.latitude && im.longitude)
+    ? `https://www.google.com/maps/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
+    : (im.mapsLink || null);
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
