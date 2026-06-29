@@ -395,6 +395,14 @@ export default function Form() {
       </select>
     </div>
   );
+
+  const section = (title, children) => (
+    <div style={sectionBox}>
+      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "var(--primary-dark)" }}>{title}</p>
+      {children}
+    </div>
+  );
+
   // ── Publicação (status + onde aparece) ──────────────────────────────────
   // O campo "visibilidade" guarda 1 de 4 textos. Aqui traduzimos para 2 flags
   // simples (site / portais) que viram cards "ligados por padrão".
