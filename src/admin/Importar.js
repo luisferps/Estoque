@@ -4,7 +4,8 @@ import { collection, getDocs, query, where } from "firebase/firestore";
 import { criarImovelBackend, excluirImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useTipos } from "../shared/hooks";
-import { pageWrap, btnPrimary } from "../shared/styles";
+import { btnPrimary } from "../shared/styles";
+import { LOGO_URL } from "../constants";
 
 export default function Importar() {
   const navigate = useNavigate();
@@ -77,22 +78,35 @@ export default function Importar() {
   };
 
   return (
-    <div style={pageWrap(720)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
-        <button onClick={() => navigate("/admin")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 15, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 }}>← Voltar</button>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, flex: 1, color: "var(--primary-dark)" }}>Importar imóveis em massa</h2>
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      <style>{`
+        .ip-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+        .ip-nav-inner { max-width: 720px; margin: 0 auto; height: 54px; padding: 0 20px; display: flex; align-items: center; gap: 14px; }
+      `}</style>
+      <nav className="ip-nav">
+        <div className="ip-nav-inner">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => navigate("/admin")}>
+            <img src={LOGO_URL} alt="Inerente" style={{ height: 24 }} />
+            <b style={{ fontSize: 16, fontWeight: 600, color: "var(--primary-dark)" }}>Inerente</b>
+          </div>
+        </div>
+      </nav>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "22px 20px 60px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.25rem" }}>
+        <button onClick={() => navigate("/admin")} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 14, cursor: "pointer", color: "var(--primary)", fontWeight: 500, padding: 0 }}>← Voltar</button>
+        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", flex: 1, color: "var(--text)" }}>Importar imóveis em massa</h2>
       </div>
 
-      <div style={{ background: "var(--bg-section)", border: "1px solid var(--primary-border)", borderRadius: 10, padding: "1rem", marginBottom: "1rem", fontSize: 13, color: "var(--text-soft)" }}>
+      <div style={{ background: "#fff8e1", border: "1px solid #f0d98c", borderRadius: 12, padding: "13px 16px", marginBottom: "1rem", fontSize: 13, color: "#8a6d3b", lineHeight: 1.5 }}>
         ⚠️ <strong>Atenção:</strong> Cole o JSON gerado da planilha e clique em Importar. Os imóveis entram como "Disponível" e sem fotos.
       </div>
 
-      <div style={{ background: "var(--bg-muted)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: "18px 20px", marginBottom: "1rem" }}>
         <p style={{ margin: "0 0 8px", fontWeight: 500, fontSize: 14, color: "var(--text)" }}>🗑️ Limpar antes de importar (opcional)</p>
         <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--text-muted)" }}>Apaga todos os imóveis de um tipo específico. Útil pra re-importar sem duplicar. NÃO afeta os outros tipos.</p>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <select value={tipoLimpar} onChange={e => setTipoLimpar(e.target.value)} disabled={importando}
-            style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-soft)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)" }}>
+            style={{ padding: "9px 13px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 14, background: "var(--bg-input)", color: "var(--text)", outline: "none", fontFamily: "inherit", cursor: "pointer" }}>
             {tipos.map(t => <option key={t.nome}>{t.nome}</option>)}
           </select>
           <button onClick={limparTipo} disabled={importando}
@@ -108,7 +122,7 @@ export default function Importar() {
         placeholder="Cole aqui o JSON dos imóveis..."
         rows={10}
         disabled={importando}
-        style={{ width: "100%", padding: "12px", borderRadius: 8, boxSizing: "border-box", border: "1px solid var(--border-soft)", fontSize: 12, fontFamily: "monospace", background: "var(--bg-input)", color: "var(--text)", resize: "vertical", lineHeight: 1.4 }}
+        style={{ width: "100%", padding: "13px", borderRadius: 12, boxSizing: "border-box", border: "1px solid var(--border)", fontSize: 13, fontFamily: "ui-monospace, monospace", background: "var(--bg-input)", color: "var(--text)", resize: "vertical", lineHeight: 1.4, outline: "none" }}
       />
 
       <button onClick={importar} disabled={importando || !texto.trim()}
@@ -130,6 +144,7 @@ export default function Importar() {
           Ver imóveis cadastrados
         </button>
       )}
+      </div>
     </div>
   );
 }
