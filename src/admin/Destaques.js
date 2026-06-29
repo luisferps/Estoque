@@ -30,22 +30,37 @@ const NIVEL_ABAIXO = { TRIPLE: "SUPER_PREMIUM", SUPER_PREMIUM: "PREMIUM", PREMIU
 // Status que NÃO deveriam ocupar uma vaga de destaque paga.
 const STATUS_NAO_VENDAVEL = ["vendido", "reservado"];
 
-function fmtData(iso) {
-  if (!iso) return "—";
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "—";
+// Converte qualquer formato de data que apareça aqui (string ISO, número epoch,
+// ou Timestamp do Firebase {seconds/_seconds}) num objeto Date válido — ou null.
+function paraData(v) {
+  if (!v) return null;
+  // Timestamp do Firebase: {seconds, nanoseconds} ou {_seconds, _nanoseconds}
+  if (typeof v === "object") {
+    const s = v.seconds ?? v._seconds;
+    if (typeof s === "number") return new Date(s * 1000);
+    if (typeof v.toDate === "function") { try { return v.toDate(); } catch { return null; } }
+    return null;
   }
+  // Número: epoch em segundos (10 dígitos) ou milissegundos (13)
+  if (typeof v === "number") return new Date(v < 1e12 ? v * 1000 : v);
+  // String: ISO, ou número em texto
+  if (typeof v === "string") {
+    const n = Number(v);
+    if (Number.isFinite(n) && v.trim() !== "") return new Date(n < 1e12 ? n * 1000 : n);
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
-function fmtDataCurta(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
-  } catch {
-    return "—";
-  }
+function fmtData(v) {
+  const d = paraData(v);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+function fmtDataCurta(v) {
+  const d = paraData(v);
+  if (!d || isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
 export default function Destaques({ onLogout }) {
@@ -305,7 +320,9 @@ export default function Destaques({ onLogout }) {
   // Calcula a próxima rotação prevista (última + intervalo de dias)
   const proximaRotacao = useMemo(() => {
     if (!relatorio?.ultima_rotacao || !relatorio?.intervalo_dias) return null;
-    const base = new Date(relatorio.ultima_rotacao).getTime();
+    const baseD = paraData(relatorio.ultima_rotacao);
+    if (!baseD) return null;
+    const base = baseD.getTime();
     return new Date(base + relatorio.intervalo_dias * 24 * 60 * 60 * 1000).toISOString();
   }, [relatorio]);
 
