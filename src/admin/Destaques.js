@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis } from "../shared/hooks";
 import { statusDoImovel } from "../shared/utils";
-import { btnOutline, btnPrimary, inputBase, pageWrap, sectionBox } from "../shared/styles";
+import { btnOutline, btnPrimary, pageWrap } from "../shared/styles";
 
 // Backend Railway (mesmo usado pelo CRM / WA Scheduler)
 const WA_AGENT_URL = "https://agentes-de-whatsapp-production.up.railway.app";
@@ -687,3 +687,7 @@ function LinhaImovel({ im, info, onFixar, navigate }) {
     </div>
   );
 }
+
+// Estilos Apple LOCAIS da tela Destaques (não afetam outras telas):
+const sectionBox = { background: "var(--bg-card)", borderRadius: 16, padding: "20px 22px", marginBottom: 14, border: "1px solid var(--border)" };
+const inputBase = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 14, boxSizing: "border-box", background: "var(--bg-input)", color: "var(--text)", outline: "none", fontFamily: "inherit", marginBottom: "1rem" };
