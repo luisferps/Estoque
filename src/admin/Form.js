@@ -10,7 +10,8 @@ import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
 } from "../shared/utils";
-import { btnPrimary, inputBase, sectionBox, pageWrap } from "../shared/styles";
+import { btnPrimary } from "../shared/styles";
+import { LOGO_URL } from "../constants";
 import FotosGrid from "../shared/FotosGrid";
 import MapaPino from "../shared/MapaPino";
 import PreviaQualidade from "./PreviaQualidade";
@@ -399,7 +400,7 @@ export default function Form() {
 
   const section = (title, children) => (
     <div style={sectionBox}>
-      <p style={{ margin: "0 0 12px", fontWeight: 500, fontSize: 14, color: "var(--primary-dark)" }}>{title}</p>
+      <p style={{ margin: "0 0 16px", fontWeight: 600, fontSize: 12, color: "var(--primary)", letterSpacing: "0.06em", textTransform: "uppercase" }}>{title}</p>
       {children}
     </div>
   );
@@ -581,14 +582,29 @@ export default function Form() {
   );
 
   return (
-    <div style={pageWrap(1040)}>
-      <style>{`@media (max-width:1024px){.previa-col{position:static !important;flex-basis:100% !important;}}`}</style>
-      <div style={{ marginBottom: "1.5rem" }}>
-        <button onClick={() => navigate(-1)} style={backBtn}>{"←"} Cancelar</button>
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      <style>{`
+        @media (max-width:1024px){.previa-col{position:static !important;flex-basis:100% !important;}}
+        .form-apple-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+        .form-apple-nav-inner { max-width: 1100px; margin: 0 auto; height: 54px; padding: 0 20px; display: flex; align-items: center; gap: 14px; }
+      `}</style>
+
+      <nav className="form-apple-nav">
+        <div className="form-apple-nav-inner">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => navigate("/admin")}>
+            <img src={LOGO_URL} alt="Inerente" style={{ height: 24 }} />
+            <b style={{ fontSize: 16, fontWeight: 600, color: "var(--primary-dark)" }}>Inerente</b>
+          </div>
+        </div>
+      </nav>
+
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "22px 20px 60px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "1.25rem" }}>
+        <button onClick={() => navigate(-1)} style={backBtn}>{"←"} Voltar</button>
+        <h2 style={{ margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--text)" }}>
+          {id ? "Editar imóvel" : "Novo imóvel"}
+        </h2>
       </div>
-      <h2 style={{ margin: "0 0 1.5rem", fontSize: 20, fontWeight: 500, color: "var(--primary-dark)" }}>
-        {id ? "Editar imóvel" : "Novo imóvel"}
-      </h2>
 
       {id && !hydrated && (
         <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem 0" }}>Carregando dados do imóvel...</p>
@@ -979,11 +995,15 @@ export default function Form() {
         <PreviaQualidade form={form} isLote={isLote} />
       </div>
       </div>)}
+      </div>
     </div>
   );
 }
 
-const labelStyle = { display: "block", fontSize: 13, color: "var(--text-soft)", marginBottom: 4 };
+const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-soft)", marginBottom: 5 };
+// Estilos Apple LOCAIS do Form (não afetam outras telas):
+const inputBase = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border)", fontSize: 14, boxSizing: "border-box", background: "var(--bg-input)", color: "var(--text)", outline: "none", fontFamily: "inherit" };
+const sectionBox = { background: "var(--bg-card)", borderRadius: 16, padding: "20px 22px", marginBottom: 14, border: "1px solid var(--border)" };
 const togStyle = { display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", marginBottom: 8, color: "var(--text)" };
 const cbStyle = { width: 16, height: 16, accentColor: "var(--primary)" };
 const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 };
