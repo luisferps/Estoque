@@ -16,6 +16,7 @@ import AdminAnuncios from "./admin/Anuncios";
 import AdminCorretores from "./admin/Corretores";
 import AdminImportar from "./admin/Importar";
 import AdminTipos from "./admin/Tipos";
+import AdminAjustes from "./admin/Ajustes";
 import AdminRotacao from "./admin/Rotacao";
 import AdminDestaques from "./admin/Destaques";
 import PassModal from "./admin/PassModal";
@@ -55,10 +56,7 @@ function AdminHeader({ onLogout }) {
     { label: "🏠 Imóveis", path: "/admin" },
     ...(ehDiretor ? [
       { label: "📢 Anúncios", path: "/admin/anuncios" },
-      { label: "🏠 Rotação", path: "/admin/rotacao" },
-      { label: "⭐ Destaques", path: "/admin/destaques" },
-      { label: "📥 Importar", path: "/admin/importar" },
-      { label: "🏷️ Tipos", path: "/admin/tipos" },
+      { label: "⚙️ Ajustes", path: "/admin/ajustes" },
     ] : []),
     { label: "🌐 Site", path: "/", externo: true },
   ];
@@ -118,6 +116,7 @@ export default function App() {
             <Route path="/admin/corretores" element={<AdminRoute element={AdminCorretores} requireDiretor />} />
             <Route path="/admin/importar" element={<AdminRoute element={AdminImportar} requireDiretor />} />
             <Route path="/admin/tipos" element={<AdminRoute element={AdminTipos} requireDiretor />} />
+            <Route path="/admin/ajustes" element={<AdminRoute element={AdminAjustes} requireDiretor />} />
             <Route path="/admin/rotacao" element={<AdminRoute element={AdminRotacao} requireDiretor />} />
             <Route path="/admin/destaques" element={<AdminRoute element={AdminDestaques} requireDiretor />} />
 
