@@ -5,7 +5,7 @@
 // Atualização: o Grupo OLX lê este feed automaticamente a cada 12 horas
 // e propaga as alterações em até 4h (ZAP/Viva) ou 24h (OLX).
 
-const { getDb } = require("./_firebase");
+const { getDb, registrarPull } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toInt, toMetros, isDisponivelEstrito, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral, caracteristicasImovel,
@@ -434,6 +434,7 @@ ${details}
 
 exports.handler = async () => {
   try {
+    registrarPull("canalpro");
     const db = getDb();
     const [snap, tiposCentral] = await Promise.all([
       db.collection("imoveis").get(),
