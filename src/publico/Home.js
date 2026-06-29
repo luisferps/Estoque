@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import { EMPRESA, ORDENACOES } from "../constants";
 import Header from "./Header";
@@ -50,10 +50,8 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
-  // Localização PINO + SATÉLITE: /place/ põe o pino, data=!3m1!1e3 força satélite.
-  const mapsLink = (im.latitude && im.longitude)
-    ? `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
-    : (im.mapsLink || null);
+  // Link de localização (pino + satélite), sempre a partir da coordenada atual.
+  const mapsLink = linkLocalizacao(im);
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90 }} />
