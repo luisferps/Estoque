@@ -230,6 +230,15 @@ export function descricaoCompleta(im) {
   return desc + (desc ? "\n\n" : "") + RODAPE;
 }
 
+// Link de localização SEMPRE atualizado: usa a coordenada atual (pino + satélite).
+// Só cai no mapsLink salvo se o imóvel não tiver coordenada (imóveis antigos).
+export function linkLocalizacao(im) {
+  if (im && im.latitude && im.longitude && !isNaN(parseFloat(im.latitude)) && !isNaN(parseFloat(im.longitude))) {
+    return `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`;
+  }
+  return im && im.mapsLink ? im.mapsLink : null;
+}
+
 export function descricaoPronta(im) {
   let txt = descricaoCompleta(im);
   if (im.fotos?.length) {
@@ -237,7 +246,8 @@ export function descricaoPronta(im) {
     txt += `\n\nFotos:\n${galeria}`;
   }
 
-  if (im.mapsLink) txt += `\n\nLocalização:\n${im.mapsLink}`;
+  const loc = linkLocalizacao(im);
+  if (loc) txt += `\n\nLocalização:\n${loc}`;
   return txt;
 }
 
@@ -304,7 +314,7 @@ export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
               ${row("Avaliação", formatBRL(im.valorAvaliacao))}
               ${row("Entrada", formatBRL(im.valorEntrada))}
             </table>
-            ${im.mapsLink ? `<a href="${im.mapsLink}" style="display:inline-block;margin-top:12px;font-size:12px;color:${COR_P}">📍 Ver no Google Maps</a>` : ""}
+            ${linkLocalizacao(im) ? `<a href="${linkLocalizacao(im)}" style="display:inline-block;margin-top:12px;font-size:12px;color:${COR_P}">📍 Ver no Google Maps</a>` : ""}
           </div>
         </div>
 
@@ -490,9 +500,10 @@ export async function downloadFotos(im) {
 // ─── WhatsApp ───
 export function whatsappTudo(im) {
   const galeriaLink = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
+  const loc = linkLocalizacao(im);
   const txt = descricaoCompleta(im) +
     (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
-    (im.mapsLink ? `\n\nLocalização:\n${im.mapsLink}` : "");
+    (loc ? `\n\nLocalização:\n${loc}` : "");
   window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
 }
 
@@ -501,8 +512,9 @@ export function whatsappDescricao(im) {
 }
 
 export function whatsappMaps(im) {
-  if (!im.mapsLink) return alert("Sem link do Maps.");
-  window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${im.mapsLink}`), "_blank");
+  const loc = linkLocalizacao(im);
+  if (!loc) return alert("Sem localização cadastrada.");
+  window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${loc}`), "_blank");
 }
 
 export function whatsappFotos(im) {
