@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { editarImovelBackend } from "../shared/estoqueApi";
 import { TRANSACOES } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, statusDoImovel, validarParaCanal, avisosDoCanal, CANAIS_AUTO, geocodificarEndereco } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
+import { db } from "../firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
 // Canais mostrados na tabela (com nome curto pra caber tudo numa tela).
 // Os 3 primeiros são automáticos (feed XML). Os demais são marcação manual.
@@ -32,6 +34,16 @@ export default function OndeAnunciado({ embutido = false }) {
   const [fForaDe, setFForaDe] = useState("");   // canal: mostra só os fora desse canal
   const [sortCol, setSortCol] = useState("");
   const [sortDir, setSortDir] = useState("asc");
+  const [feedPulls, setFeedPulls] = useState(null);
+
+  // Última vez que cada portal puxou o feed (gravado pelas Netlify Functions).
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "configuracoes", "feedPulls"),
+      (snap) => setFeedPulls(snap.exists() ? snap.data() : {}),
+      () => setFeedPulls({})
+    );
+    return () => unsub();
+  }, []);
 
   const [migrando, setMigrando] = useState(false);
   const [migracaoTotal, setMigracaoTotal] = useState(0);
@@ -185,6 +197,24 @@ export default function OndeAnunciado({ embutido = false }) {
     );
   }
 
+  // Formata "há quanto tempo" e a cor do status (verde recente, amarelo, vermelho).
+  const tempoAtras = (iso) => {
+    if (!iso) return { txt: "sem leitura ainda", cor: "#9ca3af" };
+    const ms = Date.now() - new Date(iso).getTime();
+    const h = ms / 3600000;
+    let txt;
+    if (h < 1) txt = "há " + Math.max(1, Math.round(ms / 60000)) + " min";
+    else if (h < 48) txt = "há " + Math.round(h) + "h";
+    else txt = "há " + Math.round(h / 24) + " dias";
+    const cor = h < 24 ? "#16a34a" : h < 72 ? "#d97706" : "#dc2626";
+    return { txt, cor };
+  };
+  const PORTAIS_PULL = [
+    { chave: "canalpro", nome: "Canal Pro" },
+    { chave: "chavesnamao", nome: "Chaves na Mão" },
+    { chave: "meta", nome: "Catálogo Meta" },
+  ];
+
   return (
     <div style={embutido ? { maxWidth: 1100, margin: "0 auto" } : pageWrap(1100)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem", flexWrap: "wrap" }}>
@@ -198,6 +228,22 @@ export default function OndeAnunciado({ embutido = false }) {
           </button>
         )}
       </div>
+
+      {feedPulls && (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: "1rem" }}>
+          {PORTAIS_PULL.map((p) => {
+            const t = tempoAtras(feedPulls[p.chave]);
+            return (
+              <div key={p.chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 10, border: "1px solid var(--border-soft)", background: "var(--bg-card)" }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: t.cor, flexShrink: 0 }} />
+                <span style={{ fontSize: 12.5, color: "var(--text)" }}>
+                  <strong>{p.nome}</strong>: <span style={{ color: t.cor }}>{t.txt === "sem leitura ainda" ? t.txt : "última leitura " + t.txt}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {incompletos.length > 0 && !migrando && (
         <div style={{ marginBottom: "1rem", padding: "12px 16px", background: "#fef3c7", border: "1px solid #d97706", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -353,32 +399,37 @@ export default function OndeAnunciado({ embutido = false }) {
 // ─── Botão de canal manual: registra onde você já anunciou à mão ───
 function CanalManual({ im, canal, ativo }) {
   const [on, setOn] = useState(ativo);
+  const [data, setData] = useState((im.anuncios && im.anuncios[canal] && im.anuncios[canal].data) || "");
   const [salvando, setSalvando] = useState(false);
   const alternar = async () => {
     const novo = !on;
+    const novaData = novo ? new Date().toLocaleDateString("pt-BR") : "";
     setOn(novo);
+    setData(novaData);
     setSalvando(true);
     try {
       const anuncios = { ...(im.anuncios || {}) };
-      anuncios[canal] = { ...(anuncios[canal] || {}), ativo: novo, data: novo ? new Date().toLocaleDateString("pt-BR") : "" };
+      anuncios[canal] = { ...(anuncios[canal] || {}), ativo: novo, data: novaData };
       await editarImovelBackend(im.id, { anuncios });
     } catch {
       setOn(!novo); // desfaz visualmente se falhar
+      setData((im.anuncios && im.anuncios[canal] && im.anuncios[canal].data) || "");
       alert("Não consegui salvar. Tente de novo.");
     }
     setSalvando(false);
   };
   return (
     <button onClick={alternar} disabled={salvando}
-      title={on ? `${canal}: marcado como publicado` : `${canal}: clique para marcar como publicado`}
+      title={on ? `${canal}: publicado em ${data || "—"}` : `${canal}: clique para marcar como publicado`}
       style={{
-        display: "flex", alignItems: "center", justifyContent: "center",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2,
         background: on ? "var(--primary-light)" : "var(--bg-muted)",
         border: `1px solid ${on ? "var(--primary)" : "var(--border-soft)"}`,
-        borderRadius: 7, padding: "7px 4px", cursor: salvando ? "default" : "pointer",
+        borderRadius: 7, padding: "5px 4px", cursor: salvando ? "default" : "pointer",
         width: "100%", color: "var(--text)", opacity: salvando ? 0.5 : 1
       }}>
       <span style={{ fontSize: 14 }}>{on ? "✔" : "⬜"}</span>
+      {on && data && <span style={{ fontSize: 9.5, color: "var(--text-muted)", lineHeight: 1 }}>{data}</span>}
     </button>
   );
 }
