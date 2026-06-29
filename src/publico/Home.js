@@ -4,7 +4,6 @@ import { useImoveis, useTipos } from "../shared/hooks";
 import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao } from "../shared/utils";
 import { EMPRESA, ORDENACOES } from "../constants";
 import Header from "./Header";
-import ImovelCard from "../shared/ImovelCard";
 
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -70,6 +69,61 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
     </>
   );
 }
+
+// Card de imóvel no estilo clean (prévia aprovada): foto grande, cantos arredondados, hover suave.
+function CardImovel({ im, onClick, actions }) {
+  const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
+  const local = [im.bairro, im.cidade].filter(Boolean).join(", ");
+  const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
+  const bairroRaw = String(im.bairro == null ? "" : im.bairro).trim();
+  const titulo = tituloRaw || (im.tipo ? (bairroRaw ? `${im.tipo} em ${bairroRaw}` : im.tipo) : "Imóvel");
+  const c = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+  const m2 = c ? `${c.toLocaleString("pt-BR")} m²` : "";
+  const q = parseInt(im.quartos) || 0;
+  const su = parseInt(im.suites) || 0;
+  const va = parseInt(im.garagens) || 0;
+  const foto = im.fotos?.[0];
+  const fotoThumb = (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
+    ? foto.replace("/upload/", "/upload/w_640,h_480,c_fill,f_auto,q_auto/") : foto;
+  const ehLoc = im.transacao === "Locação";
+  const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
+
+  return (
+    <div className="p-card" onClick={onClick}>
+      <div className="p-card-img">
+        {fotoThumb
+          ? <img src={fotoThumb} alt="" loading="lazy" decoding="async" />
+          : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 52, opacity: 0.4 }}>🏠</div>}
+        {im.tipo && (
+          <span style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)", color: "var(--primary-dark)", fontSize: 11, fontWeight: 600, padding: "5px 12px", borderRadius: 999 }}>
+            {im.tipo}{im.transacao ? ` · ${im.transacao}` : ""}
+          </span>
+        )}
+      </div>
+      <div style={{ padding: "20px 22px 22px" }}>
+        <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+          {codigo ? `CÓD ${codigo} · ` : ""}{local}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.01em", lineHeight: 1.3, marginBottom: 14, minHeight: 47, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          {titulo}
+        </div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap", minHeight: 20 }}>
+          {q > 0 && <span style={cardSpec}>🛏 {q} {q === 1 ? "quarto" : "quartos"}</span>}
+          {su > 0 && <span style={cardSpec}>🚿 {su} {su === 1 ? "suíte" : "suítes"}</span>}
+          {va > 0 && <span style={cardSpec}>🚗 {va} {va === 1 ? "vaga" : "vagas"}</span>}
+          {m2 && <span style={cardSpec}>📐 {m2}</span>}
+          {!(q || su || va) && im.asfalto && <span style={cardSpec}>📍 Asfalto</span>}
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em", paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+          {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <span style={{ fontSize: 13, fontWeight: 400, color: "var(--text-muted)" }}> /mês</span>}</> : <span style={{ fontSize: 15, color: "var(--text-muted)", fontWeight: 400 }}>Consulte</span>}
+        </div>
+        {actions && <div onClick={e => e.stopPropagation()} style={{ marginTop: 16, display: "flex", gap: 8 }}>{actions}</div>}
+      </div>
+    </div>
+  );
+}
+
+const cardSpec = { fontSize: 13, color: "var(--text-soft)", display: "inline-flex", alignItems: "center", gap: 5 };
 
 export default function Home() {
   const navigate = useNavigate();
@@ -180,6 +234,11 @@ export default function Home() {
         .wa-float { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; align-items: center; gap: 9px; background: #25D366; color: #fff; border-radius: 999px; padding: 13px 22px 13px 18px; box-shadow: 0 6px 22px rgba(37,211,102,0.45); text-decoration: none; transition: transform .2s, box-shadow .2s; white-space: nowrap; }
         .wa-float:hover { transform: scale(1.04); box-shadow: 0 8px 28px rgba(37,211,102,0.55); }
         @media (max-width: 540px) { .wa-float { bottom: 18px; right: 18px; padding: 13px 18px; } .wa-float .wa-txt { display: none; } }
+        .p-card { background: #fff; border-radius: 20px; overflow: hidden; border: 1px solid var(--border); transition: transform .3s cubic-bezier(.2,.8,.2,1), box-shadow .3s; cursor: pointer; }
+        .p-card:hover { transform: translateY(-6px); box-shadow: 0 18px 40px rgba(0,0,0,0.1); }
+        .p-card-img { position: relative; height: 230px; overflow: hidden; background: var(--bg-muted); }
+        .p-card-img img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+        .p-card:hover .p-card-img img { transform: scale(1.05); }
       `}</style>
 
       <Header corretorNovaAba />
@@ -302,7 +361,7 @@ export default function Home() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 24 }}>
           {filtered.map((im, i) => (
             <div key={im.id} className="reveal" style={{ transitionDelay: `${Math.min((i % 6) * 70, 350)}ms` }}>
-              <ImovelCard im={im} onClick={() => navigate(`/imovel/${im.id}`)} showStatus={false} actions={cardActions(im)} />
+              <CardImovel im={im} onClick={() => navigate(`/imovel/${im.id}`)} actions={cardActions(im)} />
             </div>
           ))}
         </div>
