@@ -86,7 +86,7 @@ export const PDF_CAMPOS = [
 // ─── Formulário vazio ───
 export const emptyForm = {
   id: null, titulo: "", tipo: "Casa", transacao: "Venda", estadoImovel: "Imóvel Novo",
-  status: "Disponível", visibilidade: "Site e portais",
+  status: "Aguardando finalização", visibilidade: "Site e portais", foraRodizio: false,
   preco: "", descricao: "", extras: "", mapsLink: "",
   cep: "", cidade: "", bairro: "", endereco: "", estado: "", asfalto: false, agua: false, esgoto: false,
   latitude: "", longitude: "",
