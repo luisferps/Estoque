@@ -1,14 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
-import { RODAPE, EMPRESA } from "../constants";
+import { RODAPE, EMPRESA, LOGO_URL } from "../constants";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta, linkLocalizacao
 } from "../shared/utils";
-import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
-import ImovelCard from "../shared/ImovelCard";
-import Header from "./Header";
 
 // chave do localStorage onde guardamos os IDs salvos pelo visitante (favoritos)
 const FAV_KEY = "inerente_favoritos";
@@ -133,23 +130,20 @@ export default function ImovelPublico() {
     return () => { document.title = tituloPadrao; };
   }, [im]);
 
-  if (loading) return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
+  if (loading) return <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
 
   if (!im && imoveis.length === 0) {
-    return <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
+    return <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center", padding: "4rem 1rem", color: "var(--text-muted)" }}>Carregando...</div>;
   }
 
   if (!im || statusDoImovel(im) !== "Disponível" || !apareceNoSite(im)) {
     return (
-      <div>
-        <Header />
-        <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem" }}>
-          <h2 style={{ color: "var(--text)" }}>Imóvel não disponível</h2>
-          <p style={{ color: "var(--text-muted)" }}>Este imóvel não está mais disponível ou foi removido.</p>
-          <button onClick={() => navigate("/")} className="btn-grad" style={{ marginTop: 16, padding: "11px 26px", borderRadius: 14, fontWeight: 700 }}>
-            Ver outros imóveis
-          </button>
-        </div>
+      <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center", padding: "5rem 1.5rem" }}>
+        <h2 style={{ color: "var(--text)", fontWeight: 600 }}>Imóvel não disponível</h2>
+        <p style={{ color: "var(--text-muted)" }}>Este imóvel não está mais disponível ou foi removido.</p>
+        <button onClick={() => navigate("/")} style={{ marginTop: 16, padding: "12px 28px", borderRadius: 980, fontWeight: 500, background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontSize: 15 }}>
+          Ver outros imóveis
+        </button>
       </div>
     );
   }
@@ -170,161 +164,185 @@ export default function ImovelPublico() {
   };
 
   const row = (label, val) => val ? (
-    <div style={{ display: "flex", gap: 8, marginBottom: 8, fontSize: 14, flexWrap: "wrap" }}>
-      <span style={{ color: "var(--text-muted)", minWidth: 150 }}>{label}</span>
+    <div style={{ display: "flex", gap: 8, marginBottom: 10, fontSize: 14.5, flexWrap: "wrap" }}>
+      <span style={{ color: "var(--text-muted)", minWidth: 160 }}>{label}</span>
       <span style={{ color: "var(--text)", fontWeight: 600 }}>{val}</span>
     </div>
   ) : null;
 
   const section = (titulo, children) => (
-    <div className="card-soft" style={{ padding: "1.25rem 1.4rem", marginBottom: "1rem" }}>
-      <p style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 12.5, color: "var(--primary)", letterSpacing: 0.6, textTransform: "uppercase" }}>{titulo}</p>
+    <div className="ip-card">
+      <p className="ip-card-h">{titulo}</p>
       {children}
     </div>
   );
 
+  const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
+  const iptu = parseFloat(im.valorIPTU) || 0;
+  const extrasPreco = [];
+  if (cond > 0) extrasPreco.push(["Condomínio", formatBRL(cond) + "/mês"]);
+  if (iptu > 0) extrasPreco.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
+
+  const atributos = [];
+  if (parseInt(im.quartos) > 0) atributos.push(["🛏", `${im.quartos} ${parseInt(im.quartos) > 1 ? "quartos" : "quarto"}`]);
+  if (parseInt(im.suites) > 0) atributos.push(["🚿", `${im.suites} ${parseInt(im.suites) > 1 ? "suítes" : "suíte"}`]);
+  if (parseInt(im.banheiros) > 0) atributos.push(["🛁", `${im.banheiros} banh.`]);
+  if (parseInt(im.garagens) > 0) atributos.push(["🚗", `${im.garagens} ${parseInt(im.garagens) > 1 ? "vagas" : "vaga"}`]);
+  const m2hero = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+  if (m2hero > 0) atributos.push(["📐", `${m2hero.toLocaleString("pt-BR")} m²`]);
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <Header />
+    <div className="apple-site">
+      <style>{`
+        .apple-site { min-height: 100vh; background: #fff; color: var(--text); -webkit-font-smoothing: antialiased; }
+        .apple-site * { box-sizing: border-box; }
+        .a-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.82); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+        .a-nav-inner { max-width: 1024px; margin: 0 auto; height: 56px; padding: 0 22px; display: flex; align-items: center; gap: 14px; }
+        .a-logo { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+        .a-logo img { height: 26px; width: auto; display: block; }
+        .a-logo b { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--primary-dark); }
+        .a-logo em { font-style: normal; font-weight: 400; font-size: 14px; color: var(--text-soft); }
+        @media (max-width: 540px) { .a-logo em { display: none; } }
+        .a-nav-spacer { flex: 1; }
+        .a-nav-cta { font-size: 13px; font-weight: 500; background: var(--primary); color: #fff; padding: 7px 16px; border-radius: 980px; text-decoration: none; }
+        .a-nav-cta:hover { background: var(--primary-dark); }
+
+        .ip-wrap { max-width: 880px; margin: 0 auto; padding: 28px 22px 0; }
+        .ip-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: var(--primary); font-size: 14px; font-weight: 500; cursor: pointer; padding: 0; margin-bottom: 20px; }
+        .ip-gallery { border-radius: 20px; overflow: hidden; background: var(--bg-muted); margin-bottom: 14px; }
+        .ip-gallery-main { width: 100%; max-height: 520px; object-fit: contain; cursor: zoom-in; background: var(--bg-muted); display: block; }
+        .ip-thumbs { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; }
+        .ip-thumb { width: 88px; height: 88px; object-fit: cover; border-radius: 12px; cursor: pointer; flex-shrink: 0; }
+
+        .ip-head { margin-bottom: 18px; }
+        .ip-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+        .ip-tag { background: var(--primary-light); color: var(--primary-dark); font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 980px; }
+        .ip-title { font-size: clamp(24px, 4vw, 36px); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 8px; }
+        .ip-loc { font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+        .ip-attrs { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+        .ip-attr { display: inline-flex; align-items: center; gap: 6px; background: var(--bg-muted); border: 1px solid var(--border); padding: 8px 16px; border-radius: 980px; font-size: 14px; color: var(--text-soft); font-weight: 500; }
+        .ip-fav { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); padding: 8px 16px; border-radius: 980px; font-size: 13px; font-weight: 600; cursor: pointer; background: #fff; color: var(--text-soft); }
+        .ip-fav.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        .ip-price { background: linear-gradient(135deg, var(--primary-light) 0%, #fff 100%); border: 1px solid var(--primary-border); border-radius: 20px; padding: 24px 26px; margin-bottom: 16px; }
+        .ip-price-main { font-size: clamp(28px, 5vw, 38px); font-weight: 600; color: var(--primary-dark); letter-spacing: -0.02em; margin: 0; }
+        .ip-price-main small { font-size: 14px; font-weight: 400; opacity: 0.7; margin-left: 8px; }
+        .ip-price-extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 16px; }
+        .ip-price-extra { background: #fff; border-radius: 12px; padding: 11px 14px; border: 1px solid var(--border); }
+        .ip-price-extra p:first-child { margin: 0; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ip-price-extra p:last-child { margin: 4px 0 0; font-size: 16px; font-weight: 600; color: var(--text); }
+        .ip-cod { text-align: center; font-size: 13px; font-weight: 600; color: var(--primary); letter-spacing: 0.5px; margin: 0 0 16px; }
+
+        .ip-ctas { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+        .ip-wa { background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: #fff; text-align: center; padding: 16px 0; border-radius: 14px; font-weight: 600; font-size: 16px; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .ip-share-wrap { position: relative; }
+        .ip-share { width: 100%; background: var(--primary); color: #fff; border: none; padding: 13px 0; border-radius: 14px; font-weight: 600; font-size: 15px; cursor: pointer; }
+        .ip-share:hover { background: var(--primary-dark); }
+        .ip-popup { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 91; background: #fff; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 14px 36px rgba(0,0,0,0.18); padding: 6px; min-width: 220px; }
+        .ip-popup a, .ip-popup button { display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 13.5px; color: var(--text); text-decoration: none; border-radius: 10px; cursor: pointer; border: none; background: transparent; }
+        .ip-popup a:hover, .ip-popup button:hover { background: var(--bg-muted); }
+
+        .ip-card { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 22px 24px; margin-bottom: 16px; }
+        .ip-card-h { margin: 0 0 16px; font-weight: 600; font-size: 12px; color: var(--primary); letter-spacing: 0.06em; text-transform: uppercase; }
+        .ip-related-h { font-size: clamp(22px, 3vw, 28px); font-weight: 600; letter-spacing: -0.02em; margin: 32px 0 6px; }
+
+        .ip-rel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; margin-top: 16px; }
+        .ip-rel-card { background: #fff; border: 1px solid var(--border); border-radius: 18px; overflow: hidden; cursor: pointer; transition: transform .3s, box-shadow .3s; }
+        .ip-rel-card:hover { transform: translateY(-5px); box-shadow: 0 14px 32px rgba(0,0,0,0.1); }
+        .ip-rel-img { height: 170px; background: var(--bg-muted); overflow: hidden; }
+        .ip-rel-img img { width: 100%; height: 100%; object-fit: cover; }
+        .ip-rel-body { padding: 14px 16px; }
+        .ip-rel-loc { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+        .ip-rel-title { font-size: 15px; font-weight: 600; line-height: 1.3; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .ip-rel-price { font-size: 17px; font-weight: 600; color: var(--primary); }
+
+        .wa-float { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; align-items: center; gap: 9px; background: #25D366; color: #fff; border-radius: 999px; padding: 13px 22px 13px 18px; box-shadow: 0 6px 22px rgba(37,211,102,0.45); text-decoration: none; transition: transform .2s; white-space: nowrap; }
+        .wa-float:hover { transform: scale(1.04); }
+        @media (max-width: 540px) { .wa-float { bottom: 18px; right: 18px; padding: 13px 18px; } .wa-float .wa-txt { display: none; } }
+      `}</style>
+
+      <nav className="a-nav">
+        <div className="a-nav-inner">
+          <div className="a-logo" onClick={() => navigate("/")}>
+            <img src={LOGO_URL} alt="Inerente" />
+            <b>Inerente</b> <em>Gestão Imobiliária</em>
+          </div>
+          <div className="a-nav-spacer"></div>
+          <a href="/admin" className="a-nav-cta">Área do Corretor</a>
+        </div>
+      </nav>
+
       <Lightbox idx={lb} fotos={im.fotos || []} onClose={() => setLb(null)} onChange={setLb} />
 
-      {/* HERO */}
-      <div style={{
-        position: "relative",
-        background: "radial-gradient(120% 130% at 50% -12%, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0) 42%), linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)",
-        color: "#fff", padding: "1rem clamp(0.8rem, 4vw, 1.5rem) 2rem", borderRadius: "0 0 30px 30px"
-      }}>
-        <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center" }}>
-          <button onClick={() => navigate("/")} style={{
-            display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.28)", color: "#fff", fontSize: 13, fontWeight: 600,
-            padding: "7px 14px", borderRadius: 999, cursor: "pointer", backdropFilter: "blur(6px)"
-          }}>← Voltar</button>
+      <div className="ip-wrap">
+        <button className="ip-back" onClick={() => navigate("/")}>← Voltar para a busca</button>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap", justifyContent: "center" }}>
-            {im.tipo && <span style={chipHero}>{im.tipo}</span>}
-            {im.transacao && <span style={chipHero}>{im.transacao}</span>}
-            {im.condominio && <span style={chipHero}>Em condomínio</span>}
-          </div>
-
-          <h1 className="display" style={{ margin: "10px 0 4px", fontSize: "clamp(22px, 5.5vw, 38px)", fontWeight: 800, lineHeight: 1.1 }}>{im.titulo}</h1>
-          {(im.bairro || im.cidade) && (
-            <p style={{ margin: 0, fontSize: 14, opacity: 0.92, fontWeight: 600, letterSpacing: 0.2 }}>
-              {[im.bairro, im.cidade].filter(Boolean).join(", ").toUpperCase()}
-            </p>
-          )}
-
-          {/* atalhos rápidos: salvar + atributos principais */}
-          <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap", justifyContent: "center", alignItems: "center" }}>
-            <button onClick={toggleFavorito}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7,
-                background: ehFavorito ? "#fff" : "rgba(255,255,255,0.16)",
-                color: ehFavorito ? "var(--primary-dark)" : "#fff",
-                border: "1px solid " + (ehFavorito ? "#fff" : "rgba(255,255,255,0.32)"),
-                padding: "8px 16px", borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                backdropFilter: "blur(6px)"
-              }}>
-              {ehFavorito ? "♥ Salvo" : "♡ Salvar"}
-            </button>
-            {parseInt(im.quartos) > 0 && <span style={chipAttr}>🛏️ {im.quartos} qto{parseInt(im.quartos) > 1 ? "s" : ""}</span>}
-            {parseInt(im.suites) > 0 && <span style={chipAttr}>🚿 {im.suites} suíte{parseInt(im.suites) > 1 ? "s" : ""}</span>}
-            {parseInt(im.banheiros) > 0 && <span style={chipAttr}>🛁 {im.banheiros} banh.</span>}
-            {parseInt(im.garagens) > 0 && <span style={chipAttr}>🚗 {im.garagens} vaga{parseInt(im.garagens) > 1 ? "s" : ""}</span>}
-            {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)) > 0 && (
-              <span style={chipAttr}>📐 {(parseFloat(im.metragem) || parseFloat(im.metragemTotal)).toLocaleString("pt-BR")} m²</span>
-            )}
-            {im.asfalto && <span style={chipAttr}>≡ Asfalto</span>}
-            {im.agua && <span style={chipAttr}>💧 Água</span>}
-            {im.esgoto && <span style={chipAttr}>◎ Esgoto</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* CONTEÚDO */}
-      <div style={{ maxWidth: 880, margin: "-22px auto 0", padding: "0 clamp(0.6rem, 4vw, 1.25rem)", position: "relative", zIndex: 2 }}>
         {/* Galeria */}
-        {im.fotos?.length > 0 ? (
-          <div className="card-soft" style={{ padding: 10, marginBottom: "1rem" }}>
-            <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)}
-              style={{ width: "100%", maxHeight: 520, objectFit: "contain", borderRadius: 14, cursor: "zoom-in", background: "var(--bg-muted)" }} />
+        {im.fotos?.length > 0 && (
+          <div>
+            <div className="ip-gallery">
+              <img className="ip-gallery-main" src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)} />
+            </div>
             {im.fotos.length > 1 && (
-              <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
+              <div className="ip-thumbs">
                 {im.fotos.map((f, i) => (
-                  <img key={i} src={f} onClick={() => setFotoIdx(i)} alt=""
-                    style={{ width: 88, height: 88, objectFit: "cover", borderRadius: 12, cursor: "pointer", flexShrink: 0, border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
+                  <img key={i} className="ip-thumb" src={f} alt="" onClick={() => setFotoIdx(i)}
+                    style={{ border: i === fotoIdx ? "2px solid var(--primary)" : "1px solid var(--border-soft)" }} />
                 ))}
               </div>
             )}
           </div>
-        ) : (
-          <div className="card-soft" style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1rem" }}>🏠</div>
         )}
 
-        {/* Preço destaque */}
-        <div className="card-soft" style={{ padding: "1.3rem 1.5rem", marginBottom: "0.8rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)", border: "1px solid var(--primary-border)" }}>
-          {isVen && im.preco && (
-            <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "var(--primary-dark)", letterSpacing: -0.5 }}>
-              {formatBRL(im.preco)}
-              <span style={{ fontSize: 13.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>à venda</span>
-            </p>
-          )}
-          {isLoc && parseFloat(im.valorAluguel) > 0 && (
-            <p style={{ margin: isVen ? "10px 0 0" : 0, fontSize: 24, fontWeight: 800, color: "var(--primary-dark)" }}>
-              {formatBRL(im.valorAluguel)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
-              <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>de aluguel</span>
-            </p>
-          )}
-          {/* Condomínio e IPTU logo abaixo do preço */}
-          {(() => {
-            const cond = parseFloat(im.valorCondominioMensal) || parseFloat(im.valorCondominio) || 0;
-            const iptu = parseFloat(im.valorIPTU) || 0;
-            const extras = [];
-            if (cond > 0) extras.push(["Condomínio", formatBRL(cond) + "/mês"]);
-            if (iptu > 0) extras.push(["IPTU", formatBRL(iptu) + (isVen ? "/mês" : "")]);
-            if (!extras.length) return null;
-            return (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginTop: 14 }}>
-                {extras.map(([k, v]) => (
-                  <div key={k} style={{ background: "var(--bg-muted)", borderRadius: 12, padding: "10px 14px", border: "1px solid var(--border)" }}>
-                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
-                    <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: "var(--text)" }}>{v}</p>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
+        {/* Título + atributos */}
+        <div className="ip-head">
+          <div className="ip-tags">
+            {im.tipo && <span className="ip-tag">{im.tipo}</span>}
+            {im.transacao && <span className="ip-tag">{im.transacao}</span>}
+            {im.condominio && <span className="ip-tag">Em condomínio</span>}
+          </div>
+          <h1 className="ip-title">{im.titulo}</h1>
+          {(im.bairro || im.cidade) && <p className="ip-loc">{[im.bairro, im.cidade].filter(Boolean).join(", ")}</p>}
+          <div className="ip-attrs">
+            <button className={"ip-fav " + (ehFavorito ? "on" : "")} onClick={toggleFavorito}>{ehFavorito ? "♥ Salvo" : "♡ Salvar"}</button>
+            {atributos.map(([ic, t]) => <span key={t} className="ip-attr">{ic} {t}</span>)}
+            {isLot && im.asfalto && <span className="ip-attr">📍 Asfalto</span>}
+            {isLot && im.agua && <span className="ip-attr">💧 Água</span>}
+            {isLot && im.esgoto && <span className="ip-attr">◎ Esgoto</span>}
+          </div>
         </div>
 
-        {/* CÓD entre o preço e os botões */}
-        {im.codigo && (
-          <p style={{ margin: "0 0 0.9rem", textAlign: "center", fontSize: 13, fontWeight: 800, color: "var(--primary)", letterSpacing: 0.5 }}>
-            CÓD: {String(im.codigo).toUpperCase()}
-          </p>
-        )}
+        {/* Preço */}
+        <div className="ip-price">
+          {isVen && im.preco && <p className="ip-price-main">{formatBRL(im.preco)}<small>à venda</small></p>}
+          {isLoc && parseFloat(im.valorAluguel) > 0 && (
+            <p className="ip-price-main" style={isVen ? { fontSize: 24, marginTop: 10 } : null}>{formatBRL(im.valorAluguel)}<small>/mês</small></p>
+          )}
+          {extrasPreco.length > 0 && (
+            <div className="ip-price-extras">
+              {extrasPreco.map(([k, v]) => (
+                <div key={k} className="ip-price-extra"><p>{k}</p><p>{v}</p></div>
+              ))}
+            </div>
+          )}
+        </div>
 
-        {/* CTAs: WhatsApp + Compartilhar */}
-        <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexDirection: "column" }}>
-          <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
-            textAlign: "center", padding: "16px 0",
-            borderRadius: 14, fontWeight: 800, fontSize: 16,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8
-          }}>
-            💬 Tenho interesse — falar no WhatsApp
-          </a>
-          <div style={{ position: "relative" }}>
-            <button onClick={() => setShare(s => !s)} className="btn-grad" style={{ width: "100%", padding: "13px 0", borderRadius: 14, fontWeight: 800, fontSize: 15 }}>
-              ↗ Compartilhar
-            </button>
+        {im.codigo && <p className="ip-cod">CÓD: {String(im.codigo).toUpperCase()}</p>}
+
+        {/* CTAs */}
+        <div className="ip-ctas">
+          <a href={linkWa} target="_blank" rel="noreferrer" className="ip-wa">💬 Tenho interesse — falar no WhatsApp</a>
+          <div className="ip-share-wrap">
+            <button className="ip-share" onClick={() => setShare(s => !s)}>↗ Compartilhar</button>
             {share && <CompartilharPopup im={im} onCopiarTexto={copiarDescricao} copiado={copiado} onClose={() => setShare(false)} />}
           </div>
         </div>
 
+        {/* Valor extra (Ágio, Preço/m²) */}
         {(() => {
-          // Bloco financeiro extra: só Ágio e Preço por m² (condomínio/IPTU já aparecem no destaque).
           const m2 = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
           const preco = parseFloat(im.preco) || 0;
-          const precoM2 = (isVen && preco > 0 && m2 > 0) ? preco / m2 : 0;
+          const precoM2 = (m2 > 0 && preco > 0) ? Math.round(preco / m2) : 0;
           const agio = parseFloat(im.valorAgio) || 0;
           const linhas = [];
           if (agio > 0) linhas.push(["Ágio", formatBRL(agio)]);
@@ -333,12 +351,9 @@ export default function ImovelPublico() {
           return section("Valor do imóvel", (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
               {linhas.map(([k, v]) => (
-                <div key={k} style={{
-                  background: "var(--bg-muted)", borderRadius: 12, padding: "12px 14px",
-                  border: "1px solid var(--border)"
-                }}>
-                  <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
-                  <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 800, color: "var(--text)" }}>{v}</p>
+                <div key={k} style={{ background: "var(--bg-muted)", borderRadius: 12, padding: "12px 14px", border: "1px solid var(--border)" }}>
+                  <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.5 }}>{k}</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 16, fontWeight: 600, color: "var(--text)" }}>{v}</p>
                 </div>
               ))}
             </div>
@@ -360,9 +375,7 @@ export default function ImovelPublico() {
             {row("Murado", im.muro ? "Sim" : null)}
             {row("Esquina", im.esquina ? "Sim" : null)}
             {row("Declive", im.declive)}
-            {im.retangular && im.frente && im.laterais
-              ? row("Medidas", `${im.frente} x ${im.laterais} m`)
-              : row("Medidas", im.medidas)}
+            {im.retangular && im.frente && im.laterais ? row("Medidas", `${im.frente} x ${im.laterais} m`) : row("Medidas", im.medidas)}
           </>}
           {im.condominio && im.nomeCondominio && row("Condomínio", im.nomeCondominio)}
         </>)}
@@ -370,7 +383,7 @@ export default function ImovelPublico() {
         {im.condicoes?.length > 0 && section("Condições comerciais", (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {im.condicoes.map(c => (
-              <span key={c} style={{ background: "var(--primary-light)", color: "var(--primary-dark)", padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 700 }}>
+              <span key={c} style={{ background: "var(--primary-light)", color: "var(--primary-dark)", padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600 }}>
                 {c}{c === "Permuta" && im.permuta ? `: ${im.permuta}` : ""}
               </span>
             ))}
@@ -378,89 +391,76 @@ export default function ImovelPublico() {
         ))}
 
         {im.descricao && section("Descrição", (
-          <p style={{ fontSize: 14.5, color: "var(--text-soft)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>
-            {im.descricao}
-          </p>
+          <p style={{ fontSize: 15, color: "var(--text-soft)", lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" }}>{im.descricao}</p>
         ))}
 
         {(im.mapsLink || (im.latitude && im.longitude)) && (() => {
-          // Gera a URL embed do Google Maps. Se tiver lat/lng usa coordenadas (mais preciso),
-          // senão usa o endereço/bairro/cidade. Sem chave do Google = usa o mode embed simples.
           const consulta = (im.latitude && im.longitude)
             ? `${im.latitude},${im.longitude}`
             : [im.endereco, im.bairro, im.cidade, im.estado].filter(Boolean).join(", ");
-          // t=k força a camada de SATÉLITE (não Street View / mapa normal).
           const embedSrc = `https://www.google.com/maps?q=${encodeURIComponent(consulta)}&z=17&t=k&output=embed`;
-          const linkMapa = linkLocalizacao(im); // link pino+satélite (escopo local do IIFE)
+          const linkMapa = linkLocalizacao(im);
           return section("Localização", (
             <div>
               {(im.endereco || im.bairro || im.cidade) && (
                 <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)", fontWeight: 600 }}>
                   📍 {[
-                    // Endereço: só o nome da rua (remove número, QD, LT, Quadra, Lote)
                     im.endereco ? im.endereco.replace(/,?\s*(n[°º.:]?\s*\d+[\w-]*|qd?\.?\s*\d+|lt?\.?\s*\d+|quadra\s*\d+|lote\s*\d+)/gi, "").trim().replace(/,\s*$/, "").trim() : null,
                     im.bairro, im.cidade, im.estado
                   ].filter(Boolean).join(", ")}
                 </p>
               )}
               <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
-                <iframe
-                  src={embedSrc}
-                  title="Mapa"
-                  loading="lazy"
+                <iframe src={embedSrc} title="Mapa" loading="lazy"
                   style={{ width: "100%", height: "min(320px, 56vw)", border: 0, display: "block" }}
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
+                  referrerPolicy="no-referrer-when-downgrade" />
               </div>
               {linkMapa && (
-                <a href={linkMapa} target="_blank" rel="noreferrer" style={{
-                  display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12,
-                  padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)",
-                  borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 700
-                }}>↗ Abrir no Google Maps</a>
+                <a href={linkMapa} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, padding: "9px 16px", color: "var(--primary)", border: "1px solid var(--primary)", borderRadius: 12, fontSize: 13.5, textDecoration: "none", fontWeight: 600 }}>↗ Abrir no Google Maps</a>
               )}
             </div>
           ));
         })()}
 
+        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", margin: "20px 0", textAlign: "center" }}>{RODAPE}</p>}
 
-
-        {!temRodape(im.descricao) && <p style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic", marginTop: "1.5rem", textAlign: "center" }}>{RODAPE}</p>}
-
-        {/* Imóveis relacionados */}
+        {/* Relacionados */}
         {relacionados.length > 0 && (
-          <div style={{ margin: "2rem 0 1rem" }}>
-            <h2 className="display" style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 800, color: "var(--text)" }}>Imóveis relacionados</h2>
-            <p style={{ margin: "0 0 16px", fontSize: 13.5, color: "var(--text-muted)" }}>Outras opções que podem te interessar</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 16 }}>
-              {relacionados.map(r => (
-                <ImovelCard key={r.id} im={r} onClick={() => navigate(`/imovel/${r.id}`)} showStatus={false} />
-              ))}
+          <div style={{ margin: "8px 0 16px" }}>
+            <h2 className="ip-related-h">Imóveis relacionados</h2>
+            <p style={{ margin: "0", fontSize: 14, color: "var(--text-muted)" }}>Outras opções que podem te interessar</p>
+            <div className="ip-rel-grid">
+              {relacionados.map(r => {
+                const rf = r.fotos?.[0];
+                const rLoc = [r.bairro, r.cidade].filter(Boolean).join(", ");
+                const rPreco = r.transacao === "Locação" ? (r.valorFinal || r.valorAluguel) : r.preco;
+                return (
+                  <div key={r.id} className="ip-rel-card" onClick={() => navigate(`/imovel/${r.id}`)}>
+                    <div className="ip-rel-img">{rf ? <img src={rf} alt="" loading="lazy" /> : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.4 }}>🏠</div>}</div>
+                    <div className="ip-rel-body">
+                      <div className="ip-rel-loc">{rLoc}</div>
+                      <div className="ip-rel-title">{r.titulo || r.tipo || "Imóvel"}</div>
+                      {rPreco && <div className="ip-rel-price">R$ {parseFloat(rPreco).toLocaleString("pt-BR")}</div>}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
-        <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          padding: "16px 12px", borderRadius: 14, fontWeight: 800, fontSize: 16,
-          marginTop: "0.5rem", marginBottom: "2.5rem", textAlign: "center", lineHeight: 1.3,
-          textDecoration: "none", width: "100%", boxSizing: "border-box", flexWrap: "wrap"
-        }}>
+        <a href={linkWa} target="_blank" rel="noreferrer" className="ip-wa" style={{ marginTop: 8, marginBottom: 40 }}>
           💬 Falar com a {EMPRESA.nome} no WhatsApp
         </a>
       </div>
+
+      {/* WHATSAPP FLUTUANTE */}
+      <a href={linkWa} target="_blank" rel="noreferrer" className="wa-float" aria-label="Falar no WhatsApp">
+        <span style={{ fontSize: 22, lineHeight: 1 }}>💬</span>
+        <span className="wa-txt" style={{ fontSize: 14, fontWeight: 600 }}>Fale conosco no WhatsApp</span>
+      </a>
     </div>
   );
 }
 
-const chipHero = {
-  background: "rgba(255,255,255,0.16)", border: "1px solid rgba(255,255,255,0.28)",
-  color: "#fff", fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999,
-  backdropFilter: "blur(4px)"
-};
-const chipAttr = {
-  background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.24)",
-  color: "#fff", fontSize: 13, fontWeight: 700, padding: "6px 14px", borderRadius: 999,
-  display: "inline-flex", alignItems: "center", gap: 6, backdropFilter: "blur(4px)"
-};
 const popItem = { display: "block", padding: "10px 14px", fontSize: 13.5, color: "var(--text)", textDecoration: "none", borderRadius: 10, cursor: "pointer" };
