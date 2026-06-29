@@ -90,7 +90,7 @@ export default function Rotacao({ embutido = false }) {
         {!embutido && <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "var(--primary-dark)", flex: 1 }}>🔄 Rotação de Estoque</h2>}
         <span style={{ flex: 1 }} />
         <button onClick={carregar} disabled={carregando}
-          style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+          style={{ padding: "9px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
           {carregando ? "Atualizando..." : "↻ Atualizar"}
         </button>
       </div>
@@ -109,19 +109,23 @@ export default function Rotacao({ embutido = false }) {
         </div>
       )}
 
-      {/* Abas */}
-      <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border)", marginBottom: "1.2rem", flexWrap: "wrap" }}>
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{
-              padding: "10px 16px", border: "none", background: "none", cursor: "pointer",
-              fontSize: 14, fontWeight: tab === t.key ? 700 : 500,
-              color: tab === t.key ? "var(--primary)" : "var(--text-muted)",
-              borderBottom: tab === t.key ? "2px solid var(--primary)" : "2px solid transparent",
-            }}>
-            {t.emoji} {t.label}
-          </button>
-        ))}
+      {/* Abas (segmented control) */}
+      <div style={{ display: "inline-flex", background: "var(--bg-muted)", padding: 4, borderRadius: 12, gap: 3, marginBottom: "1.2rem", flexWrap: "wrap" }}>
+        {TABS.map(t => {
+          const on = tab === t.key;
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              style={{
+                padding: "9px 16px", border: "none", borderRadius: 9, cursor: "pointer",
+                fontSize: 14, fontWeight: on ? 600 : 500, fontFamily: "inherit",
+                background: on ? "var(--bg-card)" : "transparent",
+                color: on ? "var(--primary-dark)" : "var(--text-soft)",
+                boxShadow: on ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+              }}>
+              {t.emoji} {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {carregando && <p style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>Carregando...</p>}
@@ -148,7 +152,7 @@ function AbaPrevia({ previa, diagnostico }) {
       {/* O que será anunciado agora */}
       <h3 style={secTitle}>O que seria anunciado agora</h3>
       {previa?.atribuicoes?.length > 0 ? (
-        <div style={{ border: "1px solid var(--border-soft)", borderRadius: 10, overflow: "hidden", marginBottom: "1.8rem" }}>
+        <div style={{ border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: "1.8rem", background: "var(--bg-card)" }}>
           {previa.atribuicoes.map((a, i) => (
             <div key={i} style={{ display: "flex", gap: 12, padding: "10px 14px", borderBottom: i < previa.atribuicoes.length - 1 ? "1px solid var(--border-soft)" : "none", alignItems: "flex-start", flexWrap: "wrap", background: i % 2 ? "var(--bg-section)" : "var(--bg-card)" }}>
               <div style={{ flex: "1 1 280px", minWidth: 0 }}>
@@ -307,7 +311,7 @@ function AbaConfig({ agenda, setAgenda, salvarHorarios, dispararAgora, disparand
 
 function Card({ n, label, cor }) {
   return (
-    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-soft)", borderRadius: 12, padding: "14px 16px", textAlign: "center" }}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px", textAlign: "center" }}>
       <div style={{ fontSize: 26, fontWeight: 800, color: cor }}>{n}</div>
       <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{label}</div>
     </div>
