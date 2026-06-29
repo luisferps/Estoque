@@ -229,7 +229,7 @@ export default function Destaques({ onLogout }) {
       const pb = fb?.posicao ?? 99999;
       return pa - pb;
     });
-  }, [noCanalPro, busca, filaPorId]);
+  }, [noCanalPro, busca, filaPorId, filtroEstado]);
 
   const salvarCota = async () => {
     setSalvandoCota(true);
