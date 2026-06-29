@@ -34,8 +34,9 @@ function CompartilharPopup({ im, onCopiarTexto, copiado, onClose }) {
   const mail = `mailto:?subject=${encodeURIComponent(titulo)}&body=${encodeURIComponent(`${titulo}\n${link}`)}`;
   const copiarLink = async () => { try { await navigator.clipboard.writeText(link); } catch {} onClose(); };
   // Link de localização para compartilhar: abre em visão de SATÉLITE (não Street View).
-  // Formato com data=!3m1!1e3 = camada de satélite do Google Maps.
-  const mapsLink = (im.latitude && im.longitude)
+  // Com coordenada → link de satélite (data=!3m1!1e3). Sem coordenada → mapsLink salvo.
+  const temCoord = im.latitude && im.longitude;
+  const mapsLink = temCoord
     ? `https://www.google.com/maps/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`
     : (im.mapsLink || null);
   return (
