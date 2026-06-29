@@ -8,7 +8,7 @@
 //
 // Atenção: imóveis sem latitude/longitude são EXCLUÍDOS do feed Meta.
 
-const { getDb } = require("./_firebase");
+const { getDb, registrarPull } = require("./_firebase");
 const {
   xmlEscape, cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
   carregarTiposCentral, acharTipoCentral,
@@ -170,6 +170,7 @@ ${imagensAdicionais}
 
 exports.handler = async () => {
   try {
+    registrarPull("meta");
     const db = getDb();
     const [snap, tiposCentral] = await Promise.all([
       db.collection("imoveis").get(),
