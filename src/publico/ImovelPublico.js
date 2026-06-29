@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
-import { RODAPE, EMPRESA } from "../constants";
+import { RODAPE, EMPRESA, LOGO_URL } from "../constants";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta, linkLocalizacao
 } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 import ImovelCard from "../shared/ImovelCard";
-import Header from "./Header";
+
 
 // chave do localStorage onde guardamos os IDs salvos pelo visitante (favoritos)
 const FAV_KEY = "inerente_favoritos";
@@ -141,12 +141,17 @@ export default function ImovelPublico() {
 
   if (!im || statusDoImovel(im) !== "Disponível" || !apareceNoSite(im)) {
     return (
-      <div>
-        <Header />
-        <div style={{ ...pageWrap(), textAlign: "center", padding: "4rem 1rem" }}>
-          <h2 style={{ color: "var(--text)" }}>Imóvel não disponível</h2>
+      <div style={{ minHeight: "100vh", background: "#fff" }}>
+        <div style={{ borderBottom: "1px solid var(--border)", padding: "0 22px", height: 56, display: "flex", alignItems: "center", maxWidth: 1024, margin: "0 auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, cursor: "pointer" }} onClick={() => navigate("/")}>
+            <img src={LOGO_URL} alt="Inerente" style={{ height: 26 }} />
+            <b style={{ fontSize: 18, fontWeight: 600, color: "var(--primary-dark)" }}>Inerente</b>
+          </div>
+        </div>
+        <div style={{ maxWidth: 880, margin: "0 auto", textAlign: "center", padding: "5rem 1.5rem" }}>
+          <h2 style={{ color: "var(--text)", fontWeight: 600 }}>Imóvel não disponível</h2>
           <p style={{ color: "var(--text-muted)" }}>Este imóvel não está mais disponível ou foi removido.</p>
-          <button onClick={() => navigate("/")} className="btn-grad" style={{ marginTop: 16, padding: "11px 26px", borderRadius: 14, fontWeight: 700 }}>
+          <button onClick={() => navigate("/")} style={{ marginTop: 16, padding: "12px 28px", borderRadius: 980, fontWeight: 500, background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer", fontSize: 15 }}>
             Ver outros imóveis
           </button>
         </div>
@@ -177,7 +182,7 @@ export default function ImovelPublico() {
   ) : null;
 
   const section = (titulo, children) => (
-    <div className="card-soft" style={{ padding: "1.25rem 1.4rem", marginBottom: "1rem" }}>
+    <div className="card-apple" style={{ padding: "1.4rem 1.6rem", marginBottom: "1rem" }}>
       <p style={{ margin: "0 0 14px", fontWeight: 800, fontSize: 12.5, color: "var(--primary)", letterSpacing: 0.6, textTransform: "uppercase" }}>{titulo}</p>
       {children}
     </div>
@@ -185,7 +190,26 @@ export default function ImovelPublico() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      <Header />
+      <nav className="ip-apple-nav">
+        <div className="ip-apple-nav-inner">
+          <div className="ip-apple-logo" onClick={() => navigate("/")}>
+            <img src={LOGO_URL} alt="Inerente" />
+            <b>Inerente</b> <em>Gestão Imobiliária</em>
+          </div>
+          <a href="/admin" className="ip-apple-cta">Área do Corretor</a>
+        </div>
+      </nav>
+      <style>{`
+        .ip-apple-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.82); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+        .ip-apple-nav-inner { max-width: 1024px; margin: 0 auto; height: 56px; padding: 0 22px; display: flex; align-items: center; gap: 14px; }
+        .ip-apple-logo { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+        .ip-apple-logo img { height: 26px; display: block; }
+        .ip-apple-logo b { font-size: 18px; font-weight: 600; color: var(--primary-dark); }
+        .ip-apple-logo em { font-style: normal; font-weight: 400; font-size: 14px; color: var(--text-soft); }
+        @media (max-width: 540px) { .ip-apple-logo em { display: none; } }
+        .ip-apple-cta { margin-left: auto; font-size: 13px; font-weight: 500; background: var(--primary); color: #fff; padding: 7px 16px; border-radius: 980px; text-decoration: none; }
+        .card-apple { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.04); }
+      `}</style>
       <Lightbox idx={lb} fotos={im.fotos || []} onClose={() => setLb(null)} onChange={setLb} />
 
       {/* HERO */}
@@ -245,9 +269,9 @@ export default function ImovelPublico() {
       <div style={{ maxWidth: 880, margin: "-22px auto 0", padding: "0 clamp(0.6rem, 4vw, 1.25rem)", position: "relative", zIndex: 2 }}>
         {/* Galeria */}
         {im.fotos?.length > 0 ? (
-          <div className="card-soft" style={{ padding: 10, marginBottom: "1rem" }}>
+          <div className="card-apple" style={{ padding: 10, marginBottom: "1rem" }}>
             <img src={im.fotos[fotoIdx]} alt="" onClick={() => setLb(fotoIdx)}
-              style={{ width: "100%", maxHeight: 520, objectFit: "contain", borderRadius: 14, cursor: "zoom-in", background: "var(--bg-muted)" }} />
+              style={{ width: "100%", maxHeight: 520, objectFit: "contain", borderRadius: 16, cursor: "zoom-in", background: "var(--bg-muted)" }} />
             {im.fotos.length > 1 && (
               <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4, WebkitOverflowScrolling: "touch" }}>
                 {im.fotos.map((f, i) => (
@@ -258,11 +282,11 @@ export default function ImovelPublico() {
             )}
           </div>
         ) : (
-          <div className="card-soft" style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1rem" }}>🏠</div>
+          <div className="card-apple" style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 60, marginBottom: "1rem" }}>🏠</div>
         )}
 
         {/* Preço destaque */}
-        <div className="card-soft" style={{ padding: "1.3rem 1.5rem", marginBottom: "0.8rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 100%)", border: "1px solid var(--primary-border)" }}>
+        <div className="card-apple" style={{ padding: "1.4rem 1.6rem", marginBottom: "0.8rem", background: "linear-gradient(135deg, var(--primary-light) 0%, var(--bg-card) 70%)", border: "1px solid var(--primary-border)", borderRadius: 20 }}>
           {isVen && im.preco && (
             <p style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "var(--primary-dark)", letterSpacing: -0.5 }}>
               {formatBRL(im.preco)}
