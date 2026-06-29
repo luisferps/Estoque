@@ -5,18 +5,10 @@ import { pageWrap } from "../shared/styles";
 // Concentra o que não é uso diário, deixando o menu principal limpo.
 const ITENS = [
   {
-    grupo: "Divulgação",
-    cards: [
-      { icone: "🔄", nome: "Rotação", desc: "Divulgação automática dos imóveis nos grupos de WhatsApp", path: "/admin/rotacao" },
-      { icone: "⭐", nome: "Destaques", desc: "Rodízio das vagas pagas de destaque no Canal Pro", path: "/admin/destaques" },
-    ],
-  },
-  {
     grupo: "Cadastros",
     cards: [
       { icone: "📥", nome: "Importar", desc: "Importação de imóveis em massa via planilha/JSON", path: "/admin/importar" },
       { icone: "🏷️", nome: "Tipos", desc: "Tipos de imóvel e mapeamento para os portais", path: "/admin/tipos" },
-      { icone: "👥", nome: "Corretores", desc: "Acesso de contingência (a equipe é gerida no módulo Pessoas)", path: "/admin/corretores" },
     ],
   },
 ];
