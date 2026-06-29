@@ -15,7 +15,7 @@ const TABS = [
   { key: "config", label: "Configuração", emoji: "⚙️" },
 ];
 
-export default function Rotacao() {
+export default function Rotacao({ embutido = false }) {
   const navigate = useNavigate();
   const [tab, setTab] = useState("previa");
   const [agenda, setAgenda] = useState(null);
@@ -84,10 +84,11 @@ export default function Rotacao() {
   }
 
   return (
-    <div style={pageWrap(1100)}>
+    <div style={embutido ? { maxWidth: 1100, margin: "0 auto" } : pageWrap(1100)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "0.5rem", flexWrap: "wrap" }}>
-        <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "var(--primary-dark)", flex: 1 }}>🔄 Rotação de Estoque</h2>
+        {!embutido && <button onClick={() => navigate(-1)} style={backBtn}>← Voltar</button>}
+        {!embutido && <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "var(--primary-dark)", flex: 1 }}>🔄 Rotação de Estoque</h2>}
+        <span style={{ flex: 1 }} />
         <button onClick={carregar} disabled={carregando}
           style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
           {carregando ? "Atualizando..." : "↻ Atualizar"}
