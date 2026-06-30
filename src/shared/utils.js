@@ -151,7 +151,8 @@ export function gerarDescricao(form) {
   linhas.push("");
   if (form.bairro) linhas.push(form.bairro.toUpperCase());
   linhas.push("");
-  if (form.metragem) linhas.push(`- ${form.metragem} m² de construção`);
+  // Lote/terreno não tem construção: nunca emite "m² de construção" pra esses tipos.
+  if (form.metragem && !isLoteForm) linhas.push(`- ${form.metragem} m² de construção`);
   if (form.metragemTotal) linhas.push(`- ${form.metragemTotal} m² de terreno`);
   // medidas/dimensões do lote logo abaixo da metragem
   if (form.retangular && form.frente && form.laterais) linhas.push(`- ${form.frente}x${form.laterais} m`);
@@ -164,6 +165,7 @@ export function gerarDescricao(form) {
   if (g > 0) linhas.push(`- ${g} ${g > 1 ? "garagens" : "garagem"}`);
   if (isLoteForm || isRuralForm) {
     if (form.asfalto) linhas.push("- Asfalto");
+    else linhas.push("- Não tem asfalto");
     if (form.agua) linhas.push("- Água");
     if (form.esgoto) linhas.push("- Esgoto");
     if (form.declive === "Plano") linhas.push("- Plano");
@@ -173,6 +175,10 @@ export function gerarDescricao(form) {
   }
   if (form.condominio && form.nomeCondominio) linhas.push(`- Condomínio: ${form.nomeCondominio}`);
   if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
+  // Redondezas: o que tem por perto (cada linha vira um tópico).
+  if (form.redondezas) {
+    linhas.push(...String(form.redondezas).split("\n").map(x => x.trim()).filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
+  }
   if (form.extras) {
     // não repetir o valor de venda: extras às vezes traz "Venda: R$..." ou "R$ ..." (já sai abaixo)
     const ehLinhaPreco = (l) => /^-?\s*(venda|[áa]gio|valor de venda|pre[çc]o)\b/i.test(l) || /^-?\s*r\$\s*\d/i.test(l);
@@ -206,6 +212,10 @@ export function gerarDescricao(form) {
     const total = a + c + ip;
     if (total) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
   }
+  // Preço sob consulta: sem valor de venda nem de aluguel preenchido.
+  const _semVenda = !(ven && parseFloat(form.preco));
+  const _semAluguel = !(loc && parseFloat(form.valorAluguel));
+  if (_semVenda && _semAluguel) linhas.push("Preço sob consulta");
   if (form.condicoes?.length) {
     // "À vista" é óbvio, não entra. Prefixo "Aceita ..." e em minúsculo.
     const conds = form.condicoes
