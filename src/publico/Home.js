@@ -78,7 +78,7 @@ function CardImovel({ im, onClick, onWhats, onShare, shareOpen, onCopiar, copiad
           {!(q || su || va) && im.asfalto && <span className="p-spec">📍 Asfalto</span>}
         </div>
         <div className="p-card-price" onClick={onClick}>
-          {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 15, color: "var(--text-muted)", fontWeight: 400 }}>Consulte</span>}
+          {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 500 }}>Preço sob consulta</span>}
         </div>
         <div className="p-card-actions">
           <a href={wa} target="_blank" rel="noreferrer" className="p-wa-btn" onClick={e => e.stopPropagation()}>💬 WhatsApp</a>
@@ -273,12 +273,12 @@ export default function Home() {
       {/* NAV */}
       <nav className="a-nav">
         <div className="a-nav-inner">
-          <div className="a-logo">
+          <div className="a-logo" style={{ cursor: "pointer" }} onClick={() => { navigate("/"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
             <img src={LOGO_URL} alt="Inerente Gestão Imobiliária" />
             <b>Inerente</b> <em>Gestão Imobiliária</em>
           </div>
           <div className="a-nav-spacer"></div>
-          <a href="/admin" className="a-nav-cta">Área do Corretor</a>
+          <a href="https://portalinerente.netlify.app" target="_blank" rel="noopener noreferrer" className="a-nav-cta">Área do Corretor</a>
         </div>
       </nav>
 
