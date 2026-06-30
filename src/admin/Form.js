@@ -283,18 +283,35 @@ export default function Form() {
     setSaving(false);
   };
 
-  const addFotos = async (e) => {
-    const files = Array.from(e.target.files);
+  const uploadFiles = async (files) => {
     if (!files.length) return;
-    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    files.sort((a, b) => (a.name || "").localeCompare(b.name || "", undefined, { numeric: true, sensitivity: "base" }));
     setUploading(true);
     try {
       const urls = await Promise.all(files.map(f => uploadToCloudinary(f)));
       setForm(p => ({ ...p, fotos: [...(p.fotos || []), ...urls] }));
     } catch (err) { alert("Erro upload: " + err.message); }
     setUploading(false);
+  };
+
+  const addFotos = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    await uploadFiles(files);
     e.target.value = "";
   };
+
+  // ITEM 7: colar fotos com Ctrl+V (área de transferência) direto no cadastro.
+  useEffect(() => {
+    const onPaste = (e) => {
+      const itens = Array.from(e.clipboardData?.items || []);
+      const imgs = itens.filter(it => it.type && it.type.startsWith("image/")).map(it => it.getAsFile()).filter(Boolean);
+      if (imgs.length) { e.preventDefault(); uploadFiles(imgs); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const organizarFotosIA = async () => {
     const fotos = (form.fotos || []).filter(Boolean);
@@ -748,6 +765,7 @@ export default function Form() {
           <MapaPino
             latitude={form.latitude}
             longitude={form.longitude}
+            enderecoBusca={[form.endereco, form.bairro, form.cidade, form.estado, form.cep].filter(Boolean).join(", ")}
             onChange={(lat, lon) => setForm(p => ({ ...p, latitude: String(lat), longitude: String(lon), coordManual: true }))}
           />
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginTop: 10, cursor: "pointer", color: "var(--text-soft)" }}>
@@ -811,6 +829,12 @@ export default function Form() {
       </>)}
 
       {section("Descrição", <>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Redondezas — o que tem por perto (uma por linha)</label>
+          <textarea value={form.redondezas || ""} onChange={e => sf("redondezas", e.target.value)} placeholder={"Ex:\nPerto do Shopping Buriti\nPerto da escola municipal\nPróximo ao supermercado"} rows={3}
+            style={{ ...inputBase, resize: "vertical", lineHeight: 1.6 }} />
+          <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: "4px 0 0" }}>Entram como tópicos na descrição gerada.</p>
+        </div>
         <div style={{ marginBottom: 8 }}>
           <label style={labelStyle}>Características extras (uma por linha)</label>
           <textarea value={form.extras || ""} onChange={e => sf("extras", e.target.value)} placeholder={"Ex:\nAr condicionado\nPiscina aquecida"} rows={3}
