@@ -196,7 +196,7 @@ export default function ImovelPublico() {
             <img src={LOGO_URL} alt="Inerente" />
             <b>Inerente</b> <em>Gestão Imobiliária</em>
           </div>
-          <a href="/admin" className="ip-apple-cta">Área do Corretor</a>
+          <a href="https://portalinerente.netlify.app" target="_blank" rel="noopener noreferrer" className="ip-apple-cta">Área do Corretor</a>
         </div>
       </nav>
       <style>{`
@@ -298,6 +298,9 @@ export default function ImovelPublico() {
               {formatBRL(im.valorAluguel)}<span style={{ fontSize: 14, fontWeight: 500 }}>/mês</span>
               <span style={{ fontSize: 12.5, fontWeight: 500, marginLeft: 10, opacity: 0.75 }}>de aluguel</span>
             </p>
+          )}
+          {!(isVen && im.preco) && !(isLoc && parseFloat(im.valorAluguel) > 0) && (
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "var(--primary-dark)" }}>Preço sob consulta</p>
           )}
           {/* Condomínio e IPTU logo abaixo do preço */}
           {(() => {
