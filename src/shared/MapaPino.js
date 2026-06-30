@@ -54,7 +54,7 @@ function noBrasil(lat, lng) {
   return !isNaN(lat) && !isNaN(lng) && lat >= -34 && lat <= 6 && lng >= -74 && lng <= -34;
 }
 
-export default function MapaPino({ latitude, longitude, onChange }) {
+export default function MapaPino({ latitude, longitude, onChange, enderecoBusca }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
@@ -66,6 +66,29 @@ export default function MapaPino({ latitude, longitude, onChange }) {
   const [msg, setMsg] = useState("");
 
   const temCoord = latitude && longitude && !isNaN(parseFloat(latitude)) && !isNaN(parseFloat(longitude));
+
+  // ITEM 6: sem coordenada colada → busca automática pelo CEP+endereço do cadastro.
+  // Só dispara uma vez por endereço, e nunca sobrescreve coordenada já existente.
+  const ultimoEnderecoBuscado = useRef("");
+  useEffect(() => {
+    if (temCoord) return;
+    const q = String(enderecoBusca || "").trim();
+    if (q.length < 8) return;                       // endereço muito curto, ignora
+    if (ultimoEnderecoBuscado.current === q) return; // já buscou esse, não repete
+    ultimoEnderecoBuscado.current = q;
+    let cancelado = false;
+    (async () => {
+      try {
+        const r = await fetch(`${WA_AGENT_URL}/geo/buscar?q=${encodeURIComponent(q)}`);
+        const d = await r.json();
+        if (!cancelado && d.ok && d.latitude && d.longitude && noBrasil(parseFloat(d.latitude), parseFloat(d.longitude))) {
+          onChange(parseFloat(d.latitude), parseFloat(d.longitude));
+        }
+      } catch { /* silencioso: usuário ainda pode arrastar o pino */ }
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enderecoBusca, temCoord]);
   const posInicial = temCoord
     ? { lat: parseFloat(latitude), lng: parseFloat(longitude) }
     : CENTRO_PADRAO;
