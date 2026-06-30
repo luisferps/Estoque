@@ -140,9 +140,13 @@ export default function Lista({ onLogout }) {
       }
 
       // 2) Reserva um código novo (atômico) para cada imóvel sem código.
+      // Monta o conjunto de códigos JÁ usados pra garantir unicidade mesmo se o contador dessincronizar.
+      const usados = new Set(
+        imoveis.map(im => (im.codigo || "").trim().toLowerCase()).filter(Boolean)
+      );
       for (const im of faltantes) {
         try {
-          const codigo = await reservarCodigoImovel(db, im.bairro);
+          const codigo = await reservarCodigoImovel(db, im.bairro, usados);
           await editarImovelBackend(im.id, { codigo });
           feitos++;
         } catch (e) { erros++; }
