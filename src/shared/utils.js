@@ -108,19 +108,36 @@ export function chaveBairro(bairro) {
 // - db: instância do Firestore
 // - bairro: nome do bairro (mantém capitalização original no código final)
 // Retorna o código string (ex: "Rosa dos Ventos" ou "Rosa dos Ventos 4").
-export async function reservarCodigoImovel(db, bairro) {
+export async function reservarCodigoImovel(db, bairro, usados) {
   const base = (bairro || "").trim();
   if (!base) return "";
   const chave = chaveBairro(base);
   const ref = doc(db, "contadores", chave);
-  const seq = await runTransaction(db, async (tx) => {
+  // Reserva o próximo número no contador atômico do bairro.
+  let seq = await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     const atual = snap.exists() ? (snap.data().seq || 0) : 0;
     const novo = atual + 1;
     tx.set(ref, { seq: novo, bairro: base }, { merge: true });
     return novo;
   });
-  return seq <= 1 ? base : `${base} ${seq}`;
+  // Anti-duplicação: se o código já existe (contador dessincronizado), avança até achar um livre.
+  const jaUsado = (cod) => usados instanceof Set && usados.has((cod || "").trim().toLowerCase());
+  let cod = `${base} ${seq}`;
+  let guarda = 0;
+  while (jaUsado(cod) && guarda < 1000) {
+    seq += 1;
+    cod = `${base} ${seq}`;
+    guarda += 1;
+  }
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
+    if (seq > atual) tx.set(ref, { seq, bairro: base }, { merge: true });
+  });
+  if (usados instanceof Set) usados.add(cod.trim().toLowerCase());
+  // SEMPRE com número (inclusive o primeiro): "Jardins Versalhes 1".
+  return cod;
 }
 
 // Inicializa o contador de um bairro com um valor mínimo (usado na migração,
