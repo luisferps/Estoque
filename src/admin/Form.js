@@ -5,7 +5,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, CONDICOES, CANAIS, CANAIS_VENDA, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, usuarioSSO, ehDiretorEfetivo } from "../shared/userRole";
+import { useUserRole, usuarioSSO, ehDiretorEfetivo, perfilSSO } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -103,9 +103,13 @@ export default function Form() {
   const [modalConfirmar, setModalConfirmar] = useState(false);
   // Lista de captadores cadastrados no Supabase (via backend)
   const [listaCaptadores, setListaCaptadores] = useState([]);
+  const [listaExternos, setListaExternos] = useState([]);
+  const [mostrarNovoExterno, setMostrarNovoExterno] = useState(false);
+  const [novoExterno, setNovoExterno] = useState({ nome: "", cpf: "", telefone: "" });
+  const [salvandoExterno, setSalvandoExterno] = useState(false);
   const fileRef = useRef();
 
-  // Carrega lista de captadores do Supabase via backend
+  // Carrega lista de captadores (internos) do Supabase via backend
   useEffect(() => {
     const token = tokenSessaoSSO();
     if (!token) return;
@@ -114,6 +118,18 @@ export default function Form() {
     })
       .then(r => r.json())
       .then(j => { if (j.ok) setListaCaptadores(j.captadores || []); })
+      .catch(() => {});
+  }, []);
+
+  // Carrega lista de captadores EXTERNOS (parceiros de fora, sem login)
+  useEffect(() => {
+    const token = tokenSessaoSSO();
+    if (!token) return;
+    fetch(BACKEND_URL + '/captadores-externos/listar', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    })
+      .then(r => r.json())
+      .then(j => { if (j.ok) setListaExternos(j.externos || []); })
       .catch(() => {});
   }, []);
 
@@ -208,8 +224,14 @@ export default function Form() {
     if (!form.titulo) return alert("Preencha o título.");
     if (!telefoneValido(form.telefoneProprietario, telProprietarioIntl))
       return alert("Informe o telefone do proprietário: nacional (fixo 10 dígitos ou celular 11) ou internacional (com + e código do país).");
-    if (!form.nomeCaptador || !(form.captadores_ids || []).length)
+    if (!form.nomeCaptador || !(form.captadores_detalhes || []).length)
       return alert("Selecione pelo menos um captador.");
+    // Trava de sanidade da divisão: a soma das fatias precisa fechar 100%.
+    if ((form.captadores_detalhes || []).length > 0) {
+      const soma = (form.captadores_detalhes || []).reduce((s, c) => s + (Number(c.pct) || 0), 0);
+      if (soma !== 100)
+        return alert(`A divisão de comissão precisa somar 100%. Atualmente soma ${soma}%.`);
+    }
     setSaving(true);
     try {
       const { id: _id, ...data } = { ...form, ...overrides };
@@ -281,6 +303,35 @@ export default function Form() {
       navigate("/admin");
     } catch (e) { alert("Erro: " + e.message); }
     setSaving(false);
+  };
+
+  const salvarNovoExterno = async () => {
+    const nome = (novoExterno.nome || "").trim();
+    if (!nome) return alert("Informe o nome do captador externo.");
+    setSalvandoExterno(true);
+    try {
+      const token = tokenSessaoSSO();
+      const r = await fetch(BACKEND_URL + "/captadores-externos/criar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify(novoExterno),
+      });
+      const j = await r.json();
+      if (!j.ok || !j.externo) { alert("Erro ao salvar externo."); setSalvandoExterno(false); return; }
+      const ext = j.externo;
+      setListaExternos(p => [...p, ext].sort((a, b) => (a.nome || "").localeCompare(b.nome || "")));
+      // já adiciona como dono de fatia
+      setForm(p => {
+        const nova = { tipo: "externo", externo_id: ext.id, nome: ext.nome, telefone: ext.telefone || "", representante: (ext.criado_por || meuEmailAtual || "").toLowerCase(), pct: 0 };
+        const det = [...(p.captadores_detalhes || []), nova];
+        const eq = Math.floor(100 / det.length);
+        det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
+        return { ...p, captadores_detalhes: det, nomeCaptador: det.map(c => c.nome).join(", ") };
+      });
+      setNovoExterno({ nome: "", cpf: "", telefone: "" });
+      setMostrarNovoExterno(false);
+    } catch { alert("Falha de conexão ao salvar externo."); }
+    setSalvandoExterno(false);
   };
 
   const uploadFiles = async (files) => {
@@ -598,6 +649,20 @@ export default function Form() {
     </div>
   );
 
+  // ─── DIVISÃO DE COMISSÃO (captação): quem pode editar cada fatia ───
+  const meuEmailAtual = (usuarioSSO() || "").toLowerCase();
+  const ehAlcadaSuperior = ehDiretorEfetivo(isAdmin) || perfilSSO() === "gerente";
+  // Posso editar/remover a fatia deste captador?
+  // - Interno: só o próprio dono (email bate) ou alçada superior.
+  // - Externo: só o representante (quem cadastrou) ou alçada superior.
+  const podeEditarFatia = (cap) => {
+    if (ehAlcadaSuperior) return true;
+    if (!meuEmailAtual) return false;
+    if (cap.tipo === "externo") return String(cap.representante || "").toLowerCase() === meuEmailAtual;
+    return String(cap.email || "").toLowerCase() === meuEmailAtual;
+  };
+  const somaPct = (form.captadores_detalhes || []).reduce((s, c) => s + (Number(c.pct) || 0), 0);
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
@@ -856,64 +921,133 @@ export default function Form() {
       </>)}
 
       {section("Captador(es) *", <>
-        {listaCaptadores.length === 0 ? (
+        {listaCaptadores.length === 0 && listaExternos.length === 0 ? (
           <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 8px" }}>
-            Nenhum captador cadastrado ainda. Adicione no <b>Cadastro de Pessoas</b> com a função Captador.
+            Nenhum captador cadastrado ainda. Adicione no <b>Cadastro de Pessoas</b> com a função Captador, ou registre um externo abaixo.
           </p>
-        ) : (
+        ) : null}
           <>
-            {/* Select com busca — funciona com qualquer quantidade de captadores */}
+            {/* Adicionar captador INTERNO (corretor da casa, com login) */}
             <select
               value=""
               onChange={e => {
                 const capId = e.target.value;
                 if (!capId) return;
-                const atual = form.captadores_ids || [];
-                if (atual.includes(capId)) return;
-                const novos = [...atual, capId];
-                const pct = Math.round(100 / novos.length);
-                const captadoresDetalhes = novos.map((cid, idx) => ({
-                  id: cid,
-                  nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
-                  pct: idx === 0 ? (100 - pct * (novos.length - 1)) : pct
-                }));
-                setForm(p => ({
-                  ...p,
-                  captadores_ids: novos,
-                  captadores_detalhes: captadoresDetalhes,
-                  nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
-                }));
+                const jaTem = (form.captadores_detalhes || []).some(c => c.tipo === "interno" && c.id === capId);
+                if (jaTem) return;
+                const info = listaCaptadores.find(c => c.id === capId);
+                const nova = {
+                  tipo: "interno",
+                  id: capId,
+                  nome: info?.nome || "",
+                  email: (info?.email || "").toLowerCase(),
+                  telefone: info?.telefone || "",
+                  pct: 0,
+                };
+                setForm(p => {
+                  const det = [...(p.captadores_detalhes || []), nova];
+                  const eq = Math.floor(100 / det.length);
+                  det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
+                  return {
+                    ...p,
+                    captadores_detalhes: det,
+                    captadores_ids: det.filter(c => c.tipo === "interno").map(c => c.id),
+                    nomeCaptador: det.map(c => c.nome).join(", "),
+                  };
+                });
               }}
-              style={{ ...inputBase, color: "var(--text-muted)", marginBottom: 10 }}>
-              <option value="">+ Adicionar captador...</option>
+              style={{ ...inputBase, color: "var(--text-muted)", marginBottom: 8 }}>
+              <option value="">+ Adicionar captador interno...</option>
               {listaCaptadores
-                .filter(cap => !(form.captadores_ids || []).includes(cap.id))
+                .filter(cap => !(form.captadores_detalhes || []).some(c => c.tipo === "interno" && c.id === cap.id))
                 .map(cap => (
                   <option key={cap.id} value={cap.id}>{cap.nome}{cap.telefone ? ` — ${cap.telefone}` : ""}</option>
                 ))}
             </select>
 
+            {/* Adicionar captador EXTERNO (parceiro de fora, sem login) */}
+            <div style={{ marginBottom: 10 }}>
+              <select
+                value=""
+                onChange={e => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  if (v === "__novo__") { setMostrarNovoExterno(true); return; }
+                  const jaTem = (form.captadores_detalhes || []).some(c => c.tipo === "externo" && c.externo_id === v);
+                  if (jaTem) return;
+                  const ext = listaExternos.find(x => x.id === v);
+                  const nova = {
+                    tipo: "externo",
+                    externo_id: v,
+                    nome: ext?.nome || "",
+                    telefone: ext?.telefone || "",
+                    representante: (ext?.criado_por || meuEmailAtual || "").toLowerCase(),
+                    pct: 0,
+                  };
+                  setForm(p => {
+                    const det = [...(p.captadores_detalhes || []), nova];
+                    const eq = Math.floor(100 / det.length);
+                    det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
+                    return { ...p, captadores_detalhes: det, nomeCaptador: det.map(c => c.nome).join(", ") };
+                  });
+                }}
+                style={{ ...inputBase, color: "var(--text-muted)" }}>
+                <option value="">+ Adicionar captador externo...</option>
+                <option value="__novo__">➕ Cadastrar novo externo</option>
+                {listaExternos
+                  .filter(x => !(form.captadores_detalhes || []).some(c => c.tipo === "externo" && c.externo_id === x.id))
+                  .map(x => (
+                    <option key={x.id} value={x.id}>{x.nome}{x.cpf ? ` — CPF ${x.cpf}` : ""}</option>
+                  ))}
+              </select>
+
+              {mostrarNovoExterno && (
+                <div style={{ marginTop: 8, padding: 12, background: "var(--bg-section)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-soft)", marginBottom: 8 }}>Novo captador externo</div>
+                  <input placeholder="Nome *" value={novoExterno.nome} onChange={e => setNovoExterno(p => ({ ...p, nome: e.target.value }))} style={{ ...inputBase, marginBottom: 6 }} />
+                  <input placeholder="CPF" value={novoExterno.cpf} onChange={e => setNovoExterno(p => ({ ...p, cpf: e.target.value }))} style={{ ...inputBase, marginBottom: 6 }} />
+                  <input placeholder="Telefone" value={novoExterno.telefone} onChange={e => setNovoExterno(p => ({ ...p, telefone: e.target.value }))} style={{ ...inputBase, marginBottom: 8 }} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button type="button" disabled={salvandoExterno} onClick={salvarNovoExterno}
+                      style={{ background: "var(--primary)", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>
+                      {salvandoExterno ? "Salvando..." : "Salvar externo"}
+                    </button>
+                    <button type="button" onClick={() => { setMostrarNovoExterno(false); setNovoExterno({ nome: "", cpf: "", telefone: "" }); }}
+                      style={{ background: "none", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 16px", color: "var(--text-soft)", cursor: "pointer", fontSize: 13 }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Captadores selecionados */}
             {(form.captadores_detalhes || []).length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
                 {(form.captadores_detalhes || []).map((cap, idx) => {
-                  const capInfo = listaCaptadores.find(c => c.id === cap.id);
+                  const posso = podeEditarFatia(cap);
+                  const chave = cap.tipo === "externo" ? `ext-${cap.externo_id}` : `int-${cap.id}`;
                   return (
-                    <div key={cap.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 10, padding: "8px 12px", border: "1px solid var(--border-soft)" }}>
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 10, padding: "8px 12px", border: "1px solid var(--border-soft)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{cap.nome}</div>
-                        {capInfo?.telefone && (
-                          <a href={`https://wa.me/55${capInfo.telefone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                          {cap.nome}
+                          {cap.tipo === "externo" && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginLeft: 6 }}>(externo)</span>}
+                        </div>
+                        {cap.telefone && (
+                          <a href={`https://wa.me/55${String(cap.telefone).replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
                             style={{ fontSize: 12, color: "#25D366", textDecoration: "none" }}>
-                            💬 {capInfo.telefone}
+                            💬 {cap.telefone}
                           </a>
                         )}
+                        {!posso && <span style={{ fontSize: 10.5, color: "var(--text-muted)", display: "block" }}>🔒 fatia de outro — só o dono ou diretor/gerente altera</span>}
                       </div>
                       {(form.captadores_detalhes || []).length > 1 && (
                         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                           <input
                             type="number" min="0" max="100" step="1"
                             value={cap.pct}
+                            disabled={!posso}
                             onChange={e => {
                               const val = Number(e.target.value) || 0;
                               setForm(p => {
@@ -922,29 +1056,32 @@ export default function Form() {
                                 return { ...p, captadores_detalhes: det };
                               });
                             }}
-                            style={{ ...inputBase, width: 60, textAlign: "center", padding: "4px 6px" }}
+                            style={{ ...inputBase, width: 60, textAlign: "center", padding: "4px 6px", opacity: posso ? 1 : 0.55, cursor: posso ? "auto" : "not-allowed", background: posso ? "var(--bg-input)" : "var(--bg-muted)" }}
                           />
                           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
                         </div>
                       )}
                       <button
                         type="button"
+                        disabled={!posso}
+                        title={posso ? "Remover" : "Só o dono ou diretor/gerente pode remover"}
                         onClick={() => {
-                          const novos = (form.captadores_ids || []).filter(x => x !== cap.id);
-                          const pct = novos.length > 0 ? Math.round(100 / novos.length) : 0;
-                          const captadoresDetalhes = novos.map((cid, i) => ({
-                            id: cid,
-                            nome: listaCaptadores.find(c => c.id === cid)?.nome || '',
-                            pct: i === 0 ? (100 - pct * (novos.length - 1)) : pct
-                          }));
-                          setForm(p => ({
-                            ...p,
-                            captadores_ids: novos,
-                            captadores_detalhes: captadoresDetalhes,
-                            nomeCaptador: captadoresDetalhes.map(c => c.nome).join(', '),
-                          }));
+                          if (!posso) return;
+                          setForm(p => {
+                            const det = (p.captadores_detalhes || []).filter((_, i) => i !== idx);
+                            if (det.length > 0) {
+                              const eq = Math.floor(100 / det.length);
+                              det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
+                            }
+                            return {
+                              ...p,
+                              captadores_detalhes: det,
+                              captadores_ids: det.filter(c => c.tipo === "interno").map(c => c.id),
+                              nomeCaptador: det.map(c => c.nome).join(", "),
+                            };
+                          });
                         }}
-                        style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>
+                        style={{ background: "none", border: "none", color: posso ? "var(--text-muted)" : "var(--border)", cursor: posso ? "pointer" : "not-allowed", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>
                         ×
                       </button>
                     </div>
@@ -952,8 +1089,8 @@ export default function Form() {
                 })}
                 {(form.captadores_detalhes || []).length > 1 && (
                   <div style={{ fontSize: 11, color: "var(--text-muted)", paddingLeft: 4 }}>
-                    Total: {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0)}%
-                    {(form.captadores_detalhes || []).reduce((s, c) => s + (c.pct || 0), 0) !== 100 && (
+                    Total: {somaPct}%
+                    {somaPct !== 100 && (
                       <span style={{ color: "#dc2626", marginLeft: 6 }}>⚠ deve somar 100%</span>
                     )}
                   </div>
@@ -961,7 +1098,6 @@ export default function Form() {
               </div>
             )}
           </>
-        )}
         <div style={{ display: "none" }}>
           {inp("Nome", "nomeCaptador")}
         </div>
