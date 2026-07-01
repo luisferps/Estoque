@@ -663,6 +663,18 @@ export default function Form() {
   };
   const somaPct = (form.captadores_detalhes || []).reduce((s, c) => s + (Number(c.pct) || 0), 0);
 
+  // ─── PODER DE EDIÇÃO (posse do cadastro) ───
+  // O dono da edição é o captadorEmail. Só ele (+ alçada superior) pode transferir a posse.
+  // Só um captador INTERNO pode ser dono (externo não tem login).
+  const donoEdicaoEmail = String(form.captadorEmail || "").toLowerCase();
+  const souDonoEdicao = !!meuEmailAtual && meuEmailAtual === donoEdicaoEmail;
+  const podeTransferirEdicao = souDonoEdicao || ehAlcadaSuperior;
+  const definirDonoEdicao = (cap) => {
+    if (!podeTransferirEdicao) return;
+    if (cap.tipo !== "interno" || !cap.email) return;
+    setForm(p => ({ ...p, captadorEmail: String(cap.email).toLowerCase() }));
+  };
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       <style>{`
@@ -948,11 +960,17 @@ export default function Form() {
                   const det = [...(p.captadores_detalhes || []), nova];
                   const eq = Math.floor(100 / det.length);
                   det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
+                  // Se ainda não há dono da edição (ou o atual não está entre os internos), o 1º interno vira dono.
+                  const internos = det.filter(c => c.tipo === "interno");
+                  const donoAtual = String(p.captadorEmail || "").toLowerCase();
+                  const donoValido = internos.some(c => String(c.email || "").toLowerCase() === donoAtual);
+                  const captadorEmail = donoValido ? p.captadorEmail : (internos[0]?.email || p.captadorEmail || "");
                   return {
                     ...p,
                     captadores_detalhes: det,
-                    captadores_ids: det.filter(c => c.tipo === "interno").map(c => c.id),
+                    captadores_ids: internos.map(c => c.id),
                     nomeCaptador: det.map(c => c.nome).join(", "),
+                    captadorEmail,
                   };
                 });
               }}
@@ -1030,7 +1048,26 @@ export default function Form() {
                   return (
                     <div key={chave} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--bg-card)", borderRadius: 10, padding: "8px 12px", border: "1px solid var(--border-soft)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", gap: 6 }}>
+                          {cap.tipo === "interno" && (
+                            <span
+                              onClick={() => definirDonoEdicao(cap)}
+                              title={
+                                cap.email && cap.email === donoEdicaoEmail
+                                  ? "Dono da edição (posse do cadastro)"
+                                  : podeTransferirEdicao
+                                    ? "Passar o dono da edição para este captador"
+                                    : "Só o dono da edição ou diretor/gerente pode transferir"
+                              }
+                              style={{
+                                fontSize: 15, lineHeight: 1,
+                                cursor: (podeTransferirEdicao && cap.email && cap.email !== donoEdicaoEmail) ? "pointer" : "default",
+                                opacity: (cap.email && cap.email === donoEdicaoEmail) ? 1 : (podeTransferirEdicao ? 0.35 : 0.2),
+                                userSelect: "none",
+                              }}>
+                              {cap.email && cap.email === donoEdicaoEmail ? "⭐" : "☆"}
+                            </span>
+                          )}
                           {cap.nome}
                           {cap.tipo === "externo" && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-muted)", marginLeft: 6 }}>(externo)</span>}
                         </div>
@@ -1095,6 +1132,9 @@ export default function Form() {
                     )}
                   </div>
                 )}
+                <div style={{ fontSize: 10.5, color: "var(--text-muted)", paddingLeft: 4, marginTop: 2 }}>
+                  ⭐ = dono da edição (quem comanda o cadastro). {podeTransferirEdicao ? "Clique na ☆ de um captador interno para passar a posse." : "Só o dono atual ou diretor/gerente transfere."}
+                </div>
               </div>
             )}
           </>
