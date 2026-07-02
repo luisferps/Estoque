@@ -345,11 +345,56 @@ export default function Form() {
     setUploading(false);
   };
 
+  // Carrega o JSZip sob demanda (CDN), sem precisar instalar nada.
+  const carregarJSZip = () => new Promise((resolve, reject) => {
+    if (window.JSZip) return resolve(window.JSZip);
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => reject(new Error("Não consegui carregar o leitor de ZIP."));
+    document.body.appendChild(s);
+  });
+
+  // Extrai as imagens de dentro de um arquivo .zip e devolve como File[].
+  const extrairImagensDoZip = async (zipFile) => {
+    const JSZip = await carregarJSZip();
+    const zip = await JSZip.loadAsync(zipFile);
+    const ehImagem = (nome) => /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(nome);
+    const entradas = Object.values(zip.files).filter(f => !f.dir && ehImagem(f.name) && !f.name.startsWith("__MACOSX"));
+    // ordena por nome (numérico) pra manter a sequência das fotos
+    entradas.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    const arquivos = [];
+    for (const ent of entradas) {
+      const blob = await ent.async("blob");
+      const nomeLimpo = ent.name.split("/").pop();
+      const tipo = /\.png$/i.test(nomeLimpo) ? "image/png" : /\.webp$/i.test(nomeLimpo) ? "image/webp" : "image/jpeg";
+      arquivos.push(new File([blob], nomeLimpo, { type: tipo }));
+    }
+    return arquivos;
+  };
+
   const addFotos = async (e) => {
-    const files = Array.from(e.target.files);
-    if (!files.length) return;
-    await uploadFiles(files);
+    const selecionados = Array.from(e.target.files);
+    if (!selecionados.length) return;
     e.target.value = "";
+    const ehZip = (f) => /\.zip$/i.test(f.name) || /zip/i.test(f.type || "");
+    const zips = selecionados.filter(ehZip);
+    const imagensDiretas = selecionados.filter(f => !ehZip(f));
+    let todas = [...imagensDiretas];
+    if (zips.length) {
+      setUploading(true);
+      try {
+        for (const z of zips) {
+          const imgs = await extrairImagensDoZip(z);
+          todas = todas.concat(imgs);
+        }
+      } catch (err) {
+        alert("Erro ao ler o ZIP: " + err.message);
+      }
+      setUploading(false);
+    }
+    if (!todas.length) { alert("Nenhuma imagem encontrada."); return; }
+    await uploadFiles(todas);
   };
 
   // ITEM 7: colar fotos com Ctrl+V (área de transferência) direto no cadastro.
@@ -708,10 +753,10 @@ export default function Form() {
 
 
       {section("Fotos", <>
-        <input ref={fileRef} type="file" accept="image/*" multiple onChange={addFotos} style={{ display: "none" }} />
+        <input ref={fileRef} type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp,.heic,.heif,.zip,application/zip,application/x-zip-compressed" multiple onChange={addFotos} style={{ display: "none" }} />
         <button onClick={() => fileRef.current.click()} disabled={uploading}
           style={{ padding: "9px 18px", borderRadius: 8, border: "1px dashed var(--border-soft)", background: uploading ? "var(--bg-muted)" : "var(--bg-input)", color: "var(--text)", cursor: uploading ? "default" : "pointer", fontSize: 13, marginBottom: 12 }}>
-          {uploading ? "Enviando fotos..." : "+ Adicionar fotos"}
+          {uploading ? "Enviando fotos..." : "+ Adicionar fotos (ou .zip)"}
         </button>
         {(form.fotos || []).length >= 2 && (
           <button onClick={organizarFotosIA} disabled={organizando || uploading}
