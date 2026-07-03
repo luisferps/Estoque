@@ -1,665 +1,378 @@
-import { CLOUDINARY_CLOUD, CLOUDINARY_PRESET, RODAPE, PDF_CAMPOS } from "../constants";
-import { runTransaction, doc } from "firebase/firestore";
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
+import { db } from "../firebase";
+import { useImoveis, useTipos } from "../shared/hooks";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, formatTel } from "../shared/utils";
+import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
-// ─── Formatadores ───
-export function formatBRL(v) {
-  const n = parseFloat(v);
-  if (!n) return "";
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-}
+export default function Lista({ onLogout }) {
+  const navigate = useNavigate();
+  const { imoveis, loading } = useImoveis();
+  const { tipos } = useTipos();
+  const { user, isAdmin } = useUserRole();
+  const ehDiretor = ehDiretorEfetivo(isAdmin);
+  const meuEmail = usuarioSSO();
+  const souDonoDe = (im) => !!(
+    (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
+    (user && im.captadorUid && im.captadorUid === user.uid)
+  );
+  const [search, setSearch] = useState("");
+  const [tipo, setTipo] = useState("Todos");
+  const [transacao, setTransacao] = useState("Todos");
+  const [cidade, setCidade] = useState("Todas");
+  const [bairro, setBairro] = useState("Todos");
+  const [status, setStatus] = useState("Todos");
+  const [ordem, setOrdem] = useState("recente");
+  const [precoMin, setPrecoMin] = useState("");
+  const [precoMax, setPrecoMax] = useState("");
+  const [showPDF, setShowPDF] = useState(false);
+  const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
+  const [migrando, setMigrando] = useState(false);
 
-export function formatTel(v) {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
+  const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
-export function telParaWhatsapp(tel) {
-  if (!tel) return "";
-  const d = tel.replace(/\D/g, "");
-  return d.length >= 10 ? `55${d}` : "";
-}
+  const bairros = useMemo(() => {
+    const base = cidade === "Todas" ? imoveis : imoveis.filter(im => im.cidade === cidade);
+    return ["Todos", ...Array.from(new Set(base.map(im => im.bairro).filter(Boolean))).sort()];
+  }, [imoveis, cidade]);
 
-// ─── Helpers de imóvel ───
-export const isLote = (im) => tipoEhLotePorNome(im?.tipo);
+  useEffect(() => {
+    if (bairro !== "Todos" && !bairros.includes(bairro)) setBairro("Todos");
+  }, [bairros, bairro]);
 
-export function comportamentoTipo(nomeTipo, tipos) {
-  const t = (tipos || []).find(x => x.nome === nomeTipo);
-  if (t?.comportamento) return t.comportamento;
-  // Fallback por palavra-chave no nome (pega "Lote Comercial", "Lote em Condomínio", "Terreno Comercial" etc.)
-  const n = String(nomeTipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (n.includes("lote") || n.includes("terreno") || n.includes("gleba") || n.includes("loteamento") || /\barea\b/.test(n)) return "terreno";
-  if (n.includes("casa") || n.includes("apartamento") || n.includes("sobrado") || n.includes("cobertura") || n.includes("kitnet") || n.includes("studio") || n.includes("flat") || n.includes("loft")) return "construcao";
-  return "simples";
-}
-export const ehTerreno = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "terreno";
-export const ehConstrucao = (nomeTipo, tipos) => comportamentoTipo(nomeTipo, tipos) === "construcao";
-export const isLocacao = (im) => im?.transacao === "Locação";
-export const isVenda = (im) => im?.transacao === "Venda" || im?.transacao === "Venda e Locação";
+  const semCodigo = useMemo(() => imoveis.filter(im => !(im.codigo || "").trim()).length, [imoveis]);
 
-export function statusDoImovel(im) {
-  return im?.status || "Disponível";
-}
-
-// Visibilidade no site público. O campo "visibilidade" pode ocultar o imóvel
-// do site mesmo estando Disponível. "Ocultar do site" e "Ocultar de tudo"
-// removem da vitrine pública; os demais valores (ou vazio) mantêm visível.
-export function apareceNoSite(im) {
-  const v = (im?.visibilidade || "").trim();
-  return v !== "Ocultar do site" && v !== "Ocultar de tudo";
-}
-
-// Visibilidade nos PORTAIS (feeds Canal Pro / Chaves na Mão / Catálogo Meta).
-// Espelha apareceNoSite, mas pro lado dos portais: "Ocultar dos portais" mantém
-// o imóvel no site e o tira dos feeds; "Ocultar de tudo" tira de tudo. Os demais
-// valores (ou vazio) mantêm o imóvel nos feeds dos portais.
-export function apareceNosPortais(im) {
-  const v = (im?.visibilidade || "").trim();
-  return v !== "Ocultar dos portais" && v !== "Ocultar de tudo";
-}
-
-export function totalLocacao(im) {
-  return (parseFloat(im?.valorAluguel) || 0) + (parseFloat(im?.valorCondominio) || 0) + (parseFloat(im?.valorIPTU) || 0);
-}
-
-// ─── Código do imóvel (baseado no bairro/setor, com numeração) ───
-// Regra: o código padrão é o nome do bairro. Se já houver imóvel(is) com código
-// daquele bairro, numera os próximos (primeiro sem número, depois " 2", " 3"...).
-// Ex: "Rosa dos Ventos", "Rosa dos Ventos 2", "Rosa dos Ventos 3".
-// - bairro: nome do bairro do imóvel atual
-// - imoveis: lista completa de imóveis (para contar quantos já têm código do bairro)
-// - idAtual: id do imóvel sendo editado (ignora ele mesmo na contagem)
-export function gerarCodigoImovel(bairro, imoveis, idAtual) {
-  const base = (bairro || "").trim();
-  if (!base) return "";
-  // Regex que casa "Bairro" ou "Bairro N" (com espaço e número no fim)
-  const escapar = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp("^" + escapar + "(?:\\s+(\\d+))?$", "i");
-  let maior = 0;          // maior número já usado naquele bairro
-  let temBase = false;    // se já existe o código sem número (o "1" implícito)
-  for (const im of (imoveis || [])) {
-    if (idAtual && im.id === idAtual) continue; // ignora o próprio
-    const cod = (im.codigo || "").trim();
-    if (!cod) continue;
-    const m = cod.match(re);
-    if (!m) continue;
-    if (m[1]) { const n = parseInt(m[1], 10); if (n > maior) maior = n; }
-    else { temBase = true; }
-  }
-  if (!temBase && maior === 0) return base;        // primeiro do bairro
-  const proximo = Math.max(maior, temBase ? 1 : 0) + 1;
-  return `${base} ${proximo}`;
-}
-
-// Normaliza o nome do bairro para usar como ID do documento de contador.
-// (minúsculas, sem acento, espaços colapsados). Ex: "Rosa dos Ventos" -> "rosa dos ventos"
-export function chaveBairro(bairro) {
-  return (bairro || "").trim().toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-// Reserva (de forma ATÔMICA) o próximo código para um bairro, usando um contador
-// persistente no Firestore (coleção "contadores"). O contador só CRESCE — nunca
-// reutiliza número, mesmo que imóveis sejam excluídos. Garante unicidade global.
-// Primeiro do bairro = só "{Bairro}"; demais = "{Bairro} N".
-// - db: instância do Firestore
-// - bairro: nome do bairro (mantém capitalização original no código final)
-// Retorna o código string (ex: "Rosa dos Ventos" ou "Rosa dos Ventos 4").
-export async function reservarCodigoImovel(db, bairro, usados) {
-  const base = (bairro || "").trim();
-  if (!base) return "";
-  const chave = chaveBairro(base);
-  const ref = doc(db, "contadores", chave);
-  // Reserva o próximo número no contador atômico do bairro.
-  let seq = await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
-    const novo = atual + 1;
-    tx.set(ref, { seq: novo, bairro: base }, { merge: true });
-    return novo;
-  });
-  // Anti-duplicação: se o código já existe (contador dessincronizado), avança até achar um livre.
-  const jaUsado = (cod) => usados instanceof Set && usados.has((cod || "").trim().toLowerCase());
-  let cod = `${base} ${seq}`;
-  let guarda = 0;
-  while (jaUsado(cod) && guarda < 1000) {
-    seq += 1;
-    cod = `${base} ${seq}`;
-    guarda += 1;
-  }
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
-    if (seq > atual) tx.set(ref, { seq, bairro: base }, { merge: true });
-  });
-  if (usados instanceof Set) usados.add(cod.trim().toLowerCase());
-  // SEMPRE com número (inclusive o primeiro): "Jardins Versalhes 1".
-  return cod;
-}
-
-// Inicializa o contador de um bairro com um valor mínimo (usado na migração,
-// para que os contadores reflitam os códigos já existentes). Só aumenta, nunca diminui.
-export async function ajustarContadorMinimo(db, bairro, minimo) {
-  const base = (bairro || "").trim();
-  if (!base || !minimo) return;
-  const ref = doc(db, "contadores", chaveBairro(base));
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const atual = snap.exists() ? (snap.data().seq || 0) : 0;
-    if (minimo > atual) tx.set(ref, { seq: minimo, bairro: base }, { merge: true });
-  });
-}
-
-// ─── Geração de descrição automática ───
-// Reconhece tipos de lote/terreno pelo NOME — pega "Lote em Condomínio",
-// "Lote Comercial", "Área Comercial", "Terreno" etc., não só "Lote"/"Área".
-export function tipoEhLotePorNome(tipo) {
-  return /lote|terreno|gleba|loteamento|[aá]rea/.test((tipo || "").toLowerCase());
-}
-
-export function gerarDescricao(form) {
-  const isLoteForm = tipoEhLotePorNome(form.tipo);
-  const isRuralForm = /ch[áa]cara|s[íi]tio|fazenda|rancho|haras/i.test(form.tipo || "");
-  const linhas = [];
-  if (form.titulo) linhas.push(form.titulo);
-  linhas.push("");
-  if (form.bairro) linhas.push(form.bairro.toUpperCase());
-  linhas.push("");
-  // Lote/terreno não tem construção: nunca emite "m² de construção" pra esses tipos.
-  if (form.metragem && !isLoteForm) linhas.push(`- ${form.metragem} m² de construção`);
-  if (form.metragemTotal) linhas.push(`- ${form.metragemTotal} m² de terreno`);
-  // medidas/dimensões do lote logo abaixo da metragem
-  if (form.retangular && form.frente && form.laterais) linhas.push(`- ${form.frente}x${form.laterais} m`);
-  else if (form.medidas) linhas.push(`- ${form.medidas}`);
-  const q = parseInt(form.quartos) || 0;
-  const s = parseInt(form.suites) || 0;
-  const g = parseInt(form.garagens) || 0;
-  if (q > 0) linhas.push(`- ${q} quarto${q > 1 ? "s" : ""}${s > 0 ? `, sendo ${s} suíte${s > 1 ? "s" : ""}` : ""}`);
-  else if (s > 0) linhas.push(`- ${s} suíte${s > 1 ? "s" : ""}`);
-  if (g > 0) linhas.push(`- ${g} ${g > 1 ? "garagens" : "garagem"}`);
-  if (isLoteForm || isRuralForm) {
-    if (form.asfalto) linhas.push("- Asfalto");
-    else linhas.push("- Não tem asfalto");
-    if (form.agua) linhas.push("- Água");
-    if (form.esgoto) linhas.push("- Esgoto");
-    if (form.declive === "Plano") linhas.push("- Plano");
-    else if (form.declive) linhas.push(`- Declive: ${form.declive}`);
-    if (form.muro) linhas.push("- Murado");
-    if (form.esquina) linhas.push("- Esquina");
-  }
-  if (form.condominio && form.nomeCondominio) linhas.push(`- Condomínio: ${form.nomeCondominio}`);
-  if (form.estadoImovel === "Imóvel Novo") linhas.push(`- ${form.estadoImovel}`);
-  // Redondezas: o que tem por perto (cada linha vira um tópico).
-  if (form.redondezas) {
-    linhas.push(...String(form.redondezas).split("\n").map(x => x.trim()).filter(Boolean).map(l => l.startsWith("-") ? l : `- ${l}`));
-  }
-  if (form.extras) {
-    // não repetir o valor de venda: extras às vezes traz "Venda: R$..." ou "R$ ..." (já sai abaixo)
-    const ehLinhaPreco = (l) => /^-?\s*(venda|[áa]gio|valor de venda|pre[çc]o)\b/i.test(l) || /^-?\s*r\$\s*\d/i.test(l);
-    linhas.push(...form.extras.split("\n").map(x => x.trim()).filter(Boolean).filter(l => !ehLinhaPreco(l)).map(l => l.startsWith("-") ? l : `- ${l}`));
-  }
-  linhas.push("");
-  const loc = form.transacao === "Locação";
-  const ven = form.transacao === "Venda" || form.transacao === "Venda e Locação";
-  if (ven && parseFloat(form.preco)) {
-    // Ágio: troca o rótulo "Venda" por "Ágio" (imóvel financiado/em consórcio).
-    const rotuloVenda = form._agio ? "Ágio" : "Venda";
-    linhas.push(`${rotuloVenda}: ${formatBRL(form.preco)}`);
-    // Dados do ágio: parcela, prazo, saldo devedor e valor total (ágio + saldo).
-    if (form._agio) {
-      if (parseFloat(form.agioParcela)) linhas.push(`Parcelas de ${formatBRL(form.agioParcela)}`);
-      if (parseFloat(form.agioPrazo)) linhas.push(`Faltam ${parseInt(form.agioPrazo)} meses para quitação`);
-      if (parseFloat(form.agioSaldoDevedor)) linhas.push(`Saldo devedor: ${formatBRL(form.agioSaldoDevedor)}`);
-      const totalAgio = (parseFloat(form.preco) || 0) + (parseFloat(form.agioSaldoDevedor) || 0);
-      if (totalAgio) linhas.push(`Valor total: ${formatBRL(totalAgio)}`);
-    }
-    if (parseFloat(form.valorAvaliacao)) linhas.push(`Avaliado em ${formatBRL(form.valorAvaliacao)}`);
-    if (parseFloat(form.valorEntrada)) linhas.push(`Entrada: ${formatBRL(form.valorEntrada)}`);
-  }
-  if (loc) {
-    const a = parseFloat(form.valorAluguel) || 0;
-    const c = parseFloat(form.valorCondominio) || 0;
-    const ip = parseFloat(form.valorIPTU) || 0;
-    if (a) linhas.push(`Aluguel: ${formatBRL(a)}`);
-    if (c) linhas.push(`Condomínio: ${formatBRL(c)}/mês`);
-    if (ip) linhas.push(`IPTU: ${formatBRL(ip)}/mês`);
-    // Total só faz sentido quando há mais de um componente (aluguel + condomínio e/ou IPTU).
-    // Se é só o aluguel, repetir o mesmo número como "total" fica redundante.
-    const total = a + c + ip;
-    if (total && (c || ip)) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
-  }
-  // Preço sob consulta: sem valor de venda nem de aluguel preenchido.
-  const _semVenda = !(ven && parseFloat(form.preco));
-  const _semAluguel = !(loc && parseFloat(form.valorAluguel));
-  if (_semVenda && _semAluguel) linhas.push("Preço sob consulta");
-  if (form.condicoes?.length) {
-    // "À vista" é óbvio, não entra. Prefixo "Aceita ..." e em minúsculo.
-    const conds = form.condicoes
-      .filter(c => c !== "À vista")
-      .map(c => c === "Permuta" && String(form.permuta || "").trim() ? `permuta em ${String(form.permuta).trim()}` : String(c).toLowerCase());
-    if (conds.length) linhas.push(`Aceita ${conds.join(", ")}`);
-  }
-  if (form.condominio && parseFloat(form.valorCondominioMensal)) linhas.push(`Condomínio: ${formatBRL(form.valorCondominioMensal)}/mês`);
-  linhas.push("");
-  linhas.push(RODAPE);
-  return linhas.join("\n");
-}
-
-export function temRodape(desc) {
-  if (!desc) return false;
-  return /valores e condi[çc][õo]es/i.test(desc);
-}
-
-export function descricaoCompleta(im) {
-  const desc = im.descricao || "";
-  if (temRodape(desc)) return desc;
-  return desc + (desc ? "\n\n" : "") + RODAPE;
-}
-
-// Link de localização SEMPRE atualizado: usa a coordenada atual (pino + satélite).
-// Só cai no mapsLink salvo se o imóvel não tiver coordenada (imóveis antigos).
-export function linkLocalizacao(im) {
-  if (im && im.latitude && im.longitude && !isNaN(parseFloat(im.latitude)) && !isNaN(parseFloat(im.longitude))) {
-    return `https://www.google.com/maps/place/${im.latitude},${im.longitude}/@${im.latitude},${im.longitude},18z/data=!3m1!1e3`;
-  }
-  return im && im.mapsLink ? im.mapsLink : null;
-}
-
-export function descricaoPronta(im) {
-  let txt = descricaoCompleta(im);
-  if (im.fotos?.length) {
-    const galeria = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
-    txt += `\n\nFotos:\n${galeria}`;
-  }
-
-  const loc = linkLocalizacao(im);
-  if (loc) txt += `\n\nLocalização:\n${loc}`;
-  return txt;
-}
-
-// ─── Geração de PDF ───
-export function gerarPDF(imoveis, camposSel, titulo = "Lista de Imóveis") {
-  const COR_P = "#C0392B";
-  const lote = im => tipoEhLotePorNome(im.tipo);
-  const isLoc = im => (im.transacao || "").includes("Locação");
-  const isVen = im => (im.transacao || "").includes("Venda");
-
-  // Ficha completa para imóvel único; tabela para múltiplos
-  const fichaUnica = imoveis.length === 1;
-
-  const fichaHtml = (im) => {
-    const fotos = (im.fotos || []).filter(Boolean);
-    const fotosHtml = fotos.length ? `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0;page-break-inside:avoid">
-        ${fotos.map((f, i) => `<img src="${f}" style="width:100%;height:140px;object-fit:cover;border-radius:6px;${i===0?'grid-column:span 3;height:240px':''}" />`).join("")}
-      </div>` : "";
-
-    const row = (l, v) => v ? `<tr><td style="color:#888;font-size:11px;width:140px;padding:4px 8px">${l}</td><td style="font-size:12px;font-weight:600;padding:4px 8px">${v}</td></tr>` : "";
-    const total = (parseFloat(im.valorAluguel)||0)+(parseFloat(im.valorCondominio)||0)+(parseFloat(im.valorIPTU)||0);
-
-    return `
-      <div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;border-bottom:2px solid ${COR_P};padding-bottom:12px">
-          <div>
-            <h1 style="margin:0;font-size:20px;color:${COR_P}">${im.titulo || im.tipo || "Imóvel"}</h1>
-            ${im.bairro || im.cidade ? `<p style="margin:4px 0 0;font-size:13px;color:#666">${[im.bairro,im.cidade].filter(Boolean).join(", ")}</p>` : ""}
-          </div>
-          ${im.codigo ? `<span style="font-size:12px;font-weight:700;color:${COR_P};border:1px solid ${COR_P};padding:4px 10px;border-radius:6px">CÓD: ${String(im.codigo).toUpperCase()}</span>` : ""}
-        </div>
-
-        ${fotosHtml}
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px">
-          <div>
-            <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Características</p>
-            <table style="width:100%;border-collapse:collapse">
-              ${row("Tipo", im.tipo)}
-              ${row("Transação", im.transacao)}
-              ${row("Estado", im.estadoImovel)}
-              ${row("Metragem", im.metragem ? im.metragem+" m²" : null)}
-              ${row("Terreno", im.metragemTotal ? im.metragemTotal+" m²" : null)}
-              ${!lote(im) ? row("Quartos", im.quartos) : ""}
-              ${!lote(im) ? row("Suítes", im.suites) : ""}
-              ${!lote(im) ? row("Banheiros", im.banheiros) : ""}
-              ${row("Garagens", im.garagens)}
-              ${lote(im) ? row("Asfalto", im.asfalto ? "Sim" : null) : ""}
-              ${lote(im) ? row("Água", im.agua ? "Sim" : null) : ""}
-              ${lote(im) ? row("Esgoto", im.esgoto ? "Sim" : null) : ""}
-              ${lote(im) ? row("Muro", im.muro ? "Sim" : null) : ""}
-              ${lote(im) && im.retangular && im.frente && im.laterais ? row("Medidas", `${im.frente}x${im.laterais}m`) : ""}
-            </table>
-          </div>
-          <div>
-            <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Valores</p>
-            <table style="width:100%;border-collapse:collapse">
-              ${isVen(im) ? row("Preço de venda", formatBRL(im.preco)) : ""}
-              ${isLoc(im) ? row("Aluguel", formatBRL(im.valorAluguel)) : ""}
-              ${row("Condomínio", formatBRL(im.valorCondominio))}
-              ${row("IPTU", formatBRL(im.valorIPTU))}
-              ${total > 0 && isLoc(im) ? row("Total/mês", formatBRL(total)) : ""}
-              ${row("Avaliação", formatBRL(im.valorAvaliacao))}
-              ${row("Entrada", formatBRL(im.valorEntrada))}
-            </table>
-            ${linkLocalizacao(im) ? `<a href="${linkLocalizacao(im)}" style="display:inline-block;margin-top:12px;font-size:12px;color:${COR_P}">📍 Ver no Google Maps</a>` : ""}
-          </div>
-        </div>
-
-        ${im.descricao ? `
-        <div style="margin-top:16px;page-break-inside:avoid">
-          <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${COR_P};text-transform:uppercase;letter-spacing:0.5px">Descrição</p>
-          <p style="font-size:12px;color:#444;line-height:1.6;white-space:pre-wrap">${im.descricao}</p>
-        </div>` : ""}
-
-        <div style="margin-top:20px;padding-top:12px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">
-          Inerente Gestão Imobiliária — gerado em ${new Date().toLocaleDateString("pt-BR")}
-        </div>
-      </div>`;
-  };
-
-  // Para múltiplos imóveis, mantém tabela compacta
-  const tabelaHtml = () => {
-    const has = k => camposSel.includes(k);
-    const rows = imoveis.map(im => {
-      const total = (parseFloat(im.valorAluguel)||0)+(parseFloat(im.valorCondominio)||0)+(parseFloat(im.valorIPTU)||0);
-      return `<tr>
-        ${has("tipo") ? `<td>${im.tipo||""} / ${im.transacao||""}</td>` : ""}
-        ${has("status") ? `<td>${im.status||"Disponível"}</td>` : ""}
-        ${has("cidade") ? `<td>${im.cidade||""}</td>` : ""}
-        ${has("bairro") ? `<td>${im.bairro||""}</td>` : ""}
-        ${has("metragem") ? `<td>${im.metragem ? im.metragem+" m²" : ""}</td>` : ""}
-        ${has("quartos") ? `<td>${im.quartos||""}</td>` : ""}
-        ${has("preco") ? `<td>${isLoc(im) ? (formatBRL(im.valorAluguel)||"") : (formatBRL(im.preco)||"")}</td>` : ""}
-        ${has("total") ? `<td>${total > 0 ? formatBRL(total) : ""}</td>` : ""}
-      </tr>`;
-    }).join("");
-    const headers = PDF_CAMPOS.filter(c => has(c.key)).map(c => `<th>${c.label}</th>`).join("");
-    return `<h2 style="color:${COR_P}">${titulo}</h2>
-      <p style="color:#666;font-size:11px">${imoveis.length} imóvel(is) — ${new Date().toLocaleDateString("pt-BR")}</p>
-      <table style="width:100%;border-collapse:collapse;font-size:10px">
-        <thead><tr style="background:${COR_P};color:#fff">${headers}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-  };
-
-  const bodyHtml = fichaUnica ? fichaHtml(imoveis[0]) : tabelaHtml();
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${titulo}</title>
-  <style>
-    body{margin:0;padding:0;font-family:Arial,sans-serif}
-    table td,table th{border:1px solid #eee;vertical-align:top}
-    tr:nth-child(even) td{background:#fdf5f5}
-    @media print{body{padding:0}@page{size:A4;margin:10mm}}
-  </style>
-  </head><body>${bodyHtml}</body></html>`;
-
-  const w = window.open("", "_blank");
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => w.print(), 800);
-}
-
-// ─── Upload Cloudinary ───
-export async function uploadToCloudinary(file) {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("upload_preset", CLOUDINARY_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method: "POST", body: fd });
-  const data = await res.json();
-  if (!data.secure_url) throw new Error("Falha no upload");
-  return data.secure_url;
-}
-
-// ─── ViaCEP ───
-// Retorna: logradouro, complemento, bairro, localidade, uf
-export function buscarCEP(raw, callback) {
-  const c = raw.replace(/\D/g, "");
-  if (c.length !== 8) return;
-  const cbName = `cep_cb_${Date.now()}`;
-  window[cbName] = (data) => {
-    delete window[cbName];
-    document.getElementById(cbName)?.remove();
-    if (data && !data.erro) callback(data);
-  };
-  const s = document.createElement("script");
-  s.id = cbName;
-  s.src = `https://viacep.com.br/ws/${c}/json/?callback=${cbName}`;
-  s.onerror = () => { delete window[cbName]; s.remove(); };
-  document.head.appendChild(s);
-}
-
-// ─── Geocoding via OpenStreetMap Nominatim ───
-// Busca latitude/longitude a partir do endereço do imóvel.
-// Gratuito, sem API key. Suficiente para uso manual (1 req por save).
-// Retorna { latitude, longitude } como strings ou null se não encontrar.
-export async function geocodificarEndereco({ endereco, bairro, cidade, estado, cep }) {
-  try {
-    const partes = [endereco, bairro, cidade, estado, "Brasil"].filter(Boolean);
-    const q = encodeURIComponent(partes.join(", "));
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=br`,
-      { headers: { "Accept-Language": "pt-BR" } }
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    const min = parseFloat(String(precoMin).replace(/[^\d]/g, "")) || 0;
+    const max = parseFloat(String(precoMax).replace(/[^\d]/g, "")) || Infinity;
+    const precoOk = (im) => {
+      if (!precoMin && !precoMax) return true;
+      const v = parseFloat(im.preco) || parseFloat(im.valorAluguel) || parseFloat(im.valorFinal) || 0;
+      return v >= min && v <= max;
+    };
+    const base = imoveis.filter(im =>
+      (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
+      && (tipo === "Todos" || im.tipo === tipo)
+      && matchTransacao(im, transacao)
+      && (cidade === "Todas" || im.cidade === cidade)
+      && (bairro === "Todos" || im.bairro === bairro)
+      && (status === "Todos" || statusDoImovel(im) === status)
+      && precoOk(im)
+      // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
+      && (im.status !== "Aguardando finalização" || ehDiretor
+          || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
+          || (user && im.captadorUid && im.captadorUid === user.uid))
     );
-    const data = await res.json();
-    if (data && data.length > 0) {
-      return {
-        latitude: parseFloat(data[0].lat).toFixed(7),
-        longitude: parseFloat(data[0].lon).toFixed(7),
-      };
-    }
-    // Fallback: tenta só cidade + estado
-    if (cidade) {
-      const q2 = encodeURIComponent(`${cidade}, ${estado || ""}, Brasil`);
-      const res2 = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${q2}&format=json&limit=1&countrycodes=br`,
-        { headers: { "Accept-Language": "pt-BR" } }
-      );
-      const data2 = await res2.json();
-      if (data2 && data2.length > 0) {
-        return {
-          latitude: parseFloat(data2[0].lat).toFixed(7),
-          longitude: parseFloat(data2[0].lon).toFixed(7),
-        };
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+    return ordenarImoveis(base, ordem);
+  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user]);
 
-// ─── Match de transação ───
-export function matchTransacao(im, filtro) {
-  if (filtro === "Todos") return true;
-  if (im.transacao === "Venda e Locação") return filtro === "Venda";
-  return im.transacao === filtro;
-}
+  const del = async (id) => {
+    if (!window.confirm("Excluir?")) return;
+    try { await excluirImovelBackend(id); }
+    catch (e) { alert("Erro ao excluir: " + e.message); }
+  };
 
-// ─── Ordenação ───
-export function ordenarImoveis(imoveis, ordem) {
-  const arr = [...imoveis];
-  switch (ordem) {
-    case "antigo": return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    case "preco_menor": return arr.sort((a, b) => precoBase(a) - precoBase(b));
-    case "preco_maior": return arr.sort((a, b) => precoBase(b) - precoBase(a));
-    case "metragem_menor": return arr.sort((a, b) => metragemBase(a) - metragemBase(b));
-    case "metragem_maior": return arr.sort((a, b) => metragemBase(b) - metragemBase(a));
-    case "bairro_az": return arr.sort((a, b) => bairroBase(a).localeCompare(bairroBase(b), "pt-BR"));
-    case "bairro_za": return arr.sort((a, b) => bairroBase(b).localeCompare(bairroBase(a), "pt-BR"));
-    case "recente":
-    default: return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }
-}
+  // Abre a página pública do imóvel em nova aba.
+  const verNoSite = (im) => {
+    window.open(`${window.location.origin}/imovel/${im.id}`, "_blank");
+  };
 
-function precoBase(im) {
-  if (im.transacao === "Locação") return parseFloat(im.valorAluguel) || 0;
-  return parseFloat(im.preco) || 0;
-}
-
-function metragemBase(im) {
-  return parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
-}
-
-// Bairro normalizado para ordenação. Vazios vão pro fim (caractere alto)
-// para não aparecerem antes dos preenchidos na ordem A-Z.
-function bairroBase(im) {
-  const b = (im.bairro || "").trim();
-  return b ? b.toLocaleLowerCase("pt-BR") : "\uffff";
-}
-
-// ─── Download de fotos ───
-export async function downloadFotos(im) {
-  if (!im.fotos?.length) return alert("Sem fotos.");
-  for (let i = 0; i < im.fotos.length; i++) {
+  // Copia a descrição pronta (mesma função da ficha) pro WhatsApp.
+  const [copiadoId, setCopiadoId] = useState(null);
+  const copiarDescricao = async (im) => {
+    const txt = descricaoPronta(im);
     try {
-      const res = await fetch(im.fotos[i]);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      await new Promise(r => setTimeout(r, 300));
-    } catch {}
-  }
-}
-
-// ─── WhatsApp ───
-export function whatsappTudo(im) {
-  const galeriaLink = `https://fotosdoimovel.netlify.app/fotos/${im.id}`;
-  const loc = linkLocalizacao(im);
-  const txt = descricaoCompleta(im) +
-    (im.fotos?.length ? `\n\nFotos:\n${galeriaLink}` : "") +
-    (loc ? `\n\nLocalização:\n${loc}` : "");
-  window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
-}
-
-export function whatsappDescricao(im) {
-  window.open("https://wa.me/?text=" + encodeURIComponent(descricaoCompleta(im)), "_blank");
-}
-
-export function whatsappMaps(im) {
-  const loc = linkLocalizacao(im);
-  if (!loc) return alert("Sem localização cadastrada.");
-  window.open("https://wa.me/?text=" + encodeURIComponent(`Localização do imóvel:\n${loc}`), "_blank");
-}
-
-export function whatsappFotos(im) {
-  if (!im.fotos?.length) return alert("Sem fotos.");
-  const link = `${window.location.origin}${window.location.pathname}#galeria-${im.id}`;
-  window.open("https://wa.me/?text=" + encodeURIComponent(`Fotos do imóvel:\n${link}`), "_blank");
-}
-
-export function waContatoImovel(im, empresaWhatsapp) {
-  const titulo = im.titulo || "imóvel";
-  const link = `${window.location.origin}/imovel/${im.id}`;
-  const msg = `Olá! Tenho interesse no imóvel: ${titulo}\n${link}`;
-  return `https://wa.me/${empresaWhatsapp}?text=${encodeURIComponent(msg)}`;
-}
-
-// ─── Validação para feeds automáticos ───
-// Os feeds mapeiam QUALQUER tipo (via comportamento do cadastro central), então
-// não existe mais "tipo não suportado": o que importa é o tipo estar preenchido.
-const TIPOS_TERRENO_VALIDACAO = ["Lote","Terreno","Área","Sítio","Chácara","Fazenda","Galpão","Depósito"];
-
-// Canais com integração automática via feed XML
-export const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
-
-// Valida se um imóvel atende aos requisitos do canal automático.
-// Retorna array de strings com os problemas (vazio = OK).
-// Para canais manuais, sempre retorna [].
-export function validarParaCanal(im, canal) {
-  if (!CANAIS_AUTO.includes(canal)) return [];
-
-  const problemas = [];
-  const status = (im.status || "").toLowerCase();
-  if (status && status !== "disponível" && status !== "disponivel") {
-    problemas.push("Status não está como Disponível");
-  }
-
-  // Visibilidade: "Ocultar dos portais" e "Ocultar de tudo" tiram o imóvel dos feeds.
-  if (!apareceNosPortais(im)) {
-    problemas.push("Visibilidade está ocultando dos portais");
-  }
-
-  // Canal desligado de propósito (opt-out explícito ativo:false).
-  if (im.anuncios && im.anuncios[canal] && im.anuncios[canal].ativo === false) {
-    problemas.push('Canal desligado à mão em "Onde foi anunciado" (remarque para voltar ao feed)');
-  }
-
-  const fotos = (im.fotos || []).filter(Boolean);
-  const desc = (im.descricao || "").trim();
-  const cidade = (im.cidade || "").trim();
-  const bairro = (im.bairro || "").trim();
-  const estado = (im.estado || "").trim();
-  const trans = im.transacao || "";
-  const isLocacao = trans === "Locação";
-  const isVenda = trans === "Venda" || trans === "Venda e Locação";
-  const isLote = TIPOS_TERRENO_VALIDACAO.includes(im.tipo);
-  const metragem = parseFloat(im.metragem) || 0;
-  const metragemTotal = parseFloat(im.metragemTotal) || 0;
-  const area = isLote ? (metragemTotal || metragem) : (metragem || metragemTotal);
-
-  if (!im.tipo) problemas.push("Defina o tipo do imóvel");
-
-  // BLOQUEIOS REAIS: o que de fato IMPEDE o anúncio de subir no portal.
-  // (CEP e quartos/banheiros NÃO entram aqui — o feed XML os preenche
-  //  automaticamente, então não impedem a publicação. Viram aviso de qualidade
-  //  em avisosDoCanal().)
-  if (canal === "Canal Pro") {
-    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
-    if (desc.length < 50) problemas.push("Descrição precisa ter no mínimo 50 caracteres");
-    if (area === 0) problemas.push("Preencha a metragem");
-    if (!cidade) problemas.push("Preencha a cidade");
-    if (!bairro) problemas.push("Preencha o bairro");
-    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
-    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
-    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
-  }
-
-  if (canal === "Chaves na Mão") {
-    if (!cidade) problemas.push("Preencha a cidade (o Chaves recusa sem cidade)");
-    if (!bairro) problemas.push("Preencha o bairro (o Chaves recusa sem bairro)");
-    if (!estado) problemas.push("Preencha o estado (UF)");
-    if (!desc) problemas.push("Preencha a descrição");
-    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
-    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
-    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
-  }
-
-  if (canal === "Catálogo Meta") {
-    if (fotos.length === 0) problemas.push("Adicione pelo menos 1 foto");
-    if (!cidade) problemas.push("Preencha a cidade");
-    if (!estado) problemas.push("Preencha o estado (UF)");
-    if (!parseFloat(im.latitude) || !parseFloat(im.longitude)) problemas.push("Coordenadas não foram encontradas — verifique cidade/bairro");
-    if (isVenda && !parseFloat(im.preco) && !parseFloat(im.valorFinal)) problemas.push("Preencha o preço de venda");
-    if (isLocacao && !parseFloat(im.valorAluguel)) problemas.push("Preencha o valor do aluguel");
-    if (!isVenda && !isLocacao) problemas.push("Defina o tipo de transação");
-  }
-
-  return problemas;
-}
-
-// Avisos de QUALIDADE — não impedem o anúncio de subir (o feed conserta sozinho),
-// mas o portal reclama e baixa a nota. Aparecem na fila como campos pra preencher.
-export function avisosDoCanal(im, canal) {
-  if (!CANAIS_AUTO.includes(canal)) return [];
-  const avisos = [];
-  const isLote = TIPOS_TERRENO_VALIDACAO.includes(im.tipo);
-
-  // CEP: o feed preenche com o CEP da cidade quando vazio/inválido, mas o ZAP+
-  // dá nota menor. Avisar para melhorar (não bloqueia).
-  if (canal === "Canal Pro" || canal === "Chaves na Mão") {
-    const cepLimpo = String(im.cep || "").replace(/\D/g, "");
-    if (!cepLimpo) avisos.push("CEP vazio — o feed usa o CEP da cidade, mas o ideal é preencher o exato");
-    else if (cepLimpo.length !== 8) avisos.push("CEP inválido — precisa ter 8 dígitos");
-    // Quartos e banheiros para residencial — o feed força o mínimo 1, mas é melhor informar
-    if (!isLote) {
-      if (!parseInt(im.quartos)) avisos.push("Informe a quantidade de quartos");
-      if (!parseInt(im.banheiros)) avisos.push("Informe a quantidade de banheiros");
+      await navigator.clipboard.writeText(txt);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
     }
-  }
-  return avisos;
+    setCopiadoId(im.id);
+    setTimeout(() => setCopiadoId(null), 2000);
+  };
+
+  // Gera código para todos os imóveis que ainda não têm, usando o contador persistente.
+  // Primeiro inicializa os contadores com base nos códigos JÁ existentes (para não repetir),
+  // depois reserva (atômico) um código novo para cada imóvel sem código.
+  const gerarCodigosFaltantes = async () => {
+    const faltantes = imoveis
+      .filter(im => !(im.codigo || "").trim() && (im.bairro || "").trim())
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+    const semBairro = imoveis.filter(im => !(im.codigo || "").trim() && !(im.bairro || "").trim()).length;
+
+    if (faltantes.length === 0) {
+      alert(semBairro > 0
+        ? `Nenhum imóvel para gerar.\n\n${semBairro} imóvel(is) estão sem código E sem bairro — preencha o bairro deles primeiro.`
+        : "Todos os imóveis já têm código. Nada a fazer.");
+      return;
+    }
+
+    const aviso = `Vou gerar código para ${faltantes.length} imóvel(is) sem código.\n`
+      + `Os que já têm código não serão alterados.\n`
+      + (semBairro > 0 ? `\n⚠️ ${semBairro} imóvel(is) sem bairro serão ignorados.\n` : "")
+      + `\nDeseja continuar?`;
+    if (!window.confirm(aviso)) return;
+
+    setMigrando(true);
+    let feitos = 0, erros = 0;
+    try {
+      // 1) Inicializa contadores com base nos maiores números já usados em cada bairro
+      //    (assim os códigos novos nunca colidem com os existentes).
+      const maxPorBairro = {}; // chaveBairro -> maior numero usado (base conta como 1)
+      for (const im of imoveis) {
+        const cod = (im.codigo || "").trim();
+        const bai = (im.bairro || "").trim();
+        if (!cod || !bai) continue;
+        const ch = chaveBairro(bai);
+        const esc = bai.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const m = cod.match(new RegExp("^" + esc + "(?:\\s+(\\d+))?$", "i"));
+        const n = m ? (m[1] ? parseInt(m[1], 10) : 1) : 1; // se nao casa, conta como ocupando 1
+        if (!maxPorBairro[ch] || n > maxPorBairro[ch].n) maxPorBairro[ch] = { n, bairro: bai };
+      }
+      for (const ch of Object.keys(maxPorBairro)) {
+        await ajustarContadorMinimo(db, maxPorBairro[ch].bairro, maxPorBairro[ch].n);
+      }
+
+      // 2) Reserva um código novo (atômico) para cada imóvel sem código.
+      // Monta o conjunto de códigos JÁ usados pra garantir unicidade mesmo se o contador dessincronizar.
+      const usados = new Set(
+        imoveis.map(im => (im.codigo || "").trim().toLowerCase()).filter(Boolean)
+      );
+      for (const im of faltantes) {
+        try {
+          const codigo = await reservarCodigoImovel(db, im.bairro, usados);
+          await editarImovelBackend(im.id, { codigo });
+          feitos++;
+        } catch (e) { erros++; }
+      }
+    } catch (e) {
+      alert("Erro na migração: " + e.message);
+    }
+    setMigrando(false);
+    alert(`Pronto!\n${feitos} código(s) gerado(s).` + (erros ? `\n${erros} falha(s).` : ""));
+  };
+
+
+  const badgeStatus = (im) => {
+    const s = statusDoImovel(im);
+    if (s === "Disponível") return { txt: "Disponível", bg: "rgba(37,136,79,0.92)" };
+    if (s === "Reservado") return { txt: "Reservado", bg: "rgba(37,99,235,0.92)" };
+    if (s === "Vendido") return { txt: "Vendido", bg: "rgba(120,120,128,0.92)" };
+    if (s === "Alugado") return { txt: "Alugado", bg: "rgba(120,120,128,0.92)" };
+    if (im.status === "Aguardando finalização") return { txt: "Aguardando", bg: "rgba(217,119,6,0.92)" };
+    return { txt: s, bg: "rgba(120,120,128,0.92)" };
+  };
+
+  const cardDe = (im) => {
+    const codigo = (im.codigo == null ? "" : String(im.codigo)).trim().toUpperCase();
+    const local = [im.bairro, im.cidade].filter(Boolean).join(", ");
+    const tituloRaw = String(im.titulo == null ? "" : im.titulo).trim();
+    const titulo = tituloRaw || (im.tipo ? (im.bairro ? `${im.tipo} em ${im.bairro}` : im.tipo) : "Imóvel");
+    const c = parseFloat(im.metragem) || parseFloat(im.metragemTotal) || 0;
+    const m2 = c ? `${c.toLocaleString("pt-BR")}m²` : "";
+    const q = parseInt(im.quartos) || 0;
+    const su = parseInt(im.suites) || 0;
+    const va = parseInt(im.garagens) || 0;
+    const foto = im.fotos?.[0];
+    const fotoThumb = (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
+      ? foto.replace("/upload/", "/upload/w_500,h_300,c_fill,f_auto,q_auto/") : foto;
+    const ehLoc = im.transacao === "Locação";
+    const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
+    const bs = badgeStatus(im);
+    const podeEditar = ehDiretor || souDonoDe(im);
+
+    return (
+      <div className="al-card" key={im.id}>
+        <div className="al-card-img" onClick={() => navigate(`/admin/imovel/${im.id}`)}>
+          {fotoThumb
+            ? <img src={fotoThumb} alt="" loading="lazy" />
+            : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, opacity: 0.35 }}>🏠</div>}
+          <span className="al-badge" style={{ background: bs.bg }}>{bs.txt}</span>
+          {codigo && <span className="al-cod">{codigo}</span>}
+        </div>
+        <div className="al-card-body" onClick={() => navigate(`/admin/imovel/${im.id}`)}>
+          <div className="al-loc">{local || "—"}</div>
+          <div className="al-title">{titulo}</div>
+          <div className="al-specs">
+            {q > 0 && <span>🛏 {q}</span>}
+            {su > 0 && <span>🚿 {su}</span>}
+            {va > 0 && <span>🚗 {va}</span>}
+            {m2 && <span>📐 {m2}</span>}
+          </div>
+          <div className="al-price">
+            {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
+          </div>
+          {podeEditar && (im.nomeProprietario || im.telefoneProprietario) && (
+            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span>👤 {im.nomeProprietario || "Proprietário"}</span>
+              {im.telefoneProprietario && (
+                <a href={`https://wa.me/${String(im.telefoneProprietario).replace(/\D/g, "").length <= 11 ? "55" + String(im.telefoneProprietario).replace(/\D/g, "") : String(im.telefoneProprietario).replace(/\D/g, "")}`}
+                  target="_blank" rel="noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  style={{ color: "#25884f", textDecoration: "none", fontWeight: 600 }}>
+                  📞 {formatTel(im.telefoneProprietario)}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="al-actions">
+          <button className="al-mini al-ficha" onClick={() => navigate(`/admin/imovel/${im.id}`)}>Ficha</button>
+          <button className="al-mini" onClick={() => verNoSite(im)} title="Ver no site">🌐</button>
+          <button className="al-mini" onClick={() => copiarDescricao(im)} title="Copiar descrição"
+            style={copiadoId === im.id ? { background: "#25884f", color: "#fff", borderColor: "#25884f" } : null}>{copiadoId === im.id ? "✓" : "📝"}</button>
+          {podeEditar && <>
+            <button className="al-mini" onClick={() => navigate(`/admin/editar/${im.id}`)} title="Editar">✏️</button>
+            <button className="al-mini al-del" onClick={() => del(im.id)} title="Excluir">🗑️</button>
+          </>}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="admin-lista">
+      <style>{`
+        .admin-lista { max-width: 1200px; margin: 0 auto; padding: 22px 20px 60px; }
+        .admin-lista * { box-sizing: border-box; }
+        .al-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+        .al-toolbar h2 { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; margin: 0 auto 0 0; color: var(--text); }
+        .al-btn-soft { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 16px; font-size: 13.5px; color: var(--text); cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+        .al-btn-soft:hover { border-color: var(--primary-border); }
+        .al-btn-soft:disabled { opacity: 0.5; cursor: default; }
+        .al-aviso { background: #fff8e1; border: 1px solid #f0d98c; color: #8a6d3b; border-radius: 12px; padding: 11px 16px; font-size: 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .al-aviso button { margin-left: auto; background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .al-aviso button:disabled { opacity: 0.6; cursor: default; }
+        .al-filtros { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 14px; margin-bottom: 16px; }
+        .al-filtros-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .al-search { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--bg-muted); border-radius: 10px; padding: 9px 14px; }
+        .al-search input { border: none; outline: none; background: transparent; font-size: 14px; width: 100%; color: var(--text); }
+        .al-sel { border: 1px solid var(--border); background: var(--bg-card); border-radius: 10px; padding: 9px 13px; font-size: 13.5px; color: var(--text); cursor: pointer; font-family: inherit; outline: none; }
+        .al-price { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .al-price input { width: 120px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--border); font-size: 13.5px; background: var(--bg-input); color: var(--text); outline: none; }
+        .al-price input:focus, .al-search input:focus { outline: none; }
+        .al-price span { color: var(--text-muted); font-size: 13px; }
+        .al-clearprice { font-size: 12px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-card); color: var(--text-soft); cursor: pointer; }
+        .al-count { font-size: 13.5px; color: var(--text-muted); margin-bottom: 14px; }
+        .al-count b { color: var(--text); font-weight: 600; }
+        .al-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+        .al-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow .25s, transform .25s; }
+        .al-card:hover { box-shadow: 0 10px 26px rgba(0,0,0,0.08); transform: translateY(-3px); }
+        .al-card-img { position: relative; height: 150px; background: var(--bg-muted); overflow: hidden; cursor: pointer; }
+        .al-card-img img { width: 100%; height: 100%; object-fit: cover; }
+        .al-badge { position: absolute; top: 10px; left: 10px; font-size: 10.5px; font-weight: 600; padding: 4px 10px; border-radius: 980px; backdrop-filter: blur(6px); color: #fff; }
+        .al-cod { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.92); backdrop-filter: blur(6px); color: var(--primary-dark); font-size: 10.5px; font-weight: 700; padding: 4px 9px; border-radius: 980px; }
+        .al-card-body { padding: 12px 14px 14px; cursor: pointer; }
+        .al-loc { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+        .al-title { font-size: 14.5px; font-weight: 600; line-height: 1.3; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 38px; }
+        .al-specs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; min-height: 18px; }
+        .al-specs span { font-size: 12px; color: var(--text-soft); }
+        .al-price-tag { }
+        .al-price { }
+        .al-card-body .al-price { font-size: 16px; font-weight: 700; color: var(--primary-dark); display: block; }
+        .al-card-body .al-price small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+        .al-actions { display: flex; gap: 5px; padding: 0 12px 12px; }
+        .al-mini { flex: 1; padding: 6px 4px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-muted); color: var(--text); cursor: pointer; transition: all .15s; }
+        .al-mini:hover { background: var(--primary-light); border-color: var(--primary-border); }
+        .al-ficha { flex: 1.6; font-weight: 600; }
+        .al-empty { text-align: center; color: var(--text-muted); padding: 4rem 0; }
+      `}</style>
+
+      {showPDF && <PDFModal imoveis={filtered} pdfCampos={pdfCampos} setPdfCampos={setPdfCampos} onClose={() => setShowPDF(false)} />}
+
+      <div className="al-toolbar">
+        <h2>Imóveis</h2>
+        {filtered.length > 0 && <button className="al-btn-soft" onClick={() => setShowPDF(true)}>📄 Gerar PDF ({filtered.length})</button>}
+        <button className="al-btn-soft" onClick={() => navigate("/admin/novo")} style={{ background: "var(--primary)", color: "#fff", border: "none", fontWeight: 600 }}>+ Novo imóvel</button>
+      </div>
+
+      {semCodigo > 0 && (
+        <div className="al-aviso">
+          🏷️ <b>{semCodigo} imóvel(is)</b> sem código. Gere os códigos pelo bairro de uma vez.
+          <button onClick={gerarCodigosFaltantes} disabled={migrando}>{migrando ? "Gerando..." : "Gerar códigos"}</button>
+        </div>
+      )}
+
+      <div className="al-filtros">
+        <div className="al-filtros-row">
+          <div className="al-search">
+            🔍 <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por código, título, bairro, proprietário..." />
+          </div>
+          <select className="al-sel" value={tipo} onChange={e => setTipo(e.target.value)}>
+            <option value="Todos">Todos os tipos</option>
+            {tipos.map(t => <option key={t.nome} value={t.nome}>{t.nome}</option>)}
+          </select>
+          <select className="al-sel" value={transacao} onChange={e => setTransacao(e.target.value)}>
+            <option value="Todos">Todas as transações</option>
+            {TRANSACOES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select className="al-sel" value={cidade} onChange={e => setCidade(e.target.value)}>
+            {cidades.map(c => <option key={c} value={c}>{c === "Todas" ? "Todas as cidades" : c}</option>)}
+          </select>
+          <select className="al-sel" value={bairro} onChange={e => setBairro(e.target.value)}>
+            {bairros.map(b => <option key={b} value={b}>{b === "Todos" ? "Todos os bairros" : b}</option>)}
+          </select>
+          <select className="al-sel" value={status} onChange={e => setStatus(e.target.value)}>
+            <option value="Todos">Todos os status</option>
+            {STATUS_IMOVEL.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="al-sel" value={ordem} onChange={e => setOrdem(e.target.value)}>
+            {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
+          <div className="al-price">
+            <span>💰</span>
+            <input type="text" inputMode="numeric" placeholder="R$ mín" value={precoMin} onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))} />
+            <span>até</span>
+            <input type="text" inputMode="numeric" placeholder="R$ máx" value={precoMax} onChange={e => setPrecoMax(e.target.value.replace(/[^\d]/g, ""))} />
+            {(precoMin || precoMax) && <button className="al-clearprice" onClick={() => { setPrecoMin(""); setPrecoMax(""); }}>limpar</button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="al-count"><b>{filtered.length}</b> {filtered.length === 1 ? "imóvel encontrado" : "imóveis encontrados"}</div>
+
+      {loading && <div className="al-empty">Carregando...</div>}
+      {!loading && filtered.length === 0 && (
+        <div className="al-empty">{imoveis.length === 0 ? "Nenhum imóvel cadastrado ainda." : "Nenhum imóvel encontrado."}</div>
+      )}
+
+      <div className="al-grid">
+        {filtered.map(im => cardDe(im))}
+      </div>
+    </div>
+  );
+}
+
+function PDFModal({ imoveis, pdfCampos, setPdfCampos, onClose }) {
+  const todos = pdfCampos.length === PDF_CAMPOS.length;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
+      <div style={{ background: "var(--bg-card)", color: "var(--text)", borderRadius: 12, padding: "1.5rem", width: 400, boxShadow: "0 8px 32px rgba(0,0,0,0.2)", maxHeight: "80vh", overflowY: "auto" }}>
+        <h3 style={{ margin: "0 0 1rem", fontSize: 17, color: "var(--primary-dark)" }}>Escolha os campos do PDF</h3>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginBottom: 12, fontWeight: 500, color: "var(--primary)" }}>
+          <input type="checkbox" checked={todos} onChange={() => setPdfCampos(todos ? [] : PDF_CAMPOS.map(c => c.key))} style={{ width: 15, height: 15, accentColor: "var(--primary)" }} />
+          Selecionar todos
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: "1rem" }}>
+          {PDF_CAMPOS.map(c => (
+            <label key={c.key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={pdfCampos.includes(c.key)} onChange={() => setPdfCampos(p => p.includes(c.key) ? p.filter(x => x !== c.key) : [...p, c.key])} style={{ width: 15, height: 15, accentColor: "var(--primary)" }} />
+              {c.label}
+            </label>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-card)", color: "var(--text)", cursor: "pointer" }}>Cancelar</button>
+          <button onClick={() => { onClose(); gerarPDF(imoveis, pdfCampos); }}
+            style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "var(--primary)", color: "#fff", cursor: "pointer", fontWeight: 500 }}>Gerar PDF</button>
+        </div>
+      </div>
+    </div>
+  );
 }
