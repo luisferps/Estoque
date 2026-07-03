@@ -91,6 +91,8 @@ export default function Form() {
   const { user, perfil, isAdmin, loading: loadingRole } = useUserRole();
   const [form, setForm] = useState(emptyForm);
   const [hydrated, setHydrated] = useState(!id);
+  // Ao trocar de imóvel (id muda), permite nova hidratação do formulário.
+  useEffect(() => { setHydrated(!id); }, [id]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [organizando, setOrganizando] = useState(false);
@@ -148,6 +150,7 @@ export default function Form() {
   useEffect(() => {
     if (!id) return;
     if (loading) return;
+    if (hydrated) return; // já carregado: mudanças na lista (tempo real) não podem apagar o que está sendo digitado
     const existing = imoveis.find(i => i.id === id);
     if (!existing) {
       if (imoveis.length > 0) { alert("Imóvel não encontrado."); navigate("/admin"); }
@@ -166,7 +169,7 @@ export default function Form() {
     setForm({ ...emptyForm, ...existing, extras: extrasParaTexto(existing.extras), anuncios: migrarAnuncios(existing.anuncios) });
     setTelProprietarioIntl((existing.telefoneProprietario || "").trim().startsWith("+"));
     setHydrated(true);
-  }, [id, imoveis, loading, loadingRole, isAdmin, navigate]);
+  }, [id, imoveis, loading, loadingRole, isAdmin, navigate, hydrated]);
 
   useEffect(() => {
     if (id) return;
@@ -848,10 +851,16 @@ export default function Form() {
           <input value={form.cep || ""} onChange={e => {
             sf("cep", e.target.value);
             buscarCEP(e.target.value, (data) => {
+              const enderecoCEP = [data.logradouro, data.complemento].filter(Boolean).join(", ");
+              // Endereço já preenchido e o CEP traz outro? Pergunta antes de sobrescrever.
+              const jaTem = (form.endereco || "").trim();
+              const usarDoCEP = !jaTem || !enderecoCEP || enderecoCEP === jaTem
+                ? true
+                : window.confirm("O endereço já está preenchido:\n\n" + jaTem + "\n\nO CEP informado aponta para:\n\n" + enderecoCEP + "\n\nQuer substituir pelo endereço do CEP?");
               const cidade = data.localidade || form.cidade;
               const bairro = data.bairro || form.bairro;
               const estado = data.uf || form.estado;
-              const endereco = [data.logradouro, data.complemento].filter(Boolean).join(", ") || form.endereco;
+              const endereco = usarDoCEP ? (enderecoCEP || form.endereco) : form.endereco;
               setForm(p => ({ ...p, endereco, bairro, cidade, estado }));
               geocodingSilencioso(cidade, bairro, estado, endereco, e.target.value);
             });
