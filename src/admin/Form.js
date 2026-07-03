@@ -98,6 +98,10 @@ export default function Form() {
   const [organizando, setOrganizando] = useState(false);
   const [importandoDrive, setImportandoDrive] = useState(false);
   const [urlDrive, setUrlDrive] = useState('');
+  const [iaTexto, setIaTexto] = useState('');
+  const [iaProcessando, setIaProcessando] = useState(false);
+  const [ditando, setDitando] = useState(false);
+  const reconhecimentoRef = useRef(null);
   const [previaFoto, setPreviaFoto] = useState(null);
   const [telProprietarioIntl, setTelProprietarioIntl] = useState(false);
   const [mostrarCanais, setMostrarCanais] = useState(false);
@@ -195,6 +199,67 @@ export default function Form() {
   const temCondominio = emCondominio || form.tipo === "Apartamento";
 
   const sf = (key, val) => setForm(p => ({ ...p, [key]: val }));
+
+  // ─── IA de cadastro: cola/dita o anúncio e preenche os campos do imóvel ───
+  async function organizarCadastroIA() {
+    const desc = (iaTexto || "").trim();
+    if (!desc) { alert("Cole ou dite o anúncio/descrição do imóvel no campo antes de organizar com a IA."); return; }
+    setIaProcessando(true);
+    try {
+      const r = await fetch(BACKEND_URL + "/captacao/organizar-ficha", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ descricao: desc, ficha: {} }),
+      });
+      const j = await r.json();
+      if (!j.ok || !j.ficha) { alert("Não consegui organizar: " + (j.error || "erro")); return; }
+      const fi = j.ficha;
+      const norm = x => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const num = x => { const n = Number(String(x == null ? "" : x).replace(/[^\d]/g, "")); return n > 0 ? n : null; };
+      const tEnc = tipos.find(t => norm(t.nome) === norm(fi.tipo))
+        || (norm(fi.tipo) ? tipos.find(t => norm(t.nome).startsWith(norm(fi.tipo)) || norm(fi.tipo).startsWith(norm(t.nome))) : null);
+      setForm(f => {
+        const nf = { ...f };
+        if (fi.titulo && !f.titulo) nf.titulo = fi.titulo;
+        if (tEnc) nf.tipo = tEnc.nome;
+        if (num(fi.quartos) != null) nf.quartos = num(fi.quartos);
+        if (num(fi.suites) != null) nf.suites = num(fi.suites);
+        if (num(fi.banheiros) != null) nf.banheiros = num(fi.banheiros);
+        if (num(fi.vagas) != null) nf.vagas = num(fi.vagas);
+        if (num(fi.area) != null) nf.area = num(fi.area);
+        if (fi.bairro) nf.bairro = fi.bairro;
+        if (fi.cidade) nf.cidade = fi.cidade;
+        if (fi.estado) nf.estado = String(fi.estado).toUpperCase().slice(0, 2);
+        if (fi.endereco) nf.endereco = fi.endereco;
+        if (num(fi.preco) != null) nf.preco = num(fi.preco);
+        if (num(fi.aluguel) != null) nf.aluguel = num(fi.aluguel);
+        if (num(fi.condominio) != null) nf.condominio = num(fi.condominio);
+        if (num(fi.iptu) != null) nf.iptu = num(fi.iptu);
+        return nf;
+      });
+      alert("✓ Campos preenchidos pela IA. Confira Tipo, Valor e Localização e ajuste o que precisar.");
+    } catch (e) { alert("Erro ao chamar a IA: " + e.message); }
+    finally { setIaProcessando(false); }
+  }
+
+  function alternarDitado() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Seu navegador não suporta ditado por voz. Use o Google Chrome no computador ou celular."); return; }
+    if (ditando) { if (reconhecimentoRef.current) reconhecimentoRef.current.stop(); return; }
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (ev) => {
+      let txt = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) txt += ev.results[i][0].transcript;
+      if (txt) setIaTexto(prev => (prev ? prev + " " : "") + txt.trim());
+    };
+    rec.onerror = () => setDitando(false);
+    rec.onend = () => setDitando(false);
+    reconhecimentoRef.current = rec;
+    setDitando(true);
+    rec.start();
+  }
   const valorFinalLoc = () => (parseFloat(form.valorAluguel) || 0) + (parseFloat(form.valorCondominio) || 0) + (parseFloat(form.valorIPTU) || 0) || "";
   const toggleCondicao = (c) =>
     setForm(p => ({ ...p, condicoes: p.condicoes?.includes(c) ? p.condicoes.filter(x => x !== c) : [...(p.condicoes || []), c] }));
@@ -806,6 +871,37 @@ export default function Form() {
       </>)}
 
       {section("Informações gerais", <>
+        <div style={{ marginBottom: 16, padding: 14, borderRadius: 10, border: "1px solid var(--primary)", background: "var(--primary-light)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <strong style={{ color: "var(--primary)", fontSize: 14 }}>✨ Cadastro rápido com IA</strong>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Cole o anúncio (OLX, WhatsApp) ou dite por voz — a IA preenche os campos.</span>
+          </div>
+          <textarea
+            value={iaTexto}
+            onChange={e => setIaTexto(e.target.value)}
+            placeholder="Cole aqui a descrição/anúncio do imóvel, ou clique no 🎤 e fale..."
+            rows={4}
+            style={{ ...inputBase, width: "100%", boxSizing: "border-box", fontSize: 13, resize: "vertical" }}
+            disabled={iaProcessando}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={alternarDitado} disabled={iaProcessando}
+              style={{ padding: "9px 16px", borderRadius: 8, border: ditando ? "1px solid #dc2626" : "1px solid var(--border-soft)", background: ditando ? "rgba(220,38,38,0.12)" : "var(--bg-input)", color: ditando ? "#dc2626" : "var(--text)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+              {ditando ? "⏺ Gravando... (clique para parar)" : "🎤 Ditar por voz"}
+            </button>
+            <button type="button" onClick={organizarCadastroIA} disabled={iaProcessando || !iaTexto.trim()}
+              style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid var(--primary)", background: (iaProcessando || !iaTexto.trim()) ? "var(--bg-muted)" : "var(--primary)", color: (iaProcessando || !iaTexto.trim()) ? "var(--text-muted)" : "#fff", cursor: (iaProcessando || !iaTexto.trim()) ? "default" : "pointer", fontSize: 13, fontWeight: 600 }}>
+              {iaProcessando ? "Organizando..." : "✨ Preencher com IA"}
+            </button>
+            {iaTexto && !iaProcessando && (
+              <button type="button" onClick={() => setIaTexto("")}
+                style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid var(--border-soft)", background: "var(--bg-input)", color: "var(--text-muted)", cursor: "pointer", fontSize: 13 }}>
+                Limpar
+              </button>
+            )}
+          </div>
+          {ditando && <p style={{ margin: "8px 0 0", fontSize: 11, color: "#dc2626" }}>🔴 Ouvindo... fale o anúncio do imóvel. O texto aparece no campo acima.</p>}
+        </div>
         {inp("Título *", "titulo", { ph: "Ex: Casa 3 quartos Setor Sul" })}
 
 
