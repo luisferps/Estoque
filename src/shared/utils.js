@@ -226,8 +226,10 @@ export function gerarDescricao(form) {
     if (a) linhas.push(`Aluguel: ${formatBRL(a)}`);
     if (c) linhas.push(`Condomínio: ${formatBRL(c)}/mês`);
     if (ip) linhas.push(`IPTU: ${formatBRL(ip)}/mês`);
+    // Total só faz sentido quando há mais de um componente (aluguel + condomínio e/ou IPTU).
+    // Se é só o aluguel, repetir o mesmo número como "total" fica redundante.
     const total = a + c + ip;
-    if (total) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
+    if (total && (c || ip)) linhas.push(`Total locação: ${formatBRL(total)}/mês`);
   }
   // Preço sob consulta: sem valor de venda nem de aluguel preenchido.
   const _semVenda = !(ven && parseFloat(form.preco));
