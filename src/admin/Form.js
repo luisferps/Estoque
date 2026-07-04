@@ -927,8 +927,6 @@ export default function Form() {
           {inp("Suítes", "suites", { type: "number" })}
           {inp("Garagens", "garagens", { type: "number" })}
           {inp("Banheiros", "banheiros", { type: "number" })}
-          {inp("Valor de avaliação (R$)", "valorAvaliacao", { type: "number" })}
-          {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
         </div>
       </>)}
 
@@ -1008,6 +1006,8 @@ export default function Form() {
         {isVenda && (
           <div style={grid2}>
             {inp("Preço de venda (R$)", "preco", { type: "number", ph: "Ex: 350000" })}
+            {inp("Valor de avaliação (R$)", "valorAvaliacao", { type: "number" })}
+            {inp("Valor de entrada (R$)", "valorEntrada", { type: "number" })}
             {inp("IPTU (R$)", "valorIPTU", { type: "number" })}
             {temCondominio && inp("Valor do condomínio (R$)", "valorCondominio", { type: "number" })}
           </div>
