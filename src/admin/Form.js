@@ -282,10 +282,17 @@ export default function Form() {
 
   const geocodingSilencioso = async (cidade, bairro, estado, endereco, cep) => {
     if (!cidade) return;
-    // Não sobrescreve coordenada ajustada manualmente
     if (form.coordManual) return;
     const coords = await geocodificarEndereco({ endereco, bairro, cidade, estado, cep });
     if (coords) setForm(p => ({ ...p, latitude: coords.latitude, longitude: coords.longitude }));
+  };
+
+  const geoEnderecoTimer = useRef(null);
+  const geocodarEnderecoDebounced = (endereco, cidade, bairro, estado, cep) => {
+    if (geoEnderecoTimer.current) clearTimeout(geoEnderecoTimer.current);
+    geoEnderecoTimer.current = setTimeout(() => {
+      geocodingSilencioso(cidade, bairro, estado, endereco, cep);
+    }, 900);
   };
 
   const save = async (overrides = {}) => {
@@ -982,7 +989,14 @@ export default function Form() {
             geocodingSilencioso(form.cidade, e.target.value, form.estado, form.endereco, form.cep);
           }} placeholder="Ex: Setor Sul" style={inputBase} />
         </div>
-        {inp("Endereço (visível só para admin)", "endereco", { ph: "Ex: Rua das Flores, 123" })}
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={labelStyle}>Endereço (visível só para admin)</label>
+          <input value={form.endereco || ""} onChange={e => {
+            sf("endereco", e.target.value);
+            geocodarEnderecoDebounced(e.target.value, form.cidade, form.bairro, form.estado, form.cep);
+          }} placeholder="Ex: Rua das Flores, 123" style={inputBase} />
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--text-muted)" }}>O mapa se posiciona automaticamente ao preencher o endereço. Se o pino ficar errado, arraste-o à mão.</p>
+        </div>
 
         {/* Mapa interativo — arraste o pino para marcar o local exato */}
         <div style={{ marginBottom: "1rem", padding: "12px 14px", background: form.coordManual ? "var(--primary-light)" : "var(--bg-muted)", borderRadius: 10, border: `1px solid ${form.coordManual ? "var(--primary)" : "var(--border-soft)"}` }}>
