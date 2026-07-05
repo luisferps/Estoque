@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO, perfilSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, formatTel } from "../shared/utils";
 import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
@@ -18,6 +18,13 @@ export default function Lista({ onLogout }) {
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
+  const ehAlcadaSuperior = ehDiretor || perfilSSO() === "gerente";
+  const estaNaCaptacao = (im) => {
+    if (!meuEmail) return false;
+    const dets = Array.isArray(im.captadores_detalhes) ? im.captadores_detalhes : [];
+    return dets.some(cap => cap.tipo !== "externo" && String(cap.email || "").toLowerCase() === meuEmail);
+  };
+  const podeVerTelefoneProprietario = (im) => ehAlcadaSuperior || souDonoDe(im) || estaNaCaptacao(im);
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -208,7 +215,7 @@ export default function Lista({ onLogout }) {
           <div className="al-price">
             {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
           </div>
-          {podeEditar && (im.nomeProprietario || im.telefoneProprietario) && (
+          {podeVerTelefoneProprietario(im) && (im.nomeProprietario || im.telefoneProprietario) && (
             <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span>👤 {im.nomeProprietario || "Proprietário"}</span>
               {im.telefoneProprietario && (
