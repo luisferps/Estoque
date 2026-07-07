@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, ehDiretorEfetivo, usuarioSSO, perfilSSO } from "../shared/userRole";
-import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, formatTel } from "../shared/utils";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF } from "../shared/utils";
 import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
 export default function Lista({ onLogout }) {
@@ -18,13 +18,6 @@ export default function Lista({ onLogout }) {
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
-  const ehAlcadaSuperior = ehDiretor || perfilSSO() === "gerente";
-  const estaNaCaptacao = (im) => {
-    if (!meuEmail) return false;
-    const dets = Array.isArray(im.captadores_detalhes) ? im.captadores_detalhes : [];
-    return dets.some(cap => cap.tipo !== "externo" && String(cap.email || "").toLowerCase() === meuEmail);
-  };
-  const podeVerTelefoneProprietario = (im) => ehAlcadaSuperior || souDonoDe(im) || estaNaCaptacao(im);
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -37,6 +30,7 @@ export default function Lista({ onLogout }) {
   const [showPDF, setShowPDF] = useState(false);
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
   const [migrando, setMigrando] = useState(false);
+  const [soMinhas, setSoMinhas] = useState(false);
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
@@ -68,13 +62,17 @@ export default function Lista({ onLogout }) {
       && (bairro === "Todos" || im.bairro === bairro)
       && (status === "Todos" || statusDoImovel(im) === status)
       && precoOk(im)
+      // Botão "Minhas captações": mostra só os imóveis captados pelo usuário logado.
+      && (!soMinhas
+          || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
+          || (user && im.captadorUid && im.captadorUid === user.uid))
       // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
       && (im.status !== "Aguardando finalização" || ehDiretor
           || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
           || (user && im.captadorUid && im.captadorUid === user.uid))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user]);
+  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user, soMinhas]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
@@ -215,19 +213,6 @@ export default function Lista({ onLogout }) {
           <div className="al-price">
             {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
           </div>
-          {podeVerTelefoneProprietario(im) && (im.nomeProprietario || im.telefoneProprietario) && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span>👤 {im.nomeProprietario || "Proprietário"}</span>
-              {im.telefoneProprietario && (
-                <a href={`https://wa.me/${String(im.telefoneProprietario).replace(/\D/g, "").length <= 11 ? "55" + String(im.telefoneProprietario).replace(/\D/g, "") : String(im.telefoneProprietario).replace(/\D/g, "")}`}
-                  target="_blank" rel="noreferrer"
-                  onClick={e => e.stopPropagation()}
-                  style={{ color: "#25884f", textDecoration: "none", fontWeight: 600 }}>
-                  📞 {formatTel(im.telefoneProprietario)}
-                </a>
-              )}
-            </div>
-          )}
         </div>
         <div className="al-actions">
           <button className="al-mini al-ficha" onClick={() => navigate(`/admin/imovel/${im.id}`)}>Ficha</button>
@@ -332,6 +317,10 @@ export default function Lista({ onLogout }) {
           <select className="al-sel" value={ordem} onChange={e => setOrdem(e.target.value)}>
             {ORDENACOES.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
+          <button type="button" onClick={() => setSoMinhas(v => !v)} title="Mostrar só os imóveis captados por você"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", border: soMinhas ? "1px solid #C0392B" : "1px solid var(--border)", background: soMinhas ? "#C0392B" : "var(--bg-card)", color: soMinhas ? "#fff" : "inherit" }}>
+            👤 Minhas captações{soMinhas ? " ✓" : ""}
+          </button>
           <div className="al-price">
             <span>💰</span>
             <input type="text" inputMode="numeric" placeholder="R$ mín" value={precoMin} onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))} />
