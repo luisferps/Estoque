@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
@@ -14,18 +14,20 @@ export default function Lista({ onLogout }) {
   const { user, perfil, isAdmin } = useUserRole();
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
-  const _meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
-  const _norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   // "Meu" imóvel = tenho a estrela OU participo da divisão de captação (por email ou nome).
   // Cobre o captador que finaliza o próprio imóvel mesmo sem ser a estrela.
-  const souDonoDe = (im) => !!(
-    (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
-    (user && im.captadorUid && im.captadorUid === user.uid) ||
-    (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
-      c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
-    (_meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
-      c && c.tipo === "interno" && _norm(c.nome) === _norm(_meuNome)))
-  );
+  const souDonoDe = useCallback((im) => {
+    const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
+    return !!(
+      (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
+      (user && im.captadorUid && im.captadorUid === user.uid) ||
+      (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+        c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
+      (meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+        c && c.tipo === "interno" && norm(c.nome) === norm(meuNome)))
+    );
+  }, [meuEmail, user, perfil]);
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
@@ -77,7 +79,7 @@ export default function Lista({ onLogout }) {
       && (im.status !== "Aguardando finalização" || ehDiretor || souDonoDe(im))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user, soMinhas]);
+  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, soMinhas, souDonoDe]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
