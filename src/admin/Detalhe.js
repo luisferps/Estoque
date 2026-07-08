@@ -49,7 +49,7 @@ export default function Detalhe() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { imoveis } = useImoveis();
-  const { user, isAdmin } = useUserRole();
+  const { user, perfil, isAdmin } = useUserRole();
   const im = imoveis.find(i => i.id === id);
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
@@ -70,12 +70,18 @@ export default function Detalhe() {
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
-  // Participa da CAPTAÇÃO deste imóvel? = está na divisão de captação (por email).
-  // Usado só para liberar dados sensíveis (contato do proprietário), não a edição.
+  // Participa da CAPTAÇÃO deste imóvel? Usado só para liberar dados sensíveis
+  // (contato do proprietário). Cobre imóveis NOVOS (email na divisão) e ANTIGOS
+  // (sem email na divisão): casa por email, por uid, pela estrela (captadorEmail)
+  // e, como reforço p/ o legado, pelo NOME do captador na divisão.
+  const _meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
+  const _norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   const souCaptadorDoImovel = !!(
     souDono ||
     (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
-      c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail))
+      c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
+    (_meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+      c && c.tipo === "interno" && _norm(c.nome) === _norm(_meuNome)))
   );
   // Editar/captar: só a estrela (ou diretor).
   const podeEditar = ehDiretor || souDono;
