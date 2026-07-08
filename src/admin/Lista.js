@@ -66,10 +66,9 @@ export default function Lista({ onLogout }) {
       && (!soMinhas
           || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
           || (user && im.captadorUid && im.captadorUid === user.uid))
-      // Incompletos ("Aguardando finalização") só aparecem pro dono e pro diretor.
-      && (im.status !== "Aguardando finalização" || ehDiretor
-          || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
-          || (user && im.captadorUid && im.captadorUid === user.uid))
+      // Todos os corretores veem TODOS os imóveis da Inerente (inclusive "Aguardando
+      // finalização"). O que é restrito é o contato do proprietário e a edição — isso
+      // é tratado no Detalhe/Form, não na visibilidade da lista.
     );
     return ordenarImoveis(base, ordem);
   }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user, soMinhas]);
