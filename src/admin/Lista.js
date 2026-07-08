@@ -11,12 +11,20 @@ export default function Lista({ onLogout }) {
   const navigate = useNavigate();
   const { imoveis, loading } = useImoveis();
   const { tipos } = useTipos();
-  const { user, isAdmin } = useUserRole();
+  const { user, perfil, isAdmin } = useUserRole();
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
+  const _meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
+  const _norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  // "Meu" imóvel = tenho a estrela OU participo da divisão de captação (por email ou nome).
+  // Cobre o captador que finaliza o próprio imóvel mesmo sem ser a estrela.
   const souDonoDe = (im) => !!(
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
-    (user && im.captadorUid && im.captadorUid === user.uid)
+    (user && im.captadorUid && im.captadorUid === user.uid) ||
+    (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+      c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
+    (_meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+      c && c.tipo === "interno" && _norm(c.nome) === _norm(_meuNome)))
   );
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
@@ -63,12 +71,10 @@ export default function Lista({ onLogout }) {
       && (status === "Todos" || statusDoImovel(im) === status)
       && precoOk(im)
       // Botão "Minhas captações": mostra só os imóveis captados pelo usuário logado.
-      && (!soMinhas
-          || (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail)
-          || (user && im.captadorUid && im.captadorUid === user.uid))
-      // Todos os corretores veem TODOS os imóveis da Inerente (inclusive "Aguardando
-      // finalização"). O que é restrito é o contato do proprietário e a edição — isso
-      // é tratado no Detalhe/Form, não na visibilidade da lista.
+      && (!soMinhas || souDonoDe(im))
+      // Imóveis PRONTOS: todos veem. "Aguardando finalização" (rascunho) só aparece pro
+      // captador dele (que precisa finalizar) e pro diretor — não polui a lista dos outros.
+      && (im.status !== "Aguardando finalização" || ehDiretor || souDonoDe(im))
     );
     return ordenarImoveis(base, ordem);
   }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, meuEmail, user, soMinhas]);
