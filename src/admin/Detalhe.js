@@ -65,12 +65,22 @@ export default function Detalhe() {
   const galeriaLink = im.fotos?.length ? `https://fotosdoimovel.netlify.app/fotos/${im.id}` : "";
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
+  // Estrela da captação (dono da edição), casada por email do captador principal.
   const souDono = !!(
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
+  // Participa da CAPTAÇÃO deste imóvel? = está na divisão de captação (por email).
+  // Usado só para liberar dados sensíveis (contato do proprietário), não a edição.
+  const souCaptadorDoImovel = !!(
+    souDono ||
+    (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+      c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail))
+  );
+  // Editar/captar: só a estrela (ou diretor).
   const podeEditar = ehDiretor || souDono;
-  const podeVerProprietario = ehDiretor || souDono;
+  // Ver contato do proprietário (sensível): qualquer captador do imóvel (ou diretor).
+  const podeVerProprietario = ehDiretor || souCaptadorDoImovel;
   const podeVerAnuncios = ehDiretor;
 
   // Captador: público para todos no sistema
