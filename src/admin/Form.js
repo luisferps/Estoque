@@ -789,10 +789,34 @@ export default function Form() {
   const donoEdicaoEmail = String(form.captadorEmail || "").toLowerCase();
   const souDonoEdicao = !!meuEmailAtual && meuEmailAtual === donoEdicaoEmail;
   const podeTransferirEdicao = souDonoEdicao || ehAlcadaSuperior;
+  // Resolve o e-mail de um captador interno mesmo quando o registro do imóvel veio
+  // sem e-mail (caso dos imóveis vindos do CRM): busca no Cadastro de Pessoas pelo id.
+  const emailDoCap = (cap) => {
+    let e = String(cap.email || "").toLowerCase();
+    if (!e && cap.id) {
+      const info = listaCaptadores.find(c => c.id === cap.id);
+      e = String((info && info.email) || "").toLowerCase();
+    }
+    return e;
+  };
+  const ehDonoEdicao = (cap) => {
+    const e = emailDoCap(cap);
+    return !!e && e === donoEdicaoEmail;
+  };
   const definirDonoEdicao = (cap) => {
     if (!podeTransferirEdicao) return;
-    if (cap.tipo !== "interno" || !cap.email) return;
-    setForm(p => ({ ...p, captadorEmail: String(cap.email).toLowerCase() }));
+    if (cap.tipo !== "interno") return;
+    const email = emailDoCap(cap);
+    if (!email) {
+      alert("Este captador não tem e-mail no Cadastro de Pessoas, então não pode ser o dono da edição. Cadastre o e-mail dele primeiro.");
+      return;
+    }
+    setForm(p => {
+      const det = (p.captadores_detalhes || []).map(c =>
+        (c.tipo === "interno" && c.id === cap.id) ? { ...c, email } : c
+      );
+      return { ...p, captadores_detalhes: det, captadorEmail: email };
+    });
   };
 
   return (
@@ -1217,7 +1241,7 @@ export default function Form() {
                             <span
                               onClick={() => definirDonoEdicao(cap)}
                               title={
-                                cap.email && cap.email === donoEdicaoEmail
+                                ehDonoEdicao(cap)
                                   ? "Dono da edição (posse do cadastro)"
                                   : podeTransferirEdicao
                                     ? "Passar o dono da edição para este captador"
@@ -1225,11 +1249,11 @@ export default function Form() {
                               }
                               style={{
                                 fontSize: 15, lineHeight: 1,
-                                cursor: (podeTransferirEdicao && cap.email && cap.email !== donoEdicaoEmail) ? "pointer" : "default",
-                                opacity: (cap.email && cap.email === donoEdicaoEmail) ? 1 : (podeTransferirEdicao ? 0.35 : 0.2),
+                                cursor: (podeTransferirEdicao && !ehDonoEdicao(cap)) ? "pointer" : "default",
+                                opacity: ehDonoEdicao(cap) ? 1 : (podeTransferirEdicao ? 0.35 : 0.2),
                                 userSelect: "none",
                               }}>
-                              {cap.email && cap.email === donoEdicaoEmail ? "⭐" : "☆"}
+                              {ehDonoEdicao(cap) ? "⭐" : "☆"}
                             </span>
                           )}
                           {cap.nome}
