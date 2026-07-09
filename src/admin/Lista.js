@@ -199,6 +199,13 @@ export default function Lista({ onLogout }) {
     const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
     const bs = badgeStatus(im);
     const podeEditar = ehDiretor || souDonoDe(im);
+    const ehMinha = souDonoDe(im);
+    const capNome = im.nomeCaptador
+      || ((Array.isArray(im.captadores_detalhes) && (im.captadores_detalhes.find(x => x && x.tipo === "interno" && x.nome) || {}).nome) || "");
+    const capTelRaw = im.telefoneCaptador
+      || ((Array.isArray(im.captadores_detalhes) && (im.captadores_detalhes.find(x => x && x.telefone) || {}).telefone) || "");
+    const capTelDigits = String(capTelRaw).replace(/\D/g, "");
+    const capWa = capTelDigits ? (capTelDigits.startsWith("55") ? capTelDigits : "55" + capTelDigits) : "";
 
     return (
       <div className="al-card" key={im.id}>
@@ -222,6 +229,15 @@ export default function Lista({ onLogout }) {
             {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
           </div>
         </div>
+        {ehMinha && (capNome || capWa) && (
+          <div className="al-captador">
+            <span className="al-cap-nome" title="Captador deste imóvel">👤 {capNome || "Você"}</span>
+            {capWa
+              ? <a className="al-cap-wa" href={`https://wa.me/${capWa}`} target="_blank" rel="noreferrer"
+                   onClick={(e) => e.stopPropagation()} title="Falar no WhatsApp">💬 {capTelRaw}</a>
+              : null}
+          </div>
+        )}
         <div className="al-actions">
           <button className="al-mini al-ficha" onClick={() => navigate(`/admin/imovel/${im.id}`)}>Ficha</button>
           <button className="al-mini" onClick={() => verNoSite(im)} title="Ver no site">🌐</button>
@@ -277,6 +293,10 @@ export default function Lista({ onLogout }) {
         .al-price { }
         .al-card-body .al-price { font-size: 16px; font-weight: 700; color: var(--primary-dark); display: block; }
         .al-card-body .al-price small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+        .al-captador { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--border-soft); background: var(--bg-muted); }
+        .al-cap-nome { font-size: 11.5px; font-weight: 600; color: var(--text-soft); }
+        .al-cap-wa { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: #fff; background: #25d366; padding: 4px 10px; border-radius: 980px; text-decoration: none; white-space: nowrap; }
+        .al-cap-wa:hover { background: #1da851; }
         .al-actions { display: flex; gap: 5px; padding: 0 12px 12px; }
         .al-mini { flex: 1; padding: 6px 4px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-muted); color: var(--text); cursor: pointer; transition: all .15s; }
         .al-mini:hover { background: var(--primary-light); border-color: var(--primary-border); }
