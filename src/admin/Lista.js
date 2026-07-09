@@ -25,7 +25,8 @@ export default function Lista({ onLogout }) {
       (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
         c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
       (meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
-        c && c.tipo === "interno" && norm(c.nome) === norm(meuNome)))
+        c && c.tipo === "interno" && norm(c.nome) === norm(meuNome))) ||
+      (meuNome && im.nomeCaptador && norm(im.nomeCaptador) === norm(meuNome))
     );
   }, [meuEmail, user, perfil]);
   const [search, setSearch] = useState("");
