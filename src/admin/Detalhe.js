@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { excluirImovelBackend, criarImovelBackend } from "../shared/estoqueApi";
 import { CANAIS, RODAPE, PDF_CAMPOS } from "../constants";
 import { useImoveis } from "../shared/hooks";
-import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO, cpfSSO } from "../shared/userRole";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
   descricaoPronta, downloadFotos, gerarPDF
@@ -65,19 +65,24 @@ export default function Detalhe() {
   const galeriaLink = im.fotos?.length ? `https://fotosdoimovel.netlify.app/fotos/${im.id}` : "";
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
-  // Estrela da captação (dono da edição), casada por email do captador principal.
+  const meuCpf = cpfSSO();
+  const _soDig = s => String(s || "").replace(/\D/g, "");
+  // Estrela da captação (dono da edição): CPF primeiro, email/uid de reserva.
   const souDono = !!(
+    (meuCpf && im.captadorCpf && _soDig(im.captadorCpf) === meuCpf) ||
     (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
     (user && im.captadorUid && im.captadorUid === user.uid)
   );
   // Participa da CAPTAÇÃO deste imóvel? Usado só para liberar dados sensíveis
-  // (contato do proprietário). Cobre imóveis NOVOS (email na divisão) e ANTIGOS
-  // (sem email na divisão): casa por email, por uid, pela estrela (captadorEmail)
+  // (contato do proprietário). Cobre imóveis NOVOS (cpf/email na divisão) e ANTIGOS
+  // (sem email na divisão): casa por CPF, por email, por uid, pela estrela
   // e, como reforço p/ o legado, pelo NOME do captador na divisão.
   const _meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
   const _norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   const souCaptadorDoImovel = !!(
     souDono ||
+    (meuCpf && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+      c && c.tipo === "interno" && c.cpf && _soDig(c.cpf) === meuCpf)) ||
     (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
       c && c.tipo === "interno" && c.email && String(c.email).toLowerCase() === meuEmail)) ||
     (_meuNome && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
