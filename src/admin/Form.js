@@ -5,7 +5,7 @@ import {
   TRANSACOES, ESTADOS_IMOVEL, CONDICOES, CANAIS, CANAIS_VENDA, emptyForm
 } from "../constants";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, usuarioSSO, ehDiretorEfetivo, perfilSSO } from "../shared/userRole";
+import { useUserRole, usuarioSSO, ehDiretorEfetivo, perfilSSO, cpfSSO } from "../shared/userRole";
 import {
   formatBRL, formatTel, gerarDescricao, uploadToCloudinary, buscarCEP,
   ehTerreno, ehConstrucao, tipoEhLotePorNome, geocodificarEndereco, gerarCodigoImovel, reservarCodigoImovel
@@ -161,8 +161,12 @@ export default function Form() {
       return;
     }
     const meuEmail = (usuarioSSO() || "").toLowerCase();
-    const dono = String(existing.captadorEmail || "").toLowerCase();
-    const souDono = !!meuEmail && !!dono && meuEmail === dono;
+    const meuCpf = cpfSSO();
+    const soDig = s => String(s || "").replace(/\D/g, "");
+    const souDono = !!(
+      (meuCpf && existing.captadorCpf && soDig(existing.captadorCpf) === meuCpf) ||
+      (meuEmail && existing.captadorEmail && String(existing.captadorEmail).toLowerCase() === meuEmail)
+    );
     const ehDiretor = ehDiretorEfetivo(isAdmin);
     if (!souDono && !ehDiretor) {
       if (loadingRole) return;
@@ -179,12 +183,13 @@ export default function Form() {
     if (id) return;
     const email = usuarioSSO();
     setForm(p => {
-      if (p.captadorEmail) return p;
+      if (p.captadorEmail || p.captadorCpf) return p;
       return {
         ...p,
         nomeCaptador: p.nomeCaptador || perfil?.nome || "",
         telefoneCaptador: p.telefoneCaptador || perfil?.telefone || "",
         captadorEmail: email || "",
+        captadorCpf: cpfSSO() || "",
         captadorUid: user?.uid || "",
       };
     });
@@ -771,51 +776,59 @@ export default function Form() {
 
   // ─── DIVISÃO DE COMISSÃO (captação): quem pode editar cada fatia ───
   const meuEmailAtual = (usuarioSSO() || "").toLowerCase();
+  const meuCpfAtual = cpfSSO();
+  const _soDig = s => String(s || "").replace(/\D/g, "");
   const ehAlcadaSuperior = ehDiretorEfetivo(isAdmin) || perfilSSO() === "gerente";
   // Posso editar/remover a fatia deste captador?
-  // - Interno: só o próprio dono (email bate) ou alçada superior.
+  // - Interno: só o próprio dono (CPF ou email bate) ou alçada superior.
   // - Externo: só o representante (quem cadastrou) ou alçada superior.
   const podeEditarFatia = (cap) => {
     if (ehAlcadaSuperior) return true;
-    if (!meuEmailAtual) return false;
-    if (cap.tipo === "externo") return String(cap.representante || "").toLowerCase() === meuEmailAtual;
-    return String(cap.email || "").toLowerCase() === meuEmailAtual;
+    if (cap.tipo === "externo") return !!meuEmailAtual && String(cap.representante || "").toLowerCase() === meuEmailAtual;
+    if (meuCpfAtual && cap.cpf && _soDig(cap.cpf) === meuCpfAtual) return true;
+    return !!meuEmailAtual && String(cap.email || "").toLowerCase() === meuEmailAtual;
   };
   const somaPct = (form.captadores_detalhes || []).reduce((s, c) => s + (Number(c.pct) || 0), 0);
 
   // ─── PODER DE EDIÇÃO (posse do cadastro) ───
-  // O dono da edição é o captadorEmail. Só ele (+ alçada superior) pode transferir a posse.
+  // O dono da edição é identificado por CPF (chave única); o captadorEmail fica de reserva.
   // Só um captador INTERNO pode ser dono (externo não tem login).
+  const donoEdicaoCpf = _soDig(form.captadorCpf);
   const donoEdicaoEmail = String(form.captadorEmail || "").toLowerCase();
-  const souDonoEdicao = !!meuEmailAtual && meuEmailAtual === donoEdicaoEmail;
+  const souDonoEdicao = (!!meuCpfAtual && meuCpfAtual === donoEdicaoCpf) || (!!meuEmailAtual && meuEmailAtual === donoEdicaoEmail && !donoEdicaoCpf);
   const podeTransferirEdicao = souDonoEdicao || ehAlcadaSuperior;
-  // Resolve o e-mail de um captador interno mesmo quando o registro do imóvel veio
-  // sem e-mail (caso dos imóveis vindos do CRM): busca no Cadastro de Pessoas pelo id.
-  const emailDoCap = (cap) => {
-    let e = String(cap.email || "").toLowerCase();
-    if (!e && cap.id) {
+  // Resolve CPF/e-mail de um captador interno mesmo quando o registro do imóvel veio
+  // sem esses dados (imóveis vindos do CRM): busca no Cadastro de Pessoas pelo id.
+  const dadosDoCap = (cap) => {
+    let cpf = _soDig(cap.cpf);
+    let email = String(cap.email || "").toLowerCase();
+    if ((!cpf || !email) && cap.id) {
       const info = listaCaptadores.find(c => c.id === cap.id);
-      e = String((info && info.email) || "").toLowerCase();
+      if (info) {
+        if (!cpf) cpf = _soDig(info.cpf);
+        if (!email) email = String(info.email || "").toLowerCase();
+      }
     }
-    return e;
+    return { cpf, email };
   };
   const ehDonoEdicao = (cap) => {
-    const e = emailDoCap(cap);
-    return !!e && e === donoEdicaoEmail;
+    const { cpf, email } = dadosDoCap(cap);
+    if (donoEdicaoCpf) return !!cpf && cpf === donoEdicaoCpf;
+    return !!email && email === donoEdicaoEmail;
   };
   const definirDonoEdicao = (cap) => {
     if (!podeTransferirEdicao) return;
     if (cap.tipo !== "interno") return;
-    const email = emailDoCap(cap);
-    if (!email) {
-      alert("Este captador não tem e-mail no Cadastro de Pessoas, então não pode ser o dono da edição. Cadastre o e-mail dele primeiro.");
+    const { cpf, email } = dadosDoCap(cap);
+    if (!cpf && !email) {
+      alert("Este captador não tem CPF nem e-mail no Cadastro de Pessoas, então não pode ser o dono da edição. Cadastre o CPF dele primeiro.");
       return;
     }
     setForm(p => {
       const det = (p.captadores_detalhes || []).map(c =>
-        (c.tipo === "interno" && c.id === cap.id) ? { ...c, email } : c
+        (c.tipo === "interno" && c.id === cap.id) ? { ...c, cpf: cpf || c.cpf || "", email: email || c.email || "" } : c
       );
-      return { ...p, captadores_detalhes: det, captadorEmail: email };
+      return { ...p, captadores_detalhes: det, captadorCpf: cpf || "", captadorEmail: email || "" };
     });
   };
 
@@ -1141,6 +1154,7 @@ export default function Form() {
                   id: capId,
                   nome: info?.nome || "",
                   email: (info?.email || "").toLowerCase(),
+                  cpf: String(info?.cpf || "").replace(/\D/g, ""),
                   telefone: info?.telefone || "",
                   pct: 0,
                 };
@@ -1150,14 +1164,20 @@ export default function Form() {
                   det.forEach((c, i) => { c.pct = (i === 0) ? (100 - eq * (det.length - 1)) : eq; });
                   // Se ainda não há dono da edição (ou o atual não está entre os internos), o 1º interno vira dono.
                   const internos = det.filter(c => c.tipo === "interno");
-                  const donoAtual = String(p.captadorEmail || "").toLowerCase();
-                  const donoValido = internos.some(c => String(c.email || "").toLowerCase() === donoAtual);
-                  const captadorEmail = donoValido ? p.captadorEmail : (internos[0]?.email || p.captadorEmail || "");
+                  const donoCpfAtual = String(p.captadorCpf || "").replace(/\D/g, "");
+                  const donoEmailAtual = String(p.captadorEmail || "").toLowerCase();
+                  const donoValido = internos.some(c =>
+                    (donoCpfAtual && String(c.cpf || "").replace(/\D/g, "") === donoCpfAtual) ||
+                    (donoEmailAtual && String(c.email || "").toLowerCase() === donoEmailAtual));
+                  const dono = donoValido ? null : internos[0];
+                  const captadorCpf = donoValido ? p.captadorCpf : String((dono && dono.cpf) || p.captadorCpf || "").replace(/\D/g, "");
+                  const captadorEmail = donoValido ? p.captadorEmail : String((dono && dono.email) || p.captadorEmail || "").toLowerCase();
                   return {
                     ...p,
                     captadores_detalhes: det,
                     captadores_ids: internos.map(c => c.id),
                     nomeCaptador: det.map(c => c.nome).join(", "),
+                    captadorCpf,
                     captadorEmail,
                   };
                 });
