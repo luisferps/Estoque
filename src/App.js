@@ -154,7 +154,7 @@ function AdminRoute({ element: Component, requireDiretor = false }) {
         .then(r => r.json())
         .then(j => {
           if (j && j.ok && j.sessao) {
-            try { localStorage.setItem("admin_sso", JSON.stringify({ usuario: j.usuario, nome: j.nome, perfil: j.perfil, sessao: j.sessao })); } catch {}
+            try { localStorage.setItem("admin_sso", JSON.stringify({ usuario: j.usuario, nome: j.nome, perfil: j.perfil, cpf: j.cpf || "", sessao: j.sessao })); } catch {}
             try { window.history.replaceState(null, "", window.location.pathname + window.location.hash); } catch {}
             setIsAuth(true);
           } else {
