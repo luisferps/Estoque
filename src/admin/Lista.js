@@ -47,6 +47,7 @@ export default function Lista({ onLogout }) {
   const [pdfCampos, setPdfCampos] = useState(PDF_CAMPOS.map(c => c.key));
   const [migrando, setMigrando] = useState(false);
   const [soMinhas, setSoMinhas] = useState(false);
+  const [filtroCaptador, setFiltroCaptador] = useState("");
 
   const cidades = useMemo(() => ["Todas", ...Array.from(new Set(imoveis.map(im => im.cidade).filter(Boolean))).sort()], [imoveis]);
 
@@ -61,6 +62,24 @@ export default function Lista({ onLogout }) {
 
   const semCodigo = useMemo(() => imoveis.filter(im => !(im.codigo || "").trim()).length, [imoveis]);
 
+  // Corretores/captadores presentes nos imóveis (pro filtro do diretor).
+  const corretoresList = useMemo(() => {
+    const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const soDig = s => String(s || "").replace(/\D/g, "");
+    const mapa = new Map();
+    (imoveis || []).forEach(im => {
+      const add = (nome, cpf, email, cid) => {
+        const n = String(nome || "").trim();
+        if (!n) return;
+        const chave = soDig(cpf) || (cid ? String(cid) : "") || String(email || "").toLowerCase() || norm(n);
+        if (!mapa.has(chave)) mapa.set(chave, { chave, nome: n, cpf: soDig(cpf), email: String(email || "").toLowerCase(), id: cid ? String(cid) : "" });
+      };
+      if (Array.isArray(im.captadores_detalhes)) im.captadores_detalhes.forEach(c => { if (c && c.tipo === "interno") add(c.nome, c.cpf, c.email, c.id); });
+      if (im.nomeCaptador) add(im.nomeCaptador, im.captadorCpf, im.captadorEmail, "");
+    });
+    return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [imoveis]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     const min = parseFloat(String(precoMin).replace(/[^\d]/g, "")) || 0;
@@ -70,6 +89,24 @@ export default function Lista({ onLogout }) {
       const v = parseFloat(im.preco) || parseFloat(im.valorAluguel) || parseFloat(im.valorFinal) || 0;
       return v >= min && v <= max;
     };
+    // Filtro por corretor (diretor): mostra só os imóveis captados pelo corretor escolhido.
+    const selCap = filtroCaptador ? corretoresList.find(c => c.chave === filtroCaptador) : null;
+    const normC = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const soDigC = s => String(s || "").replace(/\D/g, "");
+    const capOk = (im) => {
+      if (!selCap) return true;
+      const emDet = Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c => c && c.tipo === "interno" && (
+        (selCap.cpf && soDigC(c.cpf) === selCap.cpf) ||
+        (selCap.id && String(c.id) === selCap.id) ||
+        (selCap.email && String(c.email || "").toLowerCase() === selCap.email) ||
+        (selCap.nome && normC(c.nome) === normC(selCap.nome))
+      ));
+      const noTopo =
+        (selCap.cpf && soDigC(im.captadorCpf) === selCap.cpf) ||
+        (selCap.email && String(im.captadorEmail || "").toLowerCase() === selCap.email) ||
+        (selCap.nome && normC(im.nomeCaptador) === normC(selCap.nome));
+      return emDet || noTopo;
+    };
     const base = imoveis.filter(im =>
       (!q || (im.titulo || "").toLowerCase().includes(q) || (im.descricao || "").toLowerCase().includes(q) || (im.cidade || "").toLowerCase().includes(q) || (im.bairro || "").toLowerCase().includes(q) || (im.endereco || "").toLowerCase().includes(q) || (im.codigo || "").toLowerCase().includes(q) || (im.nomeProprietario || "").toLowerCase().includes(q))
       && (tipo === "Todos" || im.tipo === tipo)
@@ -78,6 +115,7 @@ export default function Lista({ onLogout }) {
       && (bairro === "Todos" || im.bairro === bairro)
       && (status === "Todos" || statusDoImovel(im) === status)
       && precoOk(im)
+      && capOk(im)
       // Botão "Minhas captações": mostra só os imóveis captados pelo usuário logado.
       && (!soMinhas || souDonoDe(im))
       // Imóveis PRONTOS: todos veem. "Aguardando finalização" (rascunho) só aparece pro
@@ -85,7 +123,7 @@ export default function Lista({ onLogout }) {
       && (im.status !== "Aguardando finalização" || ehDiretor || souDonoDe(im))
     );
     return ordenarImoveis(base, ordem);
-  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, soMinhas, souDonoDe]);
+  }, [imoveis, search, tipo, transacao, cidade, bairro, status, ordem, precoMin, precoMax, ehDiretor, soMinhas, souDonoDe, filtroCaptador, corretoresList]);
 
   const del = async (id) => {
     if (!window.confirm("Excluir?")) return;
@@ -204,12 +242,20 @@ export default function Lista({ onLogout }) {
     const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
     const bs = badgeStatus(im);
     const podeEditar = ehDiretor || souDonoDe(im);
-    const ehMinha = souDonoDe(im);
-    const capNome = im.nomeCaptador
+    // Captador da ESTRELA (dono da edição): nome vira link de WhatsApp no card.
+    const _soDig = s => String(s || "").replace(/\D/g, "");
+    const _donoCpf = _soDig(im.captadorCpf);
+    const _donoEmail = String(im.captadorEmail || "").toLowerCase();
+    const _capDono = Array.isArray(im.captadores_detalhes)
+      ? im.captadores_detalhes.find(c => c && c.tipo === "interno" && (
+          (_donoCpf && _soDig(c.cpf) === _donoCpf) ||
+          (_donoEmail && String(c.email || "").toLowerCase() === _donoEmail)))
+      : null;
+    const capNome = (_capDono && _capDono.nome) || im.nomeCaptador
       || ((Array.isArray(im.captadores_detalhes) && (im.captadores_detalhes.find(x => x && x.tipo === "interno" && x.nome) || {}).nome) || "");
-    const capTelRaw = im.telefoneCaptador
+    const capTelRaw = (_capDono && _capDono.telefone) || im.telefoneCaptador
       || ((Array.isArray(im.captadores_detalhes) && (im.captadores_detalhes.find(x => x && x.telefone) || {}).telefone) || "");
-    const capTelDigits = String(capTelRaw).replace(/\D/g, "");
+    const capTelDigits = _soDig(capTelRaw);
     const capWa = capTelDigits ? (capTelDigits.startsWith("55") ? capTelDigits : "55" + capTelDigits) : "";
 
     return (
@@ -234,13 +280,13 @@ export default function Lista({ onLogout }) {
             {preco ? <>R$ {parseFloat(preco).toLocaleString("pt-BR")}{ehLoc && <small> /mês</small>}</> : <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 400 }}>Sem valor</span>}
           </div>
         </div>
-        {ehMinha && (capNome || capWa) && (
+        {capNome && (
           <div className="al-captador">
-            <span className="al-cap-nome" title="Captador deste imóvel">👤 {capNome || "Você"}</span>
+            <span className="al-cap-lbl">Captador:</span>
             {capWa
               ? <a className="al-cap-wa" href={`https://wa.me/${capWa}`} target="_blank" rel="noreferrer"
-                   onClick={(e) => e.stopPropagation()} title="Falar no WhatsApp">💬 {capTelRaw}</a>
-              : null}
+                   onClick={(e) => e.stopPropagation()} title={`Falar com ${capNome} no WhatsApp`}>💬 {capNome}</a>
+              : <span className="al-cap-nome" title="Captador deste imóvel">👤 {capNome}</span>}
           </div>
         )}
         <div className="al-actions">
@@ -298,7 +344,8 @@ export default function Lista({ onLogout }) {
         .al-price { }
         .al-card-body .al-price { font-size: 16px; font-weight: 700; color: var(--primary-dark); display: block; }
         .al-card-body .al-price small { font-size: 11px; font-weight: 400; color: var(--text-muted); }
-        .al-captador { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--border-soft); background: var(--bg-muted); }
+        .al-captador { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--border-soft); background: var(--bg-muted); }
+        .al-cap-lbl { font-size: 11px; font-weight: 500; color: var(--text-muted); }
         .al-cap-nome { font-size: 11.5px; font-weight: 600; color: var(--text-soft); }
         .al-cap-wa { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: #fff; background: #25d366; padding: 4px 10px; border-radius: 980px; text-decoration: none; white-space: nowrap; }
         .al-cap-wa:hover { background: #1da851; }
@@ -354,6 +401,13 @@ export default function Lista({ onLogout }) {
             style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", border: soMinhas ? "1px solid #C0392B" : "1px solid var(--border)", background: soMinhas ? "#C0392B" : "var(--bg-card)", color: soMinhas ? "#fff" : "inherit" }}>
             👤 Minhas captações{soMinhas ? " ✓" : ""}
           </button>
+          {ehDiretor && (
+            <select className="al-sel" value={filtroCaptador} onChange={e => setFiltroCaptador(e.target.value)} title="Ver só os imóveis de um corretor"
+              style={{ borderColor: filtroCaptador ? "#C0392B" : "var(--border)", color: filtroCaptador ? "#C0392B" : "var(--text)", fontWeight: filtroCaptador ? 600 : 400 }}>
+              <option value="">👥 Todos os corretores</option>
+              {corretoresList.map(c => <option key={c.chave} value={c.chave}>{c.nome}</option>)}
+            </select>
+          )}
           <div className="al-price">
             <span>💰</span>
             <input type="text" inputMode="numeric" placeholder="R$ mín" value={precoMin} onChange={e => setPrecoMin(e.target.value.replace(/[^\d]/g, ""))} />
