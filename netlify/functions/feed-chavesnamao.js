@@ -168,6 +168,11 @@ function buildImovel(imovel, tiposCentral) {
   // Fotos: se houver menos que o mínimo, repete o conjunto original (mesma
   // quantidade que existe) até chegar ao mínimo; depois corta em 30.
   let fotos = (imovel.fotos || []).map(normalizeImageUrl).filter(Boolean);
+  // Sem foto NÃO vai pro feed (não anuncia imóvel sem imagem).
+  if (fotos.length === 0) {
+    console.log(`[ChavesNaMao] Pulado ${id}: sem fotos`);
+    return null;
+  }
   if (fotos.length > 0 && fotos.length < MIN_FOTOS_CNM) {
     const originaisFotos = fotos.slice();
     while (fotos.length < MIN_FOTOS_CNM) {
