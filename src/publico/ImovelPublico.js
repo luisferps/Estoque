@@ -68,6 +68,7 @@ export default function ImovelPublico() {
   const [fotoIdx, setFotoIdx] = useState(0);
   const [lb, setLb] = useState(null);
   const [share, setShare] = useState(false);
+  const [contatoAberto, setContatoAberto] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [favoritos, setFavoritos] = useState(lerFavoritos);
   const [vizinhancas, setVizinhancas] = useState([]);
@@ -164,6 +165,21 @@ export default function ImovelPublico() {
   const isVen = isVenda(im);
   const mensagemWa = `Olá! Tenho interesse no imóvel: ${im.titulo}\n${window.location.href}`;
   const linkWa = `https://wa.me/${EMPRESA.whatsapp}?text=${encodeURIComponent(mensagemWa)}`;
+
+  // WhatsApp do CAPTADOR (dono da estrela) — para o botão de parceria entre corretores.
+  // Sem captador definido, cai no WhatsApp da imobiliária.
+  const _soDig = s => String(s || "").replace(/\D/g, "");
+  const _donoCpf = _soDig(im.captadorCpf);
+  const _donoEmail = String(im.captadorEmail || "").toLowerCase();
+  const _capDono = Array.isArray(im.captadores_detalhes)
+    ? im.captadores_detalhes.find(c => c && c.tipo === "interno" && (
+        (_donoCpf && _soDig(c.cpf) === _donoCpf) ||
+        (_donoEmail && String(c.email || "").toLowerCase() === _donoEmail)))
+    : null;
+  const _capTel = _soDig((_capDono && _capDono.telefone) || im.telefoneCaptador || "");
+  const _capWa = _capTel ? (_capTel.startsWith("55") ? _capTel : "55" + _capTel) : "";
+  const msgCorretor = `Olá! Sou corretor(a) e gostaria de fazer parceria neste imóvel: ${im.titulo}\n${window.location.href}`;
+  const linkWaCorretor = _capWa ? `https://wa.me/${_capWa}?text=${encodeURIComponent(msgCorretor)}` : linkWa;
 
   const copiarDescricao = async () => {
     try { await navigator.clipboard.writeText(descricaoPronta(im)); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {
@@ -332,14 +348,14 @@ export default function ImovelPublico() {
 
         {/* CTAs: WhatsApp + Compartilhar */}
         <div style={{ display: "flex", gap: 10, marginBottom: "1.4rem", flexDirection: "column" }}>
-          <a href={linkWa} target="_blank" rel="noreferrer" className="btn-wa" style={{
-            textAlign: "center", padding: "16px 0",
+          <button onClick={() => setContatoAberto(true)} className="btn-wa" style={{
+            textAlign: "center", padding: "16px 0", border: "none", cursor: "pointer", width: "100%",
             borderRadius: 14, fontWeight: 700, fontSize: 16,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)", color: "#fff", textDecoration: "none"
           }}>
             💬 Tenho interesse — falar no WhatsApp
-          </a>
+          </button>
           <div style={{ position: "relative" }}>
             <button onClick={() => setShare(s => !s)} className="btn-grad" style={{ width: "100%", padding: "13px 0", borderRadius: 14, fontWeight: 800, fontSize: 15 }}>
               ↗ Compartilhar
@@ -347,6 +363,38 @@ export default function ImovelPublico() {
             {share && <CompartilharPopup im={im} onCopiarTexto={copiarDescricao} copiado={copiado} onClose={() => setShare(false)} />}
           </div>
         </div>
+
+        {contatoAberto && (
+          <div onClick={() => setContatoAberto(false)} style={{
+            position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+          }}>
+            <div onClick={e => e.stopPropagation()} style={{
+              background: "var(--bg-card)", color: "var(--text)", borderRadius: 18, padding: "22px 20px",
+              width: "100%", maxWidth: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)"
+            }}>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 4, textAlign: "center" }}>Como você quer falar?</div>
+              <div style={{ fontSize: 13, color: "var(--text-muted)", textAlign: "center", marginBottom: 18 }}>Escolha uma opção pra continuar no WhatsApp.</div>
+
+              <a href={linkWa} target="_blank" rel="noreferrer" onClick={() => setContatoAberto(false)} style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8, textDecoration: "none",
+                padding: "15px 0", borderRadius: 12, fontWeight: 700, fontSize: 15.5, marginBottom: 10,
+                background: "linear-gradient(135deg, #25D366 0%, #128C7E 100%)", color: "#fff"
+              }}>🏠 Sou cliente — quero comprar</a>
+
+              <a href={linkWaCorretor} target="_blank" rel="noreferrer" onClick={() => setContatoAberto(false)} style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8, textDecoration: "none",
+                padding: "13px 0", borderRadius: 12, fontWeight: 600, fontSize: 14,
+                background: "transparent", color: "var(--text-soft)", border: "1px solid var(--border)"
+              }}>🤝 Sou corretor — quero parceria</a>
+
+              <button onClick={() => setContatoAberto(false)} style={{
+                width: "100%", marginTop: 14, padding: "8px 0", border: "none", background: "transparent",
+                color: "var(--text-muted)", fontSize: 13, cursor: "pointer"
+              }}>Fechar</button>
+            </div>
+          </div>
+        )}
 
         {(() => {
           // Bloco financeiro extra: só Ágio e Preço por m² (condomínio/IPTU já aparecem no destaque).
