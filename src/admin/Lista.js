@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi";
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { useUserRole, ehDiretorEfetivo, usuarioSSO } from "../shared/userRole";
+import { useUserRole, ehDiretorEfetivo, usuarioSSO, cpfSSO } from "../shared/userRole";
 import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF } from "../shared/utils";
 import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
@@ -14,12 +14,17 @@ export default function Lista({ onLogout }) {
   const { user, perfil, isAdmin } = useUserRole();
   const ehDiretor = ehDiretorEfetivo(isAdmin);
   const meuEmail = usuarioSSO();
-  // "Meu" imóvel = tenho a estrela OU participo da divisão de captação (por email ou nome).
-  // Cobre o captador que finaliza o próprio imóvel mesmo sem ser a estrela.
+  const meuCpf = cpfSSO();
+  // "Meu" imóvel = tenho a estrela OU participo da divisão de captação.
+  // Reconhecimento por CPF (chave única) primeiro; email/uid/nome de reserva.
   const souDonoDe = useCallback((im) => {
     const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const soDig = s => String(s || "").replace(/\D/g, "");
     const meuNome = String((perfil && perfil.nome) || "").toLowerCase().trim();
     return !!(
+      (meuCpf && im.captadorCpf && soDig(im.captadorCpf) === meuCpf) ||
+      (meuCpf && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
+        c && c.tipo === "interno" && c.cpf && soDig(c.cpf) === meuCpf)) ||
       (meuEmail && im.captadorEmail && im.captadorEmail.toLowerCase() === meuEmail) ||
       (user && im.captadorUid && im.captadorUid === user.uid) ||
       (meuEmail && Array.isArray(im.captadores_detalhes) && im.captadores_detalhes.some(c =>
@@ -28,7 +33,7 @@ export default function Lista({ onLogout }) {
         c && c.tipo === "interno" && norm(c.nome) === norm(meuNome))) ||
       (meuNome && im.nomeCaptador && norm(im.nomeCaptador) === norm(meuNome))
     );
-  }, [meuEmail, user, perfil]);
+  }, [meuEmail, meuCpf, user, perfil]);
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("Todos");
   const [transacao, setTransacao] = useState("Todos");
