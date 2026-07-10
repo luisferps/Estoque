@@ -71,6 +71,17 @@ export function usuarioSSO() {
   } catch { return null; }
 }
 
+// CPF de quem entrou pelo Portal — a CHAVE ÚNICA do usuário (só dígitos, sempre).
+// É por aqui que o dono do imóvel é reconhecido; email/nome ficam de reserva.
+export function cpfSSO() {
+  try {
+    const raw = localStorage.getItem("admin_sso");
+    if (!raw) return "";
+    const d = JSON.parse(raw);
+    return (d && d.cpf) ? String(d.cpf).replace(/\D/g, "") : "";
+  } catch { return ""; }
+}
+
 // É diretor? (via Portal com perfil diretor). O diretor vê e edita tudo.
 export function ehDiretorSSO() {
   return perfilSSO() === "diretor";
