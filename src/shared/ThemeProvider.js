@@ -28,6 +28,7 @@ export function ThemeProvider({ children }) {
       r.setProperty("--primary-dark", "oklch(0.74 0.15 33)");
       r.setProperty("--primary-light", "oklch(0.30 0.045 30)");
       r.setProperty("--primary-border", "oklch(0.45 0.09 30)");
+      r.setProperty("--logo-bg", "#ffffff");
       r.setProperty("--shadow", "0 2px 8px rgba(0,0,0,0.45), 0 14px 34px -18px rgba(0,0,0,0.55)");
       r.setProperty("--gallery-bg", "oklch(0.14 0.006 38)");
     } else {
@@ -46,6 +47,7 @@ export function ThemeProvider({ children }) {
       r.setProperty("--primary-dark", "oklch(0.44 0.16 28)");
       r.setProperty("--primary-light", "oklch(0.95 0.03 30)");
       r.setProperty("--primary-border", "oklch(0.85 0.06 30)");
+      r.setProperty("--logo-bg", "transparent");
       r.setProperty("--shadow", "0 1px 3px rgba(60,30,20,0.06), 0 10px 30px -16px rgba(60,30,20,0.15)");
       r.setProperty("--gallery-bg", "oklch(0.14 0.006 38)");
     }
