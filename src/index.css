@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
 * { box-sizing: border-box; }
 
 html, body, #root {
@@ -7,38 +9,29 @@ html, body, #root {
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg, #ffffff);
   color: var(--text, #222);
-  transition: background 0.2s, color 0.2s;
+  transition: background 0.25s, color 0.25s;
 }
 
-input, select, textarea, button {
-  font-family: inherit;
+h1, h2, h3 {
+  font-family: "Space Grotesk", "Hanken Grotesk", system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
+
+input, select, textarea, button { font-family: inherit; }
 
 input:focus, select:focus, textarea:focus {
   outline: 2px solid var(--primary, #C0392B);
   outline-offset: -1px;
 }
 
-a {
-  color: var(--primary, #C0392B);
-}
+a { color: var(--primary, #C0392B); }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-muted, #f5f5f5);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-soft, #ddd);
-  border-radius: 5px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted, #888);
-}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-muted, #f5f5f5); }
+::-webkit-scrollbar-thumb { background: var(--border-soft, #ddd); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #888); }
