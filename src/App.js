@@ -66,8 +66,7 @@ function AdminHeader({ onLogout }) {
       <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 1rem" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0 4px", gap: 6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <img src="https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png" alt="Inerente" style={{ height: 26, width: "auto", display: "block" }} />
-            <span style={{ fontSize: 15, fontWeight: 700, color: "var(--primary-dark)" }}>Inerente</span>
+            <img src="https://res.cloudinary.com/demsusjwf/image/upload/v1778785144/logo_png_fuv27j.png" alt="Inerente" style={{ height: 104, width: "auto", display: "block" }} />
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <DarkModeToggle />
