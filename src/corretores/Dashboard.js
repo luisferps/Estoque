@@ -71,7 +71,7 @@ export default function Dashboard() {
         flexWrap: "wrap", gap: 10
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {LOGO_URL && <img src={LOGO_URL} alt="Logo" style={{ height: 104, objectFit: "contain" }} />}
+          {LOGO_URL && <span style={{ display: "inline-flex", background: "var(--logo-bg)", borderRadius: 12, padding: "6px 12px" }}><img src={LOGO_URL} alt="Logo" style={{ height: "clamp(56px, 13vw, 104px)", objectFit: "contain", display: "block" }} /></span>}
           <div>
             <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "var(--text)" }}>Área do Corretor</p>
             <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>{meuPerfil?.nome || user.email}</p>
