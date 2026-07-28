@@ -226,7 +226,7 @@ export default function Destaques({ onLogout, embutido = false }) {
     const arr = !t
       ? base
       : base.filter((im) =>
-          [im.titulo, im.bairro, im.cidade, im.tipo, im.codigo]
+          [im.titulo, im.bairro, im.cidade, im.tipo, im.codigo, im.transacao]
             .filter(Boolean)
             .some((c) => String(c).toLowerCase().includes(t))
         );
