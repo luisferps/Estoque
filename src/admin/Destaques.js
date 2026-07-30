@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { useImoveis } from "../shared/hooks";
-import { statusDoImovel } from "../shared/utils";
+import { statusDoImovel, validarParaCanal } from "../shared/utils";
 import { btnOutline, btnPrimary, pageWrap } from "../shared/styles";
 
 // Backend Railway (mesmo usado pelo CRM / WA Scheduler)
@@ -132,7 +132,7 @@ export default function Destaques({ onLogout, embutido = false }) {
 
   // Imóveis ativos no Canal Pro (os que vão pro feed)
   const noCanalPro = useMemo(
-    () => imoveis.filter((im) => im.anuncios?.[CANAL]?.ativo),
+    () => imoveis.filter((im) => validarParaCanal(im, CANAL).length === 0),
     [imoveis]
   );
 
