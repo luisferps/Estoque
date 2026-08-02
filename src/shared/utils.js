@@ -671,3 +671,20 @@ export function fotoThumbUrl(foto, w, h) {
     ? foto.replace("/upload/", `/upload/w_${w},h_${h},c_fill,f_auto,q_auto/`)
     : foto;
 }
+
+// Copia texto pro clipboard, com fallback pra navegador antigo. Retorna true se copiou.
+export async function copiarTexto(txt) {
+  try {
+    await navigator.clipboard.writeText(txt);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch {}
+    document.body.removeChild(ta);
+    return ok;
+  }
+}
