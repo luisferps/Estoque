@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao, fotoThumbUrl } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao, fotoThumbUrl, copiarTexto } from "../shared/utils";
 import { EMPRESA, ORDENACOES, LOGO_URL } from "../constants";
 
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -158,10 +158,9 @@ export default function Home() {
   const sufixoFaixa = transacao === "Locação" ? "/mês" : "";
 
   const copiarDescricao = async (im) => {
-    try { await navigator.clipboard.writeText(descricaoPronta(im)); setCopiadoId(im.id); setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 1800); } catch {
-      const ta = document.createElement("textarea"); ta.value = descricaoPronta(im); document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiadoId(im.id); setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 1800); } catch {}
-      document.body.removeChild(ta);
+    if (await copiarTexto(descricaoPronta(im))) {
+      setCopiadoId(im.id);
+      setTimeout(() => setCopiadoId(c => (c === im.id ? null : c)), 1800);
     }
     setShareOpenId(null);
   };
