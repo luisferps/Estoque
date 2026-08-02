@@ -663,3 +663,11 @@ export function avisosDoCanal(im, canal) {
   }
   return avisos;
 }
+
+
+// Miniatura do Cloudinary no tamanho pedido (usado na lista do admin e na home publica).
+export function fotoThumbUrl(foto, w, h) {
+  return (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
+    ? foto.replace("/upload/", `/upload/w_${w},h_${h},c_fill,f_auto,q_auto/`)
+    : foto;
+}
