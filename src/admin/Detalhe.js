@@ -7,7 +7,7 @@ import { useUserRole, ehDiretorEfetivo, usuarioSSO, cpfSSO } from "../shared/use
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape,
   descricaoPronta, downloadFotos, gerarPDF
-} from "../shared/utils";
+, copiarTexto } from "../shared/utils";
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 
@@ -103,16 +103,9 @@ export default function Detalhe() {
   const temProprietario = !!(im.nomeProprietario || im.telefoneProprietario) && podeVerProprietario;
 
   const copiarDescricao = async () => {
-    const txt = descricaoPronta(im);
-    try {
-      await navigator.clipboard.writeText(txt);
+    if (await copiarTexto(descricaoPronta(im))) {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = txt; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
-      document.body.removeChild(ta);
     }
   };
 
