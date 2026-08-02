@@ -4,7 +4,7 @@ import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi"
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO, cpfSSO } from "../shared/userRole";
-import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, fotoThumbUrl } from "../shared/utils";
 import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
 export default function Lista({ onLogout }) {
@@ -236,8 +236,7 @@ export default function Lista({ onLogout }) {
     const su = parseInt(im.suites) || 0;
     const va = parseInt(im.garagens) || 0;
     const foto = im.fotos?.[0];
-    const fotoThumb = (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
-      ? foto.replace("/upload/", "/upload/w_500,h_300,c_fill,f_auto,q_auto/") : foto;
+    const fotoThumb = fotoThumbUrl(foto, 500, 300);
     const ehLoc = im.transacao === "Locação";
     const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
     const bs = badgeStatus(im);
