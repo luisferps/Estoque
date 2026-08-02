@@ -3,8 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useImoveis } from "../shared/hooks";
 import { RODAPE, EMPRESA, LOGO_URL } from "../constants";
 import {
-  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta, linkLocalizacao
-} from "../shared/utils";
+  formatBRL, isLote, isLocacao, isVenda, statusDoImovel, apareceNoSite, temRodape, descricaoPronta, linkLocalizacao, copiarTexto } from "../shared/utils";
 import { pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 import ImovelCard from "../shared/ImovelCard";
@@ -182,10 +181,9 @@ export default function ImovelPublico() {
   const linkWaCorretor = _capWa ? `https://wa.me/${_capWa}?text=${encodeURIComponent(msgCorretor)}` : linkWa;
 
   const copiarDescricao = async () => {
-    try { await navigator.clipboard.writeText(descricaoPronta(im)); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {
-      const ta = document.createElement("textarea"); ta.value = descricaoPronta(im); document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 1800); } catch {}
-      document.body.removeChild(ta);
+    if (await copiarTexto(descricaoPronta(im))) {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
     }
     setShare(false);
   };
