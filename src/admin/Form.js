@@ -15,6 +15,7 @@ import { LOGO_URL } from "../constants";
 import FotosGrid from "../shared/FotosGrid";
 import MapaPino from "../shared/MapaPino";
 import PreviaQualidade from "./PreviaQualidade";
+import { tokenSessaoSSO } from "../shared/estoqueApi";
 
 const CANAIS_AUTO = ["Canal Pro", "Chaves na Mão", "Catálogo Meta"];
 
@@ -37,15 +38,6 @@ function ehEmCondominio(tipo) {
 }
 
 const BACKEND_URL = "https://agentes-de-whatsapp-production.up.railway.app";
-
-function tokenSessaoSSO() {
-  try {
-    const raw = localStorage.getItem("admin_sso");
-    if (!raw) return "";
-    const d = JSON.parse(raw);
-    return (d && d.sessao) ? String(d.sessao) : "";
-  } catch { return ""; }
-}
 
 async function salvarImovelBackend(idImovel, data) {
   const token = tokenSessaoSSO();
