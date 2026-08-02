@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useImoveis, useTipos } from "../shared/hooks";
-import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, descricaoPronta, linkLocalizacao, fotoThumbUrl } from "../shared/utils";
 import { EMPRESA, ORDENACOES, LOGO_URL } from "../constants";
 
 const semAcento = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -49,8 +49,7 @@ function CardImovel({ im, onClick, onWhats, onShare, shareOpen, onCopiar, copiad
   const su = parseInt(im.suites) || 0;
   const va = parseInt(im.garagens) || 0;
   const foto = im.fotos?.[0];
-  const fotoThumb = (foto && foto.includes("res.cloudinary.com") && foto.includes("/upload/"))
-    ? foto.replace("/upload/", "/upload/w_640,h_480,c_fill,f_auto,q_auto/") : foto;
+  const fotoThumb = fotoThumbUrl(foto, 640, 480);
   const ehLoc = im.transacao === "Locação";
   const preco = ehLoc ? (im.valorFinal || im.valorAluguel) : im.preco;
   const mapsLink = linkLocalizacao(im);
