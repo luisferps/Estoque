@@ -4,8 +4,7 @@ import { useImoveis, useAuthUser } from "../shared/hooks";
 import { PDF_CAMPOS, RODAPE } from "../constants";
 import {
   formatBRL, isLote, isLocacao, isVenda, statusDoImovel, temRodape, descricaoPronta,
-  downloadFotos, gerarPDF
-} from "../shared/utils";
+  downloadFotos, gerarPDF, copiarTexto } from "../shared/utils";
 import { btnPrimary, sectionBox, pageWrap } from "../shared/styles";
 import Lightbox from "../shared/Lightbox";
 
@@ -30,15 +29,9 @@ export default function MaterialImovel() {
   const status = statusDoImovel(im);
 
   const copiarDescricao = async () => {
-    try {
-      await navigator.clipboard.writeText(descricaoPronta(im));
+    if (await copiarTexto(descricaoPronta(im))) {
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2500);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = descricaoPronta(im); document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); setCopiado(true); setTimeout(() => setCopiado(false), 2500); } catch {}
-      document.body.removeChild(ta);
     }
   };
 
