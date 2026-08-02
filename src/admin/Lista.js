@@ -4,7 +4,7 @@ import { excluirImovelBackend, editarImovelBackend } from "../shared/estoqueApi"
 import { db } from "../firebase";
 import { useImoveis, useTipos } from "../shared/hooks";
 import { useUserRole, ehDiretorEfetivo, usuarioSSO, cpfSSO } from "../shared/userRole";
-import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, fotoThumbUrl } from "../shared/utils";
+import { matchTransacao, ordenarImoveis, statusDoImovel, reservarCodigoImovel, ajustarContadorMinimo, chaveBairro, descricaoPronta, gerarPDF, fotoThumbUrl, copiarTexto } from "../shared/utils";
 import { PDF_CAMPOS, TRANSACOES, STATUS_IMOVEL, ORDENACOES } from "../constants";
 
 export default function Lista({ onLogout }) {
@@ -139,15 +139,7 @@ export default function Lista({ onLogout }) {
   // Copia a descrição pronta (mesma função da ficha) pro WhatsApp.
   const [copiadoId, setCopiadoId] = useState(null);
   const copiarDescricao = async (im) => {
-    const txt = descricaoPronta(im);
-    try {
-      await navigator.clipboard.writeText(txt);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = txt; document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch {}
-      document.body.removeChild(ta);
-    }
+    await copiarTexto(descricaoPronta(im));
     setCopiadoId(im.id);
     setTimeout(() => setCopiadoId(null), 2000);
   };
