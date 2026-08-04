@@ -339,6 +339,9 @@
         minEl.appendChild(div);
       });
 
+      // Moldura acompanha a proporcao da primeira foto
+      ajustarMoldura();
+
       // Setas
       document.getElementById('setaEsq').addEventListener('click', () => irPara(atual - 1));
       document.getElementById('setaDir').addEventListener('click', () => irPara(atual + 1));
