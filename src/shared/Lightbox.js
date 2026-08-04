@@ -20,7 +20,7 @@ export default function Lightbox({ idx, fotos, onClose, onChange }) {
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.94)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
-      <img src={fotos[idx]} alt="" style={{ maxWidth: "85vw", maxHeight: "90vh", objectFit: "contain", borderRadius: 8 }} onClick={e => e.stopPropagation()} />
+      <img src={fotos[idx]} alt="" style={{ maxWidth: "min(96vw, 1400px)", maxHeight: "82vh", objectFit: "contain", borderRadius: 8 }} onClick={e => e.stopPropagation()} />
       {fotos.length > 1 && (
         <>
           <button onClick={prev} style={btnNav("left")}>‹</button>
@@ -36,7 +36,7 @@ export default function Lightbox({ idx, fotos, onClose, onChange }) {
 }
 
 const btnNav = (side) => ({
-  position: "absolute", [side]: 12,
+  position: "absolute", [side]: "max(6px, 2vw)",
   background: "rgba(255,255,255,0.15)", border: "none", color: "#fff",
-  fontSize: 30, borderRadius: "50%", width: 48, height: 48, cursor: "pointer"
+  fontSize: 26, borderRadius: "50%", width: 42, height: 42, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1
 });
