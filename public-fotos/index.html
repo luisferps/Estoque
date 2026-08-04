@@ -87,10 +87,14 @@
       border-radius: 18px;
       background: #18181b;
       position: relative;
-      height: min(70vh, 660px);
+      aspect-ratio: var(--ar, 4 / 3);
+      max-height: min(76vh, 720px);
+      margin: 0 auto;
+      width: fit-content;
+      max-width: 100%;
     }
     @media (max-width: 480px) {
-      .carrossel { border-radius: 14px; height: min(62vh, 520px); }
+      .carrossel { border-radius: 14px; max-height: 68vh; }
     }
     .slides {
       display: flex;
@@ -106,7 +110,7 @@
     .slide img {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
       display: block;
       background: #18181b;
     }
@@ -274,11 +278,24 @@
       atual = (idx + total) % total;
       document.getElementById('slides').style.transform = `translateX(-${atual * 100}%)`;
       document.getElementById('contador').textContent = `${atual + 1} / ${total}`;
+      ajustarMoldura();
       // miniatura ativa
       document.querySelectorAll('.miniatura').forEach((m, i) => {
         m.classList.toggle('ativa', i === atual);
         if (i === atual) m.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       });
+    }
+
+    function ajustarMoldura() {
+      const el = document.querySelector('.carrossel');
+      const img = document.querySelectorAll('.slide img')[atual];
+      if (!el || !img) return;
+      const aplica = () => {
+        if (img.naturalWidth && img.naturalHeight) {
+          el.style.setProperty('--ar', img.naturalWidth + ' / ' + img.naturalHeight);
+        }
+      };
+      if (img.complete) aplica(); else img.addEventListener('load', aplica, { once: true });
     }
 
     function montar(imovel) {
