@@ -286,10 +286,11 @@
       });
     }
 
-    function ajustarMoldura() {
+    function ajustarMoldura(tent) {
       const el = document.querySelector('.carrossel');
       const img = document.querySelectorAll('.slide img')[atual];
-      if (!el || !img) return;
+      const t = tent || 0;
+      if (!el || !img) { if (t < 20) setTimeout(function () { ajustarMoldura(t + 1); }, 120); return; }
       const aplica = () => {
         if (img.naturalWidth && img.naturalHeight) {
           el.style.setProperty('--ar', img.naturalWidth + ' / ' + img.naturalHeight);
