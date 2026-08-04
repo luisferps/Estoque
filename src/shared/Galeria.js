@@ -18,16 +18,16 @@ export default function Galeria({ id }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: "#0e0e10", minHeight: "100vh", padding: "1.25rem", color: "#f4f4f5" }}>
+    <div style={{ fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif", background: "#0e0e10", minHeight: "100vh", padding: "clamp(0.75rem, 3vw, 1.25rem)", color: "#f4f4f5" }}>
       {/* fonte global pra ficar igual ao resto do site */}
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-      <style>{`.gal-btn:hover { filter: brightness(1.06); }`}</style>
+      <style>{`.gal-btn:hover{filter:brightness(1.06)}@media(max-width:600px){.gal-cab{flex-direction:column;align-items:stretch!important}.gal-cab h2{font-size:18px!important;text-align:center}.gal-btn{width:100%}}`}</style>
 
       <Lightbox idx={lb} fotos={im?.fotos || []} onClose={() => setLb(null)} onChange={setLb} />
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "0 auto 1.2rem", maxWidth: 1200 }}>
+      <div className="gal-cab" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "0 auto 1.2rem", maxWidth: 1200 }}>
         <h2 style={{ margin: 0, fontFamily: "Manrope, sans-serif", fontSize: 22, fontWeight: 800, color: "#fff", flex: 1, letterSpacing: -0.4 }}>
           {im?.titulo || "Fotos do imóvel"}
         </h2>
@@ -45,7 +45,7 @@ export default function Galeria({ id }) {
       </div>
 
       {temFotos ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 10, maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 47%), 1fr))", gap: 8, maxWidth: 1200, margin: "0 auto" }}>
           {im.fotos.map((f, i) => (
             <img key={i} src={f} alt="" onClick={() => setLb(i)}
               style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 14, cursor: "zoom-in", border: "1px solid rgba(255,255,255,0.08)" }} />
