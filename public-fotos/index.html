@@ -2,120 +2,123 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Fotos do Imóvel</title>
   <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0e0e10" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-      background: #0e0e10;
-      color: #f4f4f5;
-      min-height: 100dvh;
-      overscroll-behavior: none;
+    :root {
+      --bg: #0e0e10;
+      --card: #18181b;
+      --txt: #f4f4f5;
+      --mut: #9a9aa3;
+      --verde: #25D366;
     }
 
-    /* ── Carregando ── */
-    #loading {
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+      min-height: 100dvh;
+      overscroll-behavior-y: none;
       display: flex;
+      flex-direction: column;
+    }
+    #conteudo { flex: 1; flex-direction: column; min-width: 0; }
+
+    .wrap { max-width: 760px; margin: 0 auto; min-width: 0; width: 100%; }
+
+    #loading, #erro {
+      display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100dvh;
-      gap: 16px;
-      color: #9a9aa3;
+      min-height: 80dvh;
+      gap: 14px;
+      color: var(--mut);
+      text-align: center;
+      padding: 2rem;
     }
+    #loading { display: flex; }
+    #erro span { font-size: 3rem; }
     .spinner {
-      width: 40px; height: 40px;
+      width: 38px; height: 38px;
       border: 3px solid #2a2a30;
-      border-top-color: #25D366;
+      border-top-color: var(--verde);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Erro ── */
-    #erro {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100dvh;
-      gap: 12px;
-      color: #9a9aa3;
-      text-align: center;
-      padding: 2rem;
-    }
-    #erro span { font-size: 3rem; }
-
-    /* ── Conteúdo ── */
     #conteudo { display: none; }
 
-    /* ── Header ── */
-    .header {
-      padding: 1.25rem 1rem 1rem;
-      max-width: min(720px, 100%);
-      margin: 0 auto;
-    }
+    /* ── Cabeçalho ── */
+    .header { padding: 16px 16px 12px; }
     .titulo {
       font-family: 'Manrope', sans-serif;
-      font-size: clamp(18px, 5vw, 24px);
+      font-size: clamp(17px, 4.8vw, 23px);
       font-weight: 800;
       color: #fff;
       letter-spacing: -0.4px;
       line-height: 1.25;
     }
-    .subtitulo {
-      font-size: 13px;
-      color: #9a9aa3;
-      margin-top: 4px;
+    .subtitulo { font-size: 13px; color: var(--mut); margin-top: 4px; }
+
+    /* ── Palco (moldura fixa: não pula entre fotos) ── */
+    .palco {
+      position: relative;
+      background: #000;
+      border-radius: 16px;
+      overflow: hidden;
+      width: auto;
+      aspect-ratio: var(--ar, 4 / 3);
+      max-height: min(72svh, 680px);
+      margin: 0 16px;
+    }
+    @media (max-width: 640px) {
+      .palco { border-radius: 0; margin: 0; max-height: min(68svh, 620px); }
     }
 
-    /* ── Carrossel ── */
-    .carrossel-wrap {
-      position: relative;
-      max-width: min(720px, 100%);
-      margin: 0 auto;
-      touch-action: pan-y;
-    }
-    .carrossel {
-      overflow: hidden;
-      border-radius: 18px;
-      background: #18181b;
-      position: relative;
-      aspect-ratio: var(--ar, 4 / 3);
-      max-height: min(76vh, 720px);
-      margin: 0 auto;
-      width: fit-content;
-      max-width: 100%;
-    }
-    @media (max-width: 480px) {
-      .carrossel { border-radius: 14px; max-height: 68vh; }
-    }
-    .slides {
+    .trilho {
       display: flex;
       height: 100%;
-      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-      will-change: transform;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-snap-type: x mandatory;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      overscroll-behavior-x: contain;
     }
+    .trilho::-webkit-scrollbar { display: none; }
+
     .slide {
-      min-width: 100%;
+      flex: 0 0 100%;
       height: 100%;
-      flex-shrink: 0;
+      scroll-snap-align: center;
+      scroll-snap-stop: always;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .slide img {
       width: 100%;
       height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
-      background: #18181b;
+      user-select: none;
+      -webkit-user-drag: none;
     }
 
-    /* ── Setas ── */
+    /* ── Setas (só em tela grande) ── */
     .seta {
       position: absolute;
       top: 50%;
@@ -125,86 +128,127 @@
       color: #fff;
       width: 44px; height: 44px;
       border-radius: 50%;
-      font-size: 20px;
+      font-size: 22px;
+      line-height: 1;
       cursor: pointer;
-      z-index: 10;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.2s;
+      z-index: 5;
+      display: none;
+      align-items: center;
+      justify-content: center;
       -webkit-tap-highlight-color: transparent;
     }
-    .seta:hover { background: rgba(0,0,0,0.80); }
+    .seta:hover { background: rgba(0,0,0,0.82); }
     .seta-esq { left: 10px; }
     .seta-dir { right: 10px; }
-    @media (max-width: 480px) {
-      .seta { width: 36px; height: 36px; font-size: 16px; }
+    @media (min-width: 641px) and (hover: hover) {
+      .seta { display: flex; }
     }
 
-    /* ── Contador ── */
     .contador {
       position: absolute;
-      bottom: 12px;
-      right: 14px;
-      background: rgba(0,0,0,0.60);
+      bottom: 12px; right: 12px;
+      background: rgba(0,0,0,0.62);
       color: #fff;
       font-size: 12px;
       font-weight: 600;
-      padding: 4px 10px;
+      padding: 5px 11px;
       border-radius: 20px;
       pointer-events: none;
+      z-index: 5;
+    }
+
+    .ampliar {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      background: rgba(0,0,0,0.62);
+      color: #fff;
+      border: none;
+      font-size: 15px;
+      padding: 6px 11px;
+      border-radius: 20px;
+      cursor: pointer;
+      z-index: 5;
+      -webkit-tap-highlight-color: transparent;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
     }
 
     /* ── Miniaturas ── */
     .miniaturas {
       display: flex;
-      justify-content: center;
+      min-width: 0;
       gap: 6px;
       overflow-x: auto;
-      padding: 10px 1rem 4px;
-      max-width: min(720px, 100%);
-      margin: 0 auto;
+      padding: 12px 16px 4px;
       scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
     }
     .miniaturas::-webkit-scrollbar { display: none; }
     .miniatura {
-      min-width: 60px; height: 60px;
+      width: 58px; height: 58px;
       border-radius: 10px;
       overflow: hidden;
       cursor: pointer;
       border: 2px solid transparent;
       transition: border-color 0.2s, opacity 0.2s;
-      flex-shrink: 0;
-      opacity: 0.55;
+      flex: 0 0 auto;
+      opacity: 0.5;
+      background: var(--card);
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
     }
-    .miniatura.ativa { border-color: #25D366; opacity: 1; }
+    .miniatura.ativa { border-color: var(--verde); opacity: 1; }
     .miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-    /* ── Botão baixar ── */
-    .acoes {
-      padding: 1rem 1rem 2rem;
-      max-width: min(720px, 100%);
-      margin: 0 auto;
+    /* ── Barra fixa de ações ── */
+    .barra {
+      position: sticky;
+      bottom: 0;
+      margin-top: 10px;
+      z-index: 20;
       display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--bg) 55%, rgba(14,14,16,0.86) 80%, rgba(14,14,16,0));
     }
-    .btn-baixar {
-      flex: 1;
-      min-width: 200px;
-      padding: 13px 20px;
+    .barra-in {
+      max-width: 760px;
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      padding: 14px 16px;
       border-radius: 14px;
       border: none;
-      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-      color: #fff;
+      font-family: inherit;
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 8px 20px rgba(37,211,102,0.28);
-      font-family: inherit;
-      transition: filter 0.2s;
       -webkit-tap-highlight-color: transparent;
+      transition: filter 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .btn-baixar:active { filter: brightness(0.9); }
-    .btn-baixar:disabled { background: #2a2a30; box-shadow: none; cursor: default; color: #9a9aa3; }
+    .btn:active { filter: brightness(0.9); }
+    .btn-primario {
+      flex: 1;
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+      color: #fff;
+      box-shadow: 0 8px 22px rgba(37,211,102,0.26);
+    }
+    .btn-secundario {
+      flex: 0 0 auto;
+      background: #1f1f24;
+      color: var(--txt);
+      border: 1px solid #2e2e36;
+      font-size: 14px;
+      padding: 14px 15px;
+    }
+    .btn:disabled { background: #2a2a30; box-shadow: none; cursor: default; color: var(--mut); border-color: #2a2a30; }
   </style>
 </head>
 <body>
@@ -221,31 +265,36 @@
   </div>
 
   <div id="conteudo">
-    <div class="header">
-      <div class="titulo" id="titulo">Fotos do imóvel</div>
-      <div class="subtitulo" id="subtitulo"></div>
-    </div>
-
-    <div class="carrossel-wrap" id="carrosselWrap">
-      <div class="carrossel" id="carrossel">
-        <div class="slides" id="slides"></div>
-        <button class="seta seta-esq" id="setaEsq" aria-label="Anterior">&#8249;</button>
-        <button class="seta seta-dir" id="setaDir" aria-label="Próxima">&#8250;</button>
-        <div class="contador" id="contador">1 / 1</div>
+    <div class="wrap">
+      <div class="header">
+        <div class="titulo" id="titulo">Fotos do imóvel</div>
+        <div class="subtitulo" id="subtitulo"></div>
       </div>
     </div>
 
-    <div class="miniaturas" id="miniaturas"></div>
+    <div class="wrap">
+      <div class="palco">
+        <div class="trilho" id="trilho"></div>
+        <button class="seta seta-esq" id="setaEsq" aria-label="Anterior">&#8249;</button>
+        <button class="seta seta-dir" id="setaDir" aria-label="Próxima">&#8250;</button>
+        <a class="ampliar" id="ampliar" target="_blank" rel="noopener" aria-label="Abrir foto em tamanho real">⤢</a>
+        <div class="contador" id="contador">1 / 1</div>
+      </div>
 
-    <div class="acoes">
-      <button class="btn-baixar" id="btnBaixar">⬇️ Baixar todas as fotos</button>
+      <div class="miniaturas" id="miniaturas"></div>
     </div>
   </div>
 
-  <!-- Firebase SDK -->
+  <div class="barra" id="barra" style="display:none">
+    <div class="barra-in">
+      <button class="btn btn-primario" id="btnBaixar">⬇️ Baixar todas</button>
+      <button class="btn btn-secundario" id="btnBaixarUma">Esta foto</button>
+    </div>
+  </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, query, where, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyB8Jq17jELr17zonEVmLRjy-p7dmeLLskw",
@@ -259,162 +308,266 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ── Pega o ID da URL: /fotos/ID ──
-    function getIdDaUrl() {
+    const $ = id => document.getElementById(id);
+
+    let fotos = [];
+    let atual = 0;
+    let tituloImovel = "imovel";
+
+    // ── Referência da URL: /fotos/REF ou /REF ──
+    function getRefDaUrl() {
       const partes = window.location.pathname.split('/').filter(Boolean);
-      // aceita /fotos/ID ou /ID
-      if (partes[0] === 'fotos' && partes[1]) return partes[1];
-      if (partes[0]) return partes[0];
-      return null;
+      const bruto = (partes[0] === 'fotos' && partes[1]) ? partes[1] : (partes[0] || '');
+      try { return decodeURIComponent(bruto); } catch { return bruto; }
     }
 
-    // ── Estado do carrossel ──
-    let atual = 0;
-    let fotos = [];
-    let touchStartX = 0;
+    // ── Cloudinary: versão leve pra tela, original pro download ──
+    function otimizar(url, transform) {
+      const u = String(url || '');
+      if (!u.includes('res.cloudinary.com') || !u.includes('/upload/')) return u;
+      if (/\/upload\/[a-z]{1,2}_/.test(u)) return u;
+      return u.replace('/upload/', '/upload/' + transform + '/');
+    }
+    const urlGrande = u => otimizar(u, 'f_auto,q_auto:good,w_1400,c_limit');
+    const urlMini   = u => otimizar(u, 'f_auto,q_auto:eco,w_160,h_160,c_fill');
 
-    function irPara(idx) {
+    function slug(txt) {
+      return String(txt || 'imovel')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60) || 'imovel';
+    }
+
+    // ── Navegação ──
+    function irPara(idx, suave) {
       const total = fotos.length;
-      if (total === 0) return;
-      atual = (idx + total) % total;
-      document.getElementById('slides').style.transform = `translateX(-${atual * 100}%)`;
-      document.getElementById('contador').textContent = `${atual + 1} / ${total}`;
-      ajustarMoldura();
-      // miniatura ativa
-      document.querySelectorAll('.miniatura').forEach((m, i) => {
-        m.classList.toggle('ativa', i === atual);
-        if (i === atual) m.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      if (!total) return;
+      const i = (idx + total) % total;
+      const trilho = $('trilho');
+      trilho.scrollTo({ left: i * trilho.clientWidth, behavior: suave === false ? 'auto' : 'smooth' });
+      marcar(i);
+    }
+
+    function marcar(i) {
+      if (i === atual) return;
+      atual = i;
+      $('contador').textContent = (i + 1) + ' / ' + fotos.length;
+      $('ampliar').href = fotos[i];
+      document.querySelectorAll('.miniatura').forEach((m, k) => {
+        const ativa = k === i;
+        m.classList.toggle('ativa', ativa);
+        if (ativa) m.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
       });
     }
 
-    function ajustarMoldura(tent) {
-      const el = document.querySelector('.carrossel');
-      const img = document.querySelectorAll('.slide img')[atual];
-      const t = tent || 0;
-      if (!el || !img) { if (t < 20) setTimeout(function () { ajustarMoldura(t + 1); }, 120); return; }
-      const aplica = () => {
-        if (img.naturalWidth && img.naturalHeight) {
-          el.style.setProperty('--ar', img.naturalWidth + ' / ' + img.naturalHeight);
-        }
-      };
-      if (img.complete) aplica(); else img.addEventListener('load', aplica, { once: true });
+    // ── Download ──
+    function salvarBlob(blob, nome) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nome;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 5000);
     }
 
-    function montar(imovel) {
-      fotos = (imovel.fotos || []).filter(Boolean);
+    function carregarJSZip() {
+      if (window.JSZip) return Promise.resolve();
+      return new Promise((ok, falhou) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload = () => window.JSZip ? ok() : falhou(new Error('jszip'));
+        s.onerror = () => falhou(new Error('jszip'));
+        document.head.appendChild(s);
+      });
+    }
 
-      if (fotos.length === 0) {
-        mostrarErro();
+    function extDe(tipo, url) {
+      if (/png/i.test(tipo || '')) return 'png';
+      if (/webp/i.test(tipo || '')) return 'webp';
+      const m = String(url || '').split('?')[0].match(/\.(jpe?g|png|webp)$/i);
+      return m ? m[1].toLowerCase() : 'jpg';
+    }
+
+    async function baixarUma(i) {
+      const btn = $('btnBaixarUma');
+      const antes = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        const r = await fetch(fotos[i], { mode: 'cors' });
+        const blob = await r.blob();
+        salvarBlob(blob, slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]));
+      } catch {
+        window.open(fotos[i], '_blank', 'noopener');
+      }
+      btn.disabled = false;
+      btn.textContent = antes;
+    }
+
+    async function baixarTodas() {
+      const btn = $('btnBaixar');
+      const total = fotos.length;
+      btn.disabled = true;
+
+      // 1) Caminho bom: um ZIP único (o Chrome bloqueia downloads múltiplos)
+      try {
+        await carregarJSZip();
+        const zip = new window.JSZip();
+        for (let i = 0; i < total; i++) {
+          btn.textContent = 'Preparando ' + (i + 1) + '/' + total + '...';
+          const r = await fetch(fotos[i], { mode: 'cors' });
+          if (!r.ok) throw new Error('http ' + r.status);
+          const blob = await r.blob();
+          zip.file(slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]), blob);
+        }
+        btn.textContent = 'Compactando...';
+        const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+        salvarBlob(zipBlob, slug(tituloImovel) + '-fotos.zip');
+        btn.disabled = false;
+        btn.textContent = '⬇️ Baixar todas (' + total + ')';
         return;
+      } catch (e) {
+        console.warn('ZIP indisponivel, baixando uma a uma:', e);
       }
 
-      // Título e subtítulo
-      document.getElementById('titulo').textContent = imovel.titulo || 'Fotos do imóvel';
-      const partes = [imovel.bairro, imovel.cidade].filter(Boolean);
-      if (partes.length) document.getElementById('subtitulo').textContent = partes.join(' · ');
+      // 2) Plano B: uma a uma, com folga entre elas
+      for (let i = 0; i < total; i++) {
+        btn.textContent = 'Baixando ' + (i + 1) + '/' + total + '...';
+        try {
+          const r = await fetch(fotos[i], { mode: 'cors' });
+          const blob = await r.blob();
+          salvarBlob(blob, slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]));
+        } catch {}
+        await new Promise(r => setTimeout(r, 800));
+      }
+      btn.disabled = false;
+      btn.textContent = '⬇️ Baixar todas (' + total + ')';
+    }
 
-      // Slides
-      const slidesEl = document.getElementById('slides');
+    // ── Montagem ──
+    function montar(imovel) {
+      fotos = (imovel.fotos || []).filter(Boolean);
+      if (!fotos.length) return mostrarErro();
+
+      tituloImovel = imovel.titulo || 'imovel';
+      $('titulo').textContent = imovel.titulo || 'Fotos do imóvel';
+      const partes = [imovel.bairro, imovel.cidade].filter(Boolean);
+      if (partes.length) $('subtitulo').textContent = partes.join(' · ');
+
+      const trilho = $('trilho');
+      const minEl = $('miniaturas');
+
       fotos.forEach((url, i) => {
         const slide = document.createElement('div');
         slide.className = 'slide';
         const img = document.createElement('img');
-        img.src = url;
-        img.alt = `Foto ${i + 1}`;
-        img.loading = i === 0 ? 'eager' : 'lazy';
+        img.src = urlGrande(url);
+        img.alt = 'Foto ' + (i + 1);
+        img.decoding = 'async';
+        img.loading = i < 2 ? 'eager' : 'lazy';
+        img.draggable = false;
         slide.appendChild(img);
-        slidesEl.appendChild(slide);
+        trilho.appendChild(slide);
+
+        const mini = document.createElement('button');
+        mini.className = 'miniatura' + (i === 0 ? ' ativa' : '');
+        mini.type = 'button';
+        const mimg = document.createElement('img');
+        mimg.src = urlMini(url);
+        mimg.alt = '';
+        mimg.loading = 'lazy';
+        mini.appendChild(mimg);
+        mini.addEventListener('click', () => irPara(i));
+        minEl.appendChild(mini);
       });
 
-      // Miniaturas
-      const minEl = document.getElementById('miniaturas');
-      fotos.forEach((url, i) => {
-        const div = document.createElement('div');
-        div.className = 'miniatura' + (i === 0 ? ' ativa' : '');
-        const img = document.createElement('img');
-        img.src = url;
-        img.alt = '';
-        img.loading = 'lazy';
-        div.appendChild(img);
-        div.addEventListener('click', () => irPara(i));
-        minEl.appendChild(div);
+      $('contador').textContent = '1 / ' + fotos.length;
+      $('ampliar').href = fotos[0];
+
+      // A moldura pega a proporção da 1ª foto e NÃO muda mais: nada pula ao passar as fotos
+      const primeira = trilho.querySelector('img');
+      const fixarProporcao = () => {
+        if (primeira.naturalWidth && primeira.naturalHeight) {
+          document.querySelector('.palco').style.setProperty('--ar', primeira.naturalWidth + ' / ' + primeira.naturalHeight);
+        }
+      };
+      if (primeira.complete) fixarProporcao();
+      else primeira.addEventListener('load', fixarProporcao, { once: true });
+
+      // Swipe nativo -> só acompanha o scroll pra atualizar contador/miniatura
+      let t = null;
+      trilho.addEventListener('scroll', () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          const largura = trilho.clientWidth || 1;
+          marcar(Math.max(0, Math.min(fotos.length - 1, Math.round(trilho.scrollLeft / largura))));
+        }, 60);
+      }, { passive: true });
+
+      // Mantém a foto atual enquadrada ao girar o celular
+      let larguraAnterior = trilho.clientWidth;
+      window.addEventListener('resize', () => {
+        if (trilho.clientWidth === larguraAnterior) return;
+        larguraAnterior = trilho.clientWidth;
+        trilho.scrollTo({ left: atual * trilho.clientWidth, behavior: 'auto' });
       });
 
-      // Moldura acompanha a proporcao da primeira foto
-      ajustarMoldura();
-
-      // Setas
-      document.getElementById('setaEsq').addEventListener('click', () => irPara(atual - 1));
-      document.getElementById('setaDir').addEventListener('click', () => irPara(atual + 1));
-
-      // Teclado
+      $('setaEsq').addEventListener('click', () => irPara(atual - 1));
+      $('setaDir').addEventListener('click', () => irPara(atual + 1));
       document.addEventListener('keydown', e => {
         if (e.key === 'ArrowLeft') irPara(atual - 1);
         if (e.key === 'ArrowRight') irPara(atual + 1);
       });
 
-      // Touch swipe
-      const carrossel = document.getElementById('carrossel');
-      carrossel.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
-      carrossel.addEventListener('touchend', e => {
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        if (Math.abs(dx) > 40) irPara(dx < 0 ? atual + 1 : atual - 1);
-      });
-
-      // Esconder setas se só 1 foto
       if (fotos.length <= 1) {
-        document.getElementById('setaEsq').style.display = 'none';
-        document.getElementById('setaDir').style.display = 'none';
+        $('setaEsq').style.display = 'none';
+        $('setaDir').style.display = 'none';
+        $('contador').style.display = 'none';
+        minEl.style.display = 'none';
       }
 
-      // Contador inicial
-      document.getElementById('contador').textContent = `1 / ${fotos.length}`;
+      const btn = $('btnBaixar');
+      btn.textContent = '⬇️ Baixar todas (' + fotos.length + ')';
+      btn.addEventListener('click', baixarTodas);
+      $('btnBaixarUma').addEventListener('click', () => baixarUma(atual));
 
-      // Botão baixar
-      const btn = document.getElementById('btnBaixar');
-      btn.textContent = `⬇️ Baixar todas (${fotos.length} fotos)`;
-      btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.textContent = 'Baixando...';
-        for (let i = 0; i < fotos.length; i++) {
-          try {
-            const resp = await fetch(fotos[i]);
-            const blob = await resp.blob();
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `${imovel.titulo || 'imovel'}_foto${i + 1}.jpg`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-            await new Promise(r => setTimeout(r, 300));
-          } catch {}
-        }
-        btn.disabled = false;
-        btn.textContent = `⬇️ Baixar todas (${fotos.length} fotos)`;
-      });
-
-      // Exibir
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('conteudo').style.display = 'block';
+      $('loading').style.display = 'none';
+      $('conteudo').style.display = 'flex';
+      $('barra').style.display = 'flex';
     }
 
     function mostrarErro() {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('erro').style.display = 'flex';
+      $('loading').style.display = 'none';
+      $('conteudo').style.display = 'none';
+      $('barra').style.display = 'none';
+      $('erro').style.display = 'flex';
     }
 
-    // ── Main ──
-    (async () => {
-      const id = getIdDaUrl();
-      if (!id) { mostrarErro(); return; }
+    // ── Busca o imóvel: por ID e, se não achar, por CÓDIGO ──
+    async function buscarImovel(ref) {
+      try {
+        const snap = await getDoc(doc(db, 'imoveis', ref));
+        if (snap.exists()) return { id: snap.id, ...snap.data() };
+      } catch (e) { console.warn('busca por id:', e); }
 
       try {
-        const snap = await getDoc(doc(db, 'imoveis', id));
-        if (!snap.exists()) { mostrarErro(); return; }
-        montar({ id: snap.id, ...snap.data() });
-      } catch (e) {
-        console.error(e);
-        mostrarErro();
-      }
+        const q = query(collection(db, 'imoveis'), where('codigo', '==', ref), limit(1));
+        const res = await getDocs(q);
+        if (!res.empty) return { id: res.docs[0].id, ...res.docs[0].data() };
+      } catch (e) { console.warn('busca por codigo:', e); }
+
+      return null;
+    }
+
+    (async () => {
+      const ref = getRefDaUrl();
+      if (!ref) return mostrarErro();
+      const imovel = await buscarImovel(ref);
+      if (!imovel) return mostrarErro();
+      montar(imovel);
     })();
   </script>
 </body>
