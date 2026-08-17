@@ -509,8 +509,8 @@ function bairroBase(im) {
 }
 
 // ─── Download de fotos ───
-// Um ZIP unico: o Chrome bloqueia varios downloads disparados em sequencia
-// (so a 1a foto passava). Se o ZIP falhar, cai pro modo antigo, uma a uma.
+// Celular: abre a folha de compartilhamento (salvar na galeria / mandar no zap).
+// PC: um ZIP unico, porque o Chrome bloqueia varios downloads em sequencia.
 function slugFoto(txt) {
   return String(txt || "imovel")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -547,20 +547,56 @@ function carregarJSZip() {
   });
 }
 
+// O aparelho sabe compartilhar arquivos? (celular = sim; PC = quase sempre nao)
+function podeCompartilharFotos() {
+  try {
+    if (!navigator.share || !navigator.canShare || typeof File !== "function") return false;
+    const teste = new File([new Blob(["x"], { type: "image/jpeg" })], "t.jpg", { type: "image/jpeg" });
+    return navigator.canShare({ files: [teste] });
+  } catch { return false; }
+}
+
 export async function downloadFotos(im) {
   if (!im.fotos?.length) return alert("Sem fotos.");
   const base = slugFoto(im.titulo);
   const nomeDe = (i, tipo) => base + "-" + String(i + 1).padStart(2, "0") + "." + extFoto(tipo);
 
+  let blobs;
   try {
-    await carregarJSZip();
-    const zip = new window.JSZip();
+    blobs = [];
     for (let i = 0; i < im.fotos.length; i++) {
       const res = await fetch(im.fotos[i], { mode: "cors" });
       if (!res.ok) throw new Error("http " + res.status);
-      const blob = await res.blob();
-      zip.file(nomeDe(i, blob.type), blob);
+      blobs.push(await res.blob());
     }
+  } catch (e) {
+    console.warn("nao consegui baixar as fotos:", e);
+    return alert("Nao consegui baixar as fotos. Tente de novo.");
+  }
+
+  // CELULAR: abre a folha do aparelho (Salvar em Fotos / WhatsApp)
+  if (podeCompartilharFotos()) {
+    try {
+      const arquivos = blobs.map((b, i) => new File([b], nomeDe(i, b.type), { type: b.type || "image/jpeg" }));
+      if (navigator.canShare({ files: arquivos })) {
+        await navigator.share({ files: arquivos, title: im.titulo || "Fotos do imovel" });
+      } else {
+        for (let i = 0; i < arquivos.length; i += 10) {
+          await navigator.share({ files: arquivos.slice(i, i + 10), title: im.titulo || "Fotos do imovel" });
+        }
+      }
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      console.warn("compartilhar falhou, caindo pro ZIP:", e);
+    }
+  }
+
+  // PC: um ZIP unico (o Chrome bloqueia varios downloads em sequencia)
+  try {
+    await carregarJSZip();
+    const zip = new window.JSZip();
+    blobs.forEach((b, i) => zip.file(nomeDe(i, b.type), b));
     const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
     salvarArquivo(zipBlob, base + "-fotos.zip");
     return;
@@ -568,13 +604,10 @@ export async function downloadFotos(im) {
     console.warn("ZIP indisponivel, baixando uma a uma:", e);
   }
 
-  for (let i = 0; i < im.fotos.length; i++) {
-    try {
-      const res = await fetch(im.fotos[i], { mode: "cors" });
-      const blob = await res.blob();
-      salvarArquivo(blob, nomeDe(i, blob.type));
-    } catch {}
-    await new Promise(concluir => setTimeout(concluir, 800));
+  // Ultimo recurso: uma a uma
+  for (let i = 0; i < blobs.length; i++) {
+    salvarArquivo(blobs[i], nomeDe(i, blobs[i].type));
+    await new Promise(seguir => setTimeout(seguir, 700));
   }
 }
 
