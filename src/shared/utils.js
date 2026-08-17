@@ -547,9 +547,17 @@ function carregarJSZip() {
   });
 }
 
-// O aparelho sabe compartilhar arquivos? (celular = sim; PC = quase sempre nao)
+// E celular/tablet de verdade? (o Windows tambem "compartilha", mas la o certo e ZIP)
+function ehCelular() {
+  const ua = navigator.userAgent || "";
+  if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
+  return (navigator.maxTouchPoints || 0) > 1 && /Mac/i.test(navigator.platform || "");
+}
+
+// O aparelho sabe compartilhar arquivos?
 function podeCompartilharFotos() {
   try {
+    if (!ehCelular()) return false;
     if (!navigator.share || !navigator.canShare || typeof File !== "function") return false;
     const teste = new File([new Blob(["x"], { type: "image/jpeg" })], "t.jpg", { type: "image/jpeg" });
     return navigator.canShare({ files: [teste] });
