@@ -218,6 +218,7 @@
       width: 100%;
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
     }
     .btn {
       padding: 14px 16px;
@@ -235,18 +236,22 @@
     }
     .btn:active { filter: brightness(0.9); }
     .btn-primario {
-      flex: 1;
+      flex: 1 1 210px;
       background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
       color: #fff;
       box-shadow: 0 8px 22px rgba(37,211,102,0.26);
     }
     .btn-secundario {
-      flex: 0 0 auto;
+      flex: 0 1 auto;
       background: #1f1f24;
       color: var(--txt);
       border: 1px solid #2e2e36;
       font-size: 14px;
       padding: 14px 15px;
+    }
+    @media (max-width: 640px) {
+      .btn-primario { flex: 1 1 100%; }
+      .btn-secundario { flex: 1 1 0; }
     }
     .btn:disabled { background: #2a2a30; box-shadow: none; cursor: default; color: var(--mut); border-color: #2a2a30; }
   </style>
@@ -287,7 +292,8 @@
 
   <div class="barra" id="barra" style="display:none">
     <div class="barra-in">
-      <button class="btn btn-primario" id="btnBaixar">⬇️ Baixar todas</button>
+      <button class="btn btn-primario" id="btnTodas">⬇️ Baixar todas</button>
+      <button class="btn btn-secundario" id="btnAlternativo">ZIP</button>
       <button class="btn btn-secundario" id="btnBaixarUma">Esta foto</button>
     </div>
   </div>
@@ -391,6 +397,31 @@
       return m ? m[1].toLowerCase() : 'jpg';
     }
 
+    function nomeFoto(i, tipo) {
+      return slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(tipo, fotos[i]);
+    }
+
+    // O aparelho sabe compartilhar arquivos? (celular = sim; PC = quase sempre não)
+    function podeCompartilhar() {
+      try {
+        if (!navigator.share || !navigator.canShare || typeof File !== 'function') return false;
+        const teste = new File([new Blob(['x'], { type: 'image/jpeg' })], 't.jpg', { type: 'image/jpeg' });
+        return navigator.canShare({ files: [teste] });
+      } catch { return false; }
+    }
+
+    // Baixa todas as fotos pra memória, mostrando o progresso no botão
+    async function puxarFotos(btn, rotulo) {
+      const blobs = [];
+      for (let i = 0; i < fotos.length; i++) {
+        btn.textContent = rotulo + ' ' + (i + 1) + '/' + fotos.length + '...';
+        const r = await fetch(fotos[i], { mode: 'cors' });
+        if (!r.ok) throw new Error('http ' + r.status);
+        blobs.push(await r.blob());
+      }
+      return blobs;
+    }
+
     async function baixarUma(i) {
       const btn = $('btnBaixarUma');
       const antes = btn.textContent;
@@ -399,7 +430,13 @@
       try {
         const r = await fetch(fotos[i], { mode: 'cors' });
         const blob = await r.blob();
-        salvarBlob(blob, slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]));
+        if (podeCompartilhar()) {
+          const arq = new File([blob], nomeFoto(i, blob.type), { type: blob.type || 'image/jpeg' });
+          try { await navigator.share({ files: [arq] }); btn.disabled = false; btn.textContent = antes; return; } catch (e) {
+            if (e && e.name === 'AbortError') { btn.disabled = false; btn.textContent = antes; return; }
+          }
+        }
+        salvarBlob(blob, nomeFoto(i, blob.type));
       } catch {
         window.open(fotos[i], '_blank', 'noopener');
       }
@@ -407,44 +444,86 @@
       btn.textContent = antes;
     }
 
-    async function baixarTodas() {
-      const btn = $('btnBaixar');
-      const total = fotos.length;
+    // ── OPÇÃO CELULAR: manda as fotos pra folha de compartilhamento do aparelho
+    // (Salvar em Fotos / WhatsApp / Google Fotos). É o único jeito que presta no telefone.
+    async function salvarNoCelular(btn, rotuloFinal) {
       btn.disabled = true;
+      try {
+        const blobs = await puxarFotos(btn, 'Preparando');
+        const arquivos = blobs.map((b, i) => new File([b], nomeFoto(i, b.type), { type: b.type || 'image/jpeg' }));
 
-      // 1) Caminho bom: um ZIP único (o Chrome bloqueia downloads múltiplos)
+        const enviar = async () => {
+          if (navigator.canShare({ files: arquivos })) {
+            await navigator.share({ files: arquivos, title: tituloImovel });
+          } else {
+            // aparelho limita a quantidade: manda em lotes de 10
+            for (let i = 0; i < arquivos.length; i += 10) {
+              await navigator.share({ files: arquivos.slice(i, i + 10), title: tituloImovel });
+            }
+          }
+        };
+
+        try {
+          await enviar();
+        } catch (e) {
+          if (e && e.name === 'AbortError') { /* usuário fechou a folha */ }
+          else {
+            // O navegador exige toque recente: as fotos já estão prontas, é só tocar de novo.
+            btn.disabled = false;
+            btn.textContent = '📲 Toque para salvar as ' + fotos.length;
+            btn.onclick = async () => {
+              btn.onclick = null;
+              btn.disabled = true;
+              try { await enviar(); } catch {}
+              btn.disabled = false;
+              btn.textContent = rotuloFinal;
+              btn.onclick = () => salvarNoCelular(btn, rotuloFinal);
+            };
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('compartilhar falhou:', e);
+        alert('Não consegui preparar as fotos. Tente o botão ZIP.');
+      }
+      btn.disabled = false;
+      btn.textContent = rotuloFinal;
+    }
+
+    // ── OPÇÃO PC: um arquivo .zip só
+    async function baixarZip(btn, rotuloFinal) {
+      btn.disabled = true;
       try {
         await carregarJSZip();
+        const blobs = await puxarFotos(btn, 'Preparando');
         const zip = new window.JSZip();
-        for (let i = 0; i < total; i++) {
-          btn.textContent = 'Preparando ' + (i + 1) + '/' + total + '...';
-          const r = await fetch(fotos[i], { mode: 'cors' });
-          if (!r.ok) throw new Error('http ' + r.status);
-          const blob = await r.blob();
-          zip.file(slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]), blob);
-        }
+        blobs.forEach((b, i) => zip.file(nomeFoto(i, b.type), b));
         btn.textContent = 'Compactando...';
         const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
         salvarBlob(zipBlob, slug(tituloImovel) + '-fotos.zip');
-        btn.disabled = false;
-        btn.textContent = '⬇️ Baixar todas (' + total + ')';
-        return;
       } catch (e) {
-        console.warn('ZIP indisponivel, baixando uma a uma:', e);
+        console.warn('ZIP falhou, baixando uma a uma:', e);
+        await baixarUmaAUma(btn);
       }
+      btn.disabled = false;
+      btn.textContent = rotuloFinal;
+    }
 
-      // 2) Plano B: uma a uma, com folga entre elas
-      for (let i = 0; i < total; i++) {
-        btn.textContent = 'Baixando ' + (i + 1) + '/' + total + '...';
+    // ── OPÇÃO SOLTA: as fotos separadas, uma a uma
+    // (o Chrome pergunta "permitir vários downloads?" — é só aceitar)
+    async function baixarUmaAUma(btn, rotuloFinal) {
+      btn.disabled = true;
+      for (let i = 0; i < fotos.length; i++) {
+        btn.textContent = 'Baixando ' + (i + 1) + '/' + fotos.length + '...';
         try {
           const r = await fetch(fotos[i], { mode: 'cors' });
           const blob = await r.blob();
-          salvarBlob(blob, slug(tituloImovel) + '-' + String(i + 1).padStart(2, '0') + '.' + extDe(blob.type, fotos[i]));
+          salvarBlob(blob, nomeFoto(i, blob.type));
         } catch {}
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise(seguir => setTimeout(seguir, 700));
       }
       btn.disabled = false;
-      btn.textContent = '⬇️ Baixar todas (' + total + ')';
+      if (rotuloFinal) btn.textContent = rotuloFinal;
     }
 
     // ── Montagem ──
@@ -529,10 +608,30 @@
         minEl.style.display = 'none';
       }
 
-      const btn = $('btnBaixar');
-      btn.textContent = '⬇️ Baixar todas (' + fotos.length + ')';
-      btn.addEventListener('click', baixarTodas);
-      $('btnBaixarUma').addEventListener('click', () => baixarUma(atual));
+      // ── Duas opções de baixar tudo, conforme o aparelho ──
+      const btnTodas = $('btnTodas');
+      const btnAlt = $('btnAlternativo');
+      const n = fotos.length;
+
+      if (podeCompartilhar()) {
+        // CELULAR: salvar direto na galeria / mandar no WhatsApp
+        const rot1 = '📲 Salvar as ' + n + ' fotos';
+        const rot2 = 'ZIP';
+        btnTodas.textContent = rot1;
+        btnAlt.textContent = rot2;
+        btnTodas.onclick = () => salvarNoCelular(btnTodas, rot1);
+        btnAlt.onclick = () => baixarZip(btnAlt, rot2);
+      } else {
+        // COMPUTADOR: zip de uma vez, ou as fotos soltas
+        const rot1 = '⬇️ Baixar as ' + n + ' fotos (ZIP)';
+        const rot2 = 'Uma a uma';
+        btnTodas.textContent = rot1;
+        btnAlt.textContent = rot2;
+        btnTodas.onclick = () => baixarZip(btnTodas, rot1);
+        btnAlt.onclick = () => baixarUmaAUma(btnAlt, rot2);
+      }
+
+      $('btnBaixarUma').onclick = () => baixarUma(atual);
 
       $('loading').style.display = 'none';
       $('conteudo').style.display = 'flex';
