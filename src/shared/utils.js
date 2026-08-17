@@ -509,20 +509,72 @@ function bairroBase(im) {
 }
 
 // ─── Download de fotos ───
+// Um ZIP unico: o Chrome bloqueia varios downloads disparados em sequencia
+// (so a 1a foto passava). Se o ZIP falhar, cai pro modo antigo, uma a uma.
+function slugFoto(txt) {
+  return String(txt || "imovel")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "imovel";
+}
+
+function extFoto(tipo) {
+  if (/png/i.test(tipo || "")) return "png";
+  if (/webp/i.test(tipo || "")) return "webp";
+  return "jpg";
+}
+
+function salvarArquivo(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 5000);
+}
+
+function carregarJSZip() {
+  if (window.JSZip) return Promise.resolve();
+  return new Promise((concluir, falhar) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => (window.JSZip ? concluir() : falhar(new Error("jszip")));
+    s.onerror = () => falhar(new Error("jszip"));
+    document.head.appendChild(s);
+  });
+}
+
 export async function downloadFotos(im) {
   if (!im.fotos?.length) return alert("Sem fotos.");
+  const base = slugFoto(im.titulo);
+  const nomeDe = (i, tipo) => base + "-" + String(i + 1).padStart(2, "0") + "." + extFoto(tipo);
+
+  try {
+    await carregarJSZip();
+    const zip = new window.JSZip();
+    for (let i = 0; i < im.fotos.length; i++) {
+      const res = await fetch(im.fotos[i], { mode: "cors" });
+      if (!res.ok) throw new Error("http " + res.status);
+      const blob = await res.blob();
+      zip.file(nomeDe(i, blob.type), blob);
+    }
+    const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+    salvarArquivo(zipBlob, base + "-fotos.zip");
+    return;
+  } catch (e) {
+    console.warn("ZIP indisponivel, baixando uma a uma:", e);
+  }
+
   for (let i = 0; i < im.fotos.length; i++) {
     try {
-      const res = await fetch(im.fotos[i]);
+      const res = await fetch(im.fotos[i], { mode: "cors" });
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${im.titulo || "imovel"}_foto${i + 1}.jpg`;
-      a.click();
-      URL.revokeObjectURL(url);
-      await new Promise(r => setTimeout(r, 300));
+      salvarArquivo(blob, nomeDe(i, blob.type));
     } catch {}
+    await new Promise(concluir => setTimeout(concluir, 800));
   }
 }
 
