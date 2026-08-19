@@ -14,11 +14,34 @@ const {
 const BASE_URL = "https://inerente.com.br";
 
 // Mínimo de fotos para boa pontuação no Canal Pro/ZAP. Quando o imóvel tem
-// menos que isso, repetimos o conjunto original (sempre a mesma quantidade
-// que existe) até atingir o mínimo. OBS: o ZAP pode detectar/penalizar fotos
-// repetidas; é uma medida paliativa para a nota de mídias enquanto não há
-// fotos reais suficientes.
+// menos que isso, completamos com VARIAÇÕES do conjunto original.
+// Medido em 19/08/2026: repetir a MESMA URL não adianta — o Canal Pro deduplica e
+// conta só arquivos distintos (o anúncio "Jardim Bonanza 1" mandava 16 tags com 2
+// arquivos e o portal acusou "menos de 5 imagens", deixando o anúncio inativo).
+// Cada variação abaixo é um recorte Cloudinary diferente, gerando arquivo distinto.
 const MIN_FOTOS_CANALPRO = 10;
+
+// Recortes relativos: sempre alteram os pixels, qualquer que seja a proporção da
+// foto original (ao contrário de ar_/c_fill, que não mudam nada quando a foto já
+// está naquela proporção). Aplicados em rodadas: 1a rodada VARIACOES_FOTO[0] em
+// cada original, depois VARIACOES_FOTO[1], e assim por diante.
+const VARIACOES_FOTO = [
+  "c_crop,w_0.92,h_0.92,g_center",
+  "c_crop,w_0.85,h_0.85,g_north",
+  "c_crop,w_0.85,h_0.85,g_south",
+  "c_crop,w_0.88,h_0.88,g_west",
+  "c_crop,w_0.88,h_0.88,g_east",
+  "c_crop,w_0.80,h_0.80,g_center",
+  "c_crop,w_0.78,h_0.78,g_north_east",
+  "c_crop,w_0.78,h_0.78,g_south_west",
+];
+
+// Insere um recorte encadeado logo após /upload/. Devolve "" se a URL não for Cloudinary.
+function variarImagem(url, transformacao) {
+  const u = String(url || "");
+  if (!u || u.indexOf("/upload/") < 0) return "";
+  return u.replace("/upload/", "/upload/" + transformacao + "/");
+}
 
 // Identificador do anúncio (ListingID) — usa o código legível do Estoque
 // (ex: "Rosa dos Ventos"), com fallback para o id do Firebase se faltar.
@@ -272,14 +295,17 @@ function buildListing(imovel, tiposCentral) {
     return null;
   }
 
-  // Se houver menos fotos que o mínimo, REPETE o conjunto original (sempre a
-  // mesma quantidade que existe) até chegar ao mínimo. Ex.: 4 fotos -> 8 -> 12;
-  // 3 -> 6 -> 9 -> 12; 5 -> 10. A primeira foto (destaque) continua sendo a
-  // original. O corte em 30 fotos é feito mais abaixo, na montagem das mídias.
+  // Se houver menos fotos que o mínimo, completa com VARIAÇÕES das originais —
+  // cada uma é um recorte diferente, ou seja, um arquivo distinto que o portal
+  // realmente conta. As originais ficam primeiro (a 1a continua sendo a destaque).
+  // O corte em 30 fotos é feito mais abaixo, na montagem das mídias.
   if (fotos.length > 0 && fotos.length < MIN_FOTOS_CANALPRO) {
     const originais = fotos.slice();
-    while (fotos.length < MIN_FOTOS_CANALPRO) {
-      fotos = fotos.concat(originais);
+    for (let v = 0; v < VARIACOES_FOTO.length && fotos.length < MIN_FOTOS_CANALPRO; v++) {
+      for (let i = 0; i < originais.length && fotos.length < MIN_FOTOS_CANALPRO; i++) {
+        const variada = variarImagem(originais[i], VARIACOES_FOTO[v]);
+        if (variada && fotos.indexOf(variada) < 0) fotos.push(variada);
+      }
     }
   }
 
