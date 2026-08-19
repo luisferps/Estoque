@@ -35,10 +35,10 @@ function normalizeImageUrl(url) {
   }
   // Remove query string, se houver
   u = u.split("?")[0];
-  // Garante extensão .jpg no final
-  if (!/\.(jpg|jpeg)$/i.test(u)) {
-    u += ".jpg";
-  }
+  // TROCA a extensão por .jpg (nunca concatena). Concatenar gerava ".png.jpg"
+  // e ".webp.jpg", que o Cloudinary devolve como 404 e o portal não baixa.
+  u = u.replace(/\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif)$/i, "");
+  u += ".jpg";
   return u;
 }
 
