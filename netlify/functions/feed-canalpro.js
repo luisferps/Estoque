@@ -408,7 +408,7 @@ function buildListing(imovel, tiposCentral) {
   const iptuMensal = toInt(imovel.valorIPTU);
   // IPTU sempre presente no feed: quando o cadastro tem zero (ou vazio), sobe
   // como 1 para os portais não recusarem/penalizarem o anúncio por IPTU ausente.
-  const iptuAnual = iptuMensal > 0 ? iptuMensal * 12 : 1;
+  const iptuFinal = iptuMensal > 0 ? iptuMensal : 1;
 
   // Características/comodidades (sobe a nota do anúncio).
   const carac = caracteristicasImovel(imovel);
@@ -424,7 +424,7 @@ function buildListing(imovel, tiposCentral) {
     listPriceTag && `        ${listPriceTag}`,
     rentalPriceTag && `        ${rentalPriceTag}`,
     condominio > 0 && `        <PropertyAdministrationFee currency="BRL">${condominio}</PropertyAdministrationFee>`,
-    `        <Iptu currency="BRL" period="Yearly">${iptuAnual}</Iptu>`,
+    `        <Iptu currency="BRL" period="Monthly">${iptuFinal}</Iptu>`,
     quartos > 0 && `        <Bedrooms>${quartos}</Bedrooms>`,
     suites > 0 && `        <Suites>${suites}</Suites>`,
     banheiros > 0 && `        <Bathrooms>${banheiros}</Bathrooms>`,
