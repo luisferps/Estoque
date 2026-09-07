@@ -5,6 +5,7 @@
 // Atualização: o Grupo OLX lê este feed automaticamente a cada 12 horas
 // e propaga as alterações em até 4h (ZAP/Viva) ou 24h (OLX).
 
+const { comCache } = require("./_cache");
 const { getDb, registrarPull } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toInt, toMetros, isDisponivelEstrito, apareceNosPortais, temFlagAnuncio,
@@ -458,7 +459,7 @@ ${details}
     </Listing>`;
 }
 
-exports.handler = async () => {
+const gerar = async () => {
   try {
     registrarPull("canalpro");
     const db = getDb();
@@ -519,3 +520,5 @@ ${listings.join("\n")}
     };
   }
 };
+
+exports.handler = comCache("canalpro", gerar);
