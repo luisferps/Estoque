@@ -3,21 +3,70 @@ import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "../firebase";
 
+// ─── Fonte compartilhada ───
+// Uma coleção = UM listener só, dividido por todos os componentes que a usam.
+// Antes cada componente abria o seu, e cada listener novo relia a coleção
+// inteira no Firestore (abrir a lista, clicar em editar e voltar já custava
+// três leituras completas). Era o que estourava a cota diária de leituras.
+function criarFonte(montarQuery) {
+  let dados = [];
+  let carregado = false;
+  let unsub = null;
+  const inscritos = new Set();
+
+  function avisar() {
+    inscritos.forEach((fn) => fn());
+  }
+
+  function ligar() {
+    if (unsub) return;
+    unsub = onSnapshot(
+      montarQuery(),
+      (snap) => {
+        dados = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        carregado = true;
+        avisar();
+      },
+      () => {
+        carregado = true;
+        avisar();
+      }
+    );
+  }
+
+  return {
+    // O listener fica vivo depois que o último componente sai: religar
+    // custaria uma releitura da coleção inteira.
+    inscrever(fn) {
+      ligar();
+      inscritos.add(fn);
+      return () => {
+        inscritos.delete(fn);
+      };
+    },
+    estado() {
+      return { dados, carregado };
+    },
+  };
+}
+
+function useFonte(fonte) {
+  const [estado, setEstado] = useState(fonte.estado);
+
+  useEffect(() => fonte.inscrever(() => setEstado(fonte.estado())), [fonte]);
+
+  return estado;
+}
+
+const fonteImoveis = criarFonte(() =>
+  query(collection(db, "imoveis"), orderBy("createdAt", "desc"))
+);
+const fonteCorretores = criarFonte(() => collection(db, "corretores"));
+
 // ─── Hook que escuta a coleção de imóveis em tempo real ───
 export function useImoveis() {
-  const [imoveis, setImoveis] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const q = query(collection(db, "imoveis"), orderBy("createdAt", "desc"));
-    const unsub = onSnapshot(q,
-      snap => { setImoveis(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false)
-    );
-    return unsub;
-  }, []);
-
-  return { imoveis, loading };
+  const { dados, carregado } = useFonte(fonteImoveis);
+  return { imoveis: dados, loading: !carregado };
 }
 
 // ─── Hook que retorna o usuário autenticado (Firebase Auth) ───
@@ -34,18 +83,8 @@ export function useAuthUser() {
 
 // ─── Hook que escuta a coleção de corretores ───
 export function useCorretores() {
-  const [corretores, setCorretores] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "corretores"),
-      snap => { setCorretores(snap.docs.map(d => ({ id: d.id, ...d.data() }))); setLoading(false); },
-      () => setLoading(false)
-    );
-    return unsub;
-  }, []);
-
-  return { corretores, loading };
+  const { dados, carregado } = useFonte(fonteCorretores);
+  return { corretores: dados, loading: !carregado };
 }
 
 // ─── Hook que escuta a coleção de tipos de imóvel ───
