@@ -8,6 +8,7 @@
 //
 // Atenção: imóveis sem latitude/longitude são EXCLUÍDOS do feed Meta.
 
+const { comCache } = require("./_cache");
 const { getDb, registrarPull } = require("./_firebase");
 const {
   xmlEscape, cdata, normalizeImageUrl, toInt, toMetros, isDisponivel, apareceNosPortais, temFlagAnuncio,
@@ -168,7 +169,7 @@ ${imagensAdicionais}
     </item>`;
 }
 
-exports.handler = async () => {
+const gerar = async () => {
   try {
     registrarPull("meta");
     const db = getDb();
@@ -222,3 +223,5 @@ ${items.join("\n")}
     };
   }
 };
+
+exports.handler = comCache("meta", gerar);
