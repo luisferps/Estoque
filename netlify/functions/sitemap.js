@@ -5,6 +5,7 @@
 //
 // Exposto como /sitemap.xml via regra no public/_redirects.
 
+const { comCache } = require("./_cache");
 const { getDb } = require("./_firebase");
 const { isDisponivel, apareceNoSite } = require("./_helpers");
 
@@ -26,7 +27,7 @@ function isoData(imovel) {
     : d.toISOString().substring(0, 10);
 }
 
-exports.handler = async () => {
+const gerar = async () => {
   try {
     const db = getDb();
     const snap = await db.collection("imoveis").get();
@@ -78,3 +79,5 @@ ${urls.join("\n")}
     };
   }
 };
+
+exports.handler = comCache("sitemap", gerar);
