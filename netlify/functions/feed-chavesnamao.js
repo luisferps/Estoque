@@ -5,6 +5,7 @@
 // O Chaves na Mão lê este feed automaticamente uma vez por dia após a
 // ativação por e-mail (atendimento@chavesnamao.com.br).
 
+const { comCache } = require("./_cache");
 const { getDb, registrarPull } = require("./_firebase");
 const {
   cdata, normalizeImageUrl, toFloat, toInt, toMetros, isDisponivelEstrito, apareceNosPortais, temFlagAnuncio,
@@ -265,7 +266,7 @@ ${fotosXml}
         </imovel>`;
 }
 
-exports.handler = async () => {
+const gerar = async () => {
   try {
     registrarPull("chavesnamao");
     const db = getDb();
@@ -316,3 +317,5 @@ ${imoveis.join("\n")}
     };
   }
 };
+
+exports.handler = comCache("chavesnamao", gerar);
