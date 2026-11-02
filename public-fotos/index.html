@@ -295,6 +295,7 @@
       <button class="btn btn-primario" id="btnTodas">⬇️ Baixar todas</button>
       <button class="btn btn-secundario" id="btnAlternativo">ZIP</button>
       <button class="btn btn-secundario" id="btnBaixarUma">Esta foto</button>
+      <button class="btn btn-secundario" id="btnPdf">📄 PDF</button>
     </div>
   </div>
 
@@ -388,6 +389,81 @@
         s.onerror = () => falhou(new Error('jszip'));
         document.head.appendChild(s);
       });
+    }
+
+    function carregarJsPDF() {
+      if (window.jspdf) return Promise.resolve();
+      return new Promise((ok, falhou) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = () => window.jspdf ? ok() : falhou(new Error('jspdf'));
+        s.onerror = () => falhou(new Error('jspdf'));
+        document.head.appendChild(s);
+      });
+    }
+
+    // ── PDF: só as fotos, uma por página, sem nenhum texto ou marca
+    async function gerarPdf(btn, rotuloFinal) {
+      btn.disabled = true;
+      try {
+        await carregarJsPDF();
+        const { jsPDF } = window.jspdf;
+        let pdf = null;
+        for (let i = 0; i < fotos.length; i++) {
+          btn.textContent = 'PDF ' + (i + 1) + '/' + fotos.length + '...';
+          try {
+            const r = await fetch(urlGrande(fotos[i]), { mode: 'cors' });
+            if (!r.ok) throw new Error('http ' + r.status);
+            const bmp = await createImageBitmap(await r.blob());
+            const esc = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+            const w = Math.round(bmp.width * esc), h = Math.round(bmp.height * esc);
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(bmp, 0, 0, w, h);
+            const img = c.toDataURL('image/jpeg', 0.88);
+            const orient = w >= h ? 'l' : 'p';
+            if (!pdf) pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h], hotfixes: ['px_scaling'], compress: true });
+            else pdf.addPage([w, h], orient);
+            pdf.addImage(img, 'JPEG', 0, 0, w, h);
+          } catch (e) { console.warn('foto ' + (i + 1) + ' fora do PDF:', e); }
+        }
+        if (!pdf) throw new Error('nenhuma foto');
+        pdf.setProperties({ title: '', subject: '', author: '', keywords: '', creator: '' });
+        const nome = slug(tituloImovel) + '.pdf';
+        const blob = pdf.output('blob');
+        const arq = new File([blob], nome, { type: 'application/pdf' });
+
+        if (modoCelular() && navigator.canShare && navigator.canShare({ files: [arq] })) {
+          try {
+            await navigator.share({ files: [arq] });
+          } catch (e) {
+            if (!(e && e.name === 'AbortError')) {
+              // O navegador exige toque recente: o PDF já está pronto, é só tocar de novo.
+              btn.disabled = false;
+              btn.textContent = '📄 Toque para salvar o PDF';
+              btn.onclick = async () => {
+                btn.onclick = null;
+                try { await navigator.share({ files: [arq] }); } catch (e2) {
+                  if (!(e2 && e2.name === 'AbortError')) salvarBlob(blob, nome);
+                }
+                btn.textContent = rotuloFinal;
+                btn.onclick = () => gerarPdf(btn, rotuloFinal);
+              };
+              return;
+            }
+          }
+        } else {
+          salvarBlob(blob, nome);
+        }
+      } catch (e) {
+        console.warn('PDF falhou:', e);
+        alert('Não consegui montar o PDF. Tente de novo em instantes.');
+      }
+      btn.disabled = false;
+      btn.textContent = rotuloFinal;
     }
 
     function extDe(tipo, url) {
@@ -641,6 +717,7 @@
       }
 
       $('btnBaixarUma').onclick = () => baixarUma(atual);
+      $('btnPdf').onclick = () => gerarPdf($('btnPdf'), '📄 PDF');
 
       $('loading').style.display = 'none';
       $('conteudo').style.display = 'flex';
