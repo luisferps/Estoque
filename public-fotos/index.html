@@ -424,10 +424,12 @@
             ctx.fillRect(0, 0, w, h);
             ctx.drawImage(bmp, 0, 0, w, h);
             const img = c.toDataURL('image/jpeg', 0.88);
-            const orient = w >= h ? 'l' : 'p';
-            if (!pdf) pdf = new jsPDF({ orientation: orient, unit: 'px', format: [w, h], hotfixes: ['px_scaling'], compress: true });
-            else pdf.addPage([w, h], orient);
-            pdf.addImage(img, 'JPEG', 0, 0, w, h);
+            const m = Math.round(Math.max(w, h) * 0.025);
+            const pw = w + m * 2, ph = h + m * 2;
+            const orient = pw >= ph ? 'l' : 'p';
+            if (!pdf) pdf = new jsPDF({ orientation: orient, unit: 'px', format: [pw, ph], hotfixes: ['px_scaling'], compress: true });
+            else pdf.addPage([pw, ph], orient);
+            pdf.addImage(img, 'JPEG', m, m, w, h);
           } catch (e) { console.warn('foto ' + (i + 1) + ' fora do PDF:', e); }
         }
         if (!pdf) throw new Error('nenhuma foto');
